@@ -1,0 +1,4 @@
+# Keep Windows launchers CRLF and the deliberately broken R6 samples byte-exact.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+samples/encoding-bad/** -text

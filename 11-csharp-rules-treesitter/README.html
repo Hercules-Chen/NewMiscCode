@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>csrules：以 tree-sitter 檢查 C# 團隊規則</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#5d6675;--card:#fff;--line:#dfe3ea;--accent:#2457c5;--codebg:#f0f2f6;--warn:#8a5a00;--warnbg:#fff4d6;--ok:#147a3d;--okbg:#e3f5ea;--bad:#b42318;--badbg:#fdecea}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2128;--line:#323844;--accent:#7aa2ff;--codebg:#262b34;--warn:#f0c75e;--warnbg:#3a3415;--ok:#4fd08a;--okbg:#163524;--bad:#ff8a80;--badbg:#3a1d1d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Segoe UI",sans-serif}
+header{max-width:1100px;margin:auto;padding:24px 16px 0}
+header h1{margin:0;font-size:24px}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);max-width:1100px;margin:14px auto 0;padding:8px 16px 0;display:flex;flex-wrap:wrap;gap:4px}
+nav.tabs a{padding:6px 10px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--card);color:var(--fg);text-decoration:none;font-size:14px;opacity:.75}
+nav.tabs a.active{opacity:1;font-weight:bold;border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+main{max-width:1100px;margin:auto;padding:12px 16px 60px}
+section.tab{display:none}
+section.tab.active{display:block}
+.no-js section.tab{display:block;border-top:2px solid var(--line);margin-top:24px}
+h2{font-size:22px;margin:18px 0 8px}
+h3{font-size:18px;margin:22px 0 6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:14px;background:var(--codebg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;font:13.5px/1.5 Consolas,"Cascadia Mono",monospace;max-width:100%}
+pre code{background:none;padding:0;overflow-wrap:normal}
+.tw{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:rgba(127,127,127,.08);white-space:nowrap}
+td pre{margin:4px 0;font-size:12.5px}
+table.rules{table-layout:fixed;min-width:760px}
+.rules td:first-child{font-weight:bold}
+.rules td pre{white-space:pre-wrap}
+.rules td pre code{overflow-wrap:anywhere}
+.rules col.c1{width:8%}.rules col.c2{width:22%}.rules col.c3{width:20%}.rules col.c4{width:28%}.rules col.c5{width:22%}
+.bad{border-left:4px solid var(--bad)}
+.good{border-left:4px solid var(--ok)}
+.note{background:var(--warnbg);border-left:4px solid var(--warn);padding:8px 14px;border-radius:6px;margin:12px 0}
+.ok{background:var(--okbg);border-left:4px solid var(--ok);padding:8px 14px;border-radius:6px;margin:12px 0}
+.unverified{display:inline-block;background:var(--warnbg);color:var(--warn);border:1px solid var(--warn);border-radius:10px;padding:0 8px;font-size:12px;font-weight:bold}
+ol.steps>li{margin:12px 0}
+img.shot{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block;margin:8px 0}
+a{color:var(--accent)}
+.toc a{display:inline-block;margin-right:12px}
+footer{max-width:1100px;margin:auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body class="no-js">
+<header>
+  <h1>csrules：以 tree-sitter（WASM）檢查 C# 團隊程式規則</h1>
+  <p>不需要 .NET SDK · Node.js + web-tree-sitter 0.25.10 + tree-sitter-c-sharp 0.23.5 · 主控台 / JSON / SARIF 2.1.0 / HTML 報告 · 繁體中文 / English</p>
+</header>
+<nav class="tabs" role="tablist">
+  <a href="#overview" data-tab="overview">概覽</a>
+  <a href="#rules" data-tab="rules">規則一覽</a>
+  <a href="#quickstart" data-tab="quickstart">快速開始</a>
+  <a href="#usage" data-tab="usage">使用說明</a>
+  <a href="#verify" data-tab="verify">逐步驗證指南</a>
+  <a href="#dev" data-tab="dev">開發者指南</a>
+  <a href="#roslyn" data-tab="roslyn">與 Roslyn Analyzer 比較</a>
+  <a href="#debug" data-tab="debug">除錯與日誌</a>
+  <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<!-- ============================== 概覽 ============================== -->
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p><strong>csrules</strong> 是一個用 Node.js 寫的 C# 程式規則檢查器。它用 <a href="https://tree-sitter.github.io/tree-sitter/">tree-sitter</a> 的 WebAssembly 版本（<code>web-tree-sitter</code>）加上 C# 文法（<code>tree-sitter-c-sharp</code> 套件內附的 <code>.wasm</code>）把 <code>.cs</code> 檔解析成語法樹，再用每條規則各自的 <strong>tree-sitter query（<code>.scm</code> 檔）</strong>找出違規。整個過程<strong>不需要安裝 .NET SDK、不需要編譯專案</strong>，因此可以在任何有 Node.js 的 CI agent 或開發機上執行。</p>
+<ul>
+  <li><strong>六條團隊規則</strong>：R1 禁止 sync-over-async、R2 優先使用 async、R3 減少 out 參數、R4 <code>new HttpClient()</code> 與 async 中的 <code>Thread.Sleep</code>、R5 catch 吞例外、R6 檔案編碼規範（位元組層級）。詳見 <a href="#rules">規則一覽</a>。</li>
+  <li><strong>可設定</strong>：<code>csrules.json</code> 控制每條規則的開關、嚴重度、允許清單（路徑 glob、屬性名稱、類別名稱）；也支援內嵌抑制註解 <code>// csrules-disable-next-line R1</code>。</li>
+  <li><strong>多種輸出</strong>：主控台（<code>檔案:行:欄 嚴重度 規則 訊息</code>）、JSON、SARIF 2.1.0（GitHub code scanning、VS Code SARIF Viewer、Azure DevOps）、自帶的 HTML 報告（繁中 / 英文切換、依規則或依檔案分組、程式碼片段紅框標示）。</li>
+  <li><strong>CI 友善</strong>：有錯誤就回傳結束碼 1；<code>--fail-on warning</code> 可讓警告也擋下建置。</li>
+  <li><strong>建議改寫</strong>：<code>--fix-suggestions</code> 列出每個問題的改寫範例（不會自動修改檔案）。</li>
+  <li><strong>除錯</strong>：<code>--debug</code> 傾印每個 query 比對到的語法節點與 captures；JSONL 日誌含等級。</li>
+</ul>
+<h3 id="folder-layout">資料夾結構</h3>
+<pre><code>11-csharp-rules-treesitter/
+├─ src/
+│  ├─ cli.js              命令列進入點（參數解析、輸出、結束碼）
+│  ├─ engine.js           載入 wasm、執行 query、允許清單、抑制註解
+│  ├─ config.js           csrules.json 預設值與合併
+│  ├─ i18n.js             繁中 / 英文訊息
+│  ├─ logger.js           JSONL 日誌（含等級，OS 感知的預設位置）
+│  ├─ glob.js             路徑 glob 比對
+│  ├─ rules/              r1.js … r5.js（語法樹規則）、r6-encoding.js（位元組規則）、util.js
+│  └─ reporters/          console.js、sarif.js、html.js
+├─ queries/               每條規則的 tree-sitter query（*.scm）
+├─ samples/               範例 C# 方案：Violations/（刻意違規）、Compliant/（不應有任何問題）
+│  └─ encoding-bad/       R6 刻意違規的編碼錯誤檔案（Big5、無 BOM 的 .ps1、含中文的批次檔）
+├─ test/                  npm test（node:test + Playwright）
+├─ examples/              範例 HTML 報告與截圖
+├─ scripts/               文件截圖輔助腳本
+├─ csrules.bat / csrules.ps1 / run-sample.bat / run-tests.bat / setup.bat   Windows 啟動器
+└─ README.html（本文件）/ README.md</code></pre>
+<p>範例報告：<a href="examples/report.html">examples/report.html</a>（由 <code>npm test</code> 以 <code>samples/</code> 產生）。</p>
+</section>
+
+<!-- ============================== 規則一覽 ============================== -->
+<section class="tab" id="rules">
+<h2>規則一覽</h2>
+<p>每條規則的 ID 會出現在主控台、SARIF 的 <code>ruleId</code>、抑制註解中。嚴重度預設值可在 <code>csrules.json</code> 中改為 <code>error</code> / <code>warning</code> / <code>note</code>。</p>
+<div class="tw">
+<table class="rules">
+<colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>
+<tr><th>ID</th><th>檢查內容</th><th>為什麼</th><th>違規 / 合規範例</th><th>設定（<code>rules.Rn</code>）</th></tr>
+<tr id="rule-R1"><td>R1<br><small>預設 error</small></td>
+<td>禁止 sync-over-async：<code>.GetAwaiter().GetResult()</code>、Task 的 <code>.Result</code>、<code>.Wait()</code>、<code>Task.WaitAll/WaitAny</code>。單元測試專案與 Startup 例外。</td>
+<td>在有 SynchronizationContext 的環境（WinForms/WPF/舊版 ASP.NET）會死結；在 ASP.NET Core 會佔住執行緒造成執行緒集區飢餓。</td>
+<td><pre class="bad"><code>var s = client.GetStringAsync(u).Result;
+GetAsync().GetAwaiter().GetResult();</code></pre><pre class="good"><code>var s = await client.GetStringAsync(u);</code></pre></td>
+<td><code>allow.paths</code>（預設 <code>**/*.Tests/**</code>、<code>**/*.UnitTests/**</code>、<code>**/*Tests.cs</code>、<code>**/Startup.cs</code>）、<code>allow.attributes</code>（<code>Fact</code>、<code>Theory</code>、<code>Test</code>、<code>TestMethod</code>…）、<code>allow.classes</code>（<code>Startup</code>、<code>*Tests</code>）、<code>taskNamePattern</code>、<code>strictResult</code></td></tr>
+<tr id="rule-R2"><td>R2<br><small>預設 warning</small></td>
+<td>(a) <code>async void</code> 方法／區域函式（事件處理常式 <code>(object sender, XxxEventArgs e)</code> 除外）；(b) <code>public</code> 方法中呼叫已有 Async 版本的同步 I/O（<code>File.ReadAllText</code>、<code>ExecuteReader</code>、<code>HttpClient.Send</code>、<code>SaveChanges</code>…）。</td>
+<td><code>async void</code> 的例外無法被呼叫端 await／捕捉，常直接讓程序崩潰；同步 I/O 會阻塞執行緒，降低伺服器吞吐量。</td>
+<td><pre class="bad"><code>public async void Save() { ... }
+public string Load(string p) =&gt; File.ReadAllText(p);</code></pre><pre class="good"><code>public async Task Save() { ... }
+public Task&lt;string&gt; LoadAsync(string p) =&gt; File.ReadAllTextAsync(p);</code></pre></td>
+<td><code>asyncVoid</code>、<code>syncIo</code>、<code>publicOnly</code>（預設 true）、<code>syncIoCalls</code>（清單：<code>{ "call": "File.ReadAllText", "async": "File.ReadAllTextAsync" }</code> 或 <code>{ "method": "Send", "receiver": "http|client", "async": "SendAsync" }</code>）</td></tr>
+<tr id="rule-R3"><td>R3<br><small>預設 warning</small></td>
+<td>方法或區域函式宣告了 <code>out</code> 參數。<code>Try*</code> 模式、<code>Deconstruct</code>、<code>override</code>、<code>extern</code>（P/Invoke）預設忽略。</td>
+<td><code>out</code> 不能用在 async 方法、不好組合；tuple 或結果物件更易讀、易測試。</td>
+<td><pre class="bad"><code>bool Parse(string s, out int v, out string err)</code></pre><pre class="good"><code>(bool Ok, int Value, string Error) Parse(string s)
+bool TryParse(string s, out int v) // Try* 允許</code></pre></td>
+<td><code>ignoreTryPattern</code>、<code>ignoreDeconstruct</code>、<code>ignoreOverrides</code>、<code>ignoreExtern</code>（皆預設 true）；<code>allow.attributes</code> 預設 <code>DllImport</code>、<code>LibraryImport</code></td></tr>
+<tr id="rule-R4"><td>R4<br><small>預設 error</small></td>
+<td>(a) 在方法本體內 <code>new HttpClient()</code>（含 <code>HttpClient c = new();</code>）；(b) 在 async 方法／async lambda 中呼叫 <code>Thread.Sleep</code>。欄位初始化子、static 欄位、建構函式不報。<br><a href="#configureawait">不強制 ConfigureAwait（原因）</a></td>
+<td>每次 new HttpClient 會留下 TIME_WAIT socket，量大時 socket 耗盡，也不會更新 DNS；<code>Thread.Sleep</code> 在 async 程式中會佔住執行緒集區執行緒。</td>
+<td><pre class="bad"><code>using var c = new HttpClient();
+Thread.Sleep(1000); // 在 async 方法中</code></pre><pre class="good"><code>var c = _factory.CreateClient("api");
+await Task.Delay(1000);</code></pre></td>
+<td><code>httpClient</code>、<code>threadSleep</code>（開關）</td></tr>
+<tr id="rule-R5"><td>R5<br><small>預設 error</small></td>
+<td>catch 區塊既沒有記錄日誌也沒有重新拋出（含空的 <code>catch { }</code>）。</td>
+<td>吞掉的例外讓問題在正式環境「無聲無息」，事後無從除錯。</td>
+<td><pre class="bad"><code>catch (Exception) { }
+catch (IOException ex) { return -1; }</code></pre><pre class="good"><code>catch (IOException ex) { _logger.LogError(ex, "..."); return -1; }
+catch (Exception) { Cleanup(); throw; }</code></pre></td>
+<td><code>ignoreExceptionTypes</code>（預設 <code>OperationCanceledException</code>、<code>TaskCanceledException</code>）、<code>loggingPatterns</code>（判斷「有記錄」的呼叫，正規表示式比對被呼叫者文字，例如 <code>_logger.LogError</code>、<code>Log.Error</code>、<code>TrackException</code>）</td></tr>
+<tr id="rule-R6"><td>R6<br><small>預設 error</small></td>
+<td>位元組層級的編碼檢查：<code>.bat</code>/<code>.cmd</code> 必須純 ASCII；<code>.ps1</code> 含非 ASCII 必須有 UTF-8 BOM；<code>.cs</code>/<code>.md</code>/<code>.csproj</code>/<code>.json</code> 必須是有效 UTF-8；<code>.md</code> 不可有 BOM；含 U+FFFD 也會報。</td>
+<td>繁中 Windows 的 cmd.exe 以 CP950 讀批次檔、Windows PowerShell 5.1 無 BOM 時以 ANSI 讀 .ps1，中文會變亂碼；Big5 的 .cs 在 Linux CI 或 git diff 中會壞掉。</td>
+<td><pre class="bad"><code>rem 含中文的 .bat
+Big5 編碼的 .cs</code></pre><pre class="good"><code>.bat 只放 ASCII，中文訊息放在 UTF-8 BOM 的 .ps1</code></pre></td>
+<td><code>asciiOnly</code>、<code>bomIfNonAscii</code>、<code>utf8</code>、<code>bomForbidden</code>（副檔名清單）、<code>allow.paths</code>。.cs 允許 BOM（Visual Studio 預設會加）。</td></tr>
+</table>
+</div>
+<h3 id="configureawait">為什麼不強制 ConfigureAwait(false)</h3>
+<ul>
+  <li>ASP.NET Core 與主控台程式<strong>沒有 SynchronizationContext</strong>，<code>ConfigureAwait(false)</code> 在應用程式碼中沒有效果，強制加上只會增加雜訊。</li>
+  <li>它真正有意義的地方是<strong>可重用的類別庫</strong>（可能被 WinForms/WPF 呼叫）。從語法樹無法可靠判斷一個專案是不是類別庫、也無法知道 await 的對象型別。</li>
+  <li>若類別庫要強制，建議改用 Roslyn 的 <code>CA2007</code>，只在類別庫專案的 <code>.editorconfig</code> 中啟用（見 <a href="#roslyn">與 Roslyn Analyzer 比較</a>）。</li>
+</ul>
+<h3 id="heuristics">「Task 嗎？」的判斷方式（R1）</h3>
+<p>語法樹沒有型別資訊，所以 R1 對 <code>.Result</code> / <code>.Wait()</code> 只在接收者「看起來像 Task」時才報，以避免把 <code>validation.Result</code> 這類一般屬性誤判：</p>
+<ul>
+  <li>接收者是呼叫名稱以 <code>Async</code> 結尾的方法，或 <code>Task.Run</code>、<code>Task.FromResult</code>、<code>Task.WhenAll</code>…；</li>
+  <li>接收者是同一檔案中宣告為 <code>Task</code>、<code>Task&lt;T&gt;</code>、<code>ValueTask</code>… 的變數／欄位／參數／屬性，或 <code>var x = XxxAsync(...)</code>（未 await）；</li>
+  <li>接收者名稱符合 <code>taskNamePattern</code>（預設 <code>(^|_)task$|Task$</code>）。</li>
+</ul>
+<p><code>.GetAwaiter().GetResult()</code> 與 <code>Task.WaitAll/WaitAny</code> 則一律報。想要更嚴格（任何 <code>.Result</code> 都報）可設 <code>"strictResult": true</code>。</p>
+</section>
+
+<!-- ============================== 快速開始 ============================== -->
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<p>需求：Node.js 20 以上（已在 Node 22 驗證）。<strong>不需要 .NET SDK。</strong></p>
+<h3 id="qs-windows">Windows（繁體中文）</h3>
+<ol class="steps">
+  <li>在檔案總管中雙擊 <code>setup.bat</code>（會執行 <code>npm ci</code>，依 <code>package-lock.json</code> 安裝固定版本）。</li>
+  <li>雙擊 <code>run-sample.bat</code>：掃描 <code>samples\</code>，主控台列出問題與建議改寫，並自動開啟 <code>output\report.html</code>。預期最後顯示 <code>[run-sample] exit code: 1</code>（範例是刻意違規的）。</li>
+  <li>檢查自己的專案（在「命令提示字元」中）：
+<pre><code>csrules.bat D:\src\MyCompany.Orders --html output\orders.html --sarif output\orders.sarif</code></pre>
+  批次檔流程：<code>csrules.bat</code>（純 ASCII、CRLF）→ <code>csrules.ps1</code>（UTF-8 with BOM）→ <code>node src/cli.js</code>。結束後會顯示結束碼並 <code>pause</code>；在 CI 中請直接呼叫 node（設定環境變數 <code>CSRULES_NO_PAUSE=1</code> 也可略過 pause）。</li>
+  <li>執行測試：雙擊 <code>run-tests.bat</code>。</li>
+</ol>
+<h3 id="qs-linux">Linux / macOS</h3>
+<pre><code>cd 11-csharp-rules-treesitter
+npm ci
+npm test
+node src/cli.js samples --fix-suggestions --html output/report.html
+echo $?        # 1（範例刻意違規）
+node src/cli.js /path/to/your/solution --sarif output/report.sarif</code></pre>
+<p>也可以用 <code>npm run sample</code>（等同掃描 samples 並輸出 <code>output/report.{html,sarif,json}</code>）。</p>
+<h3 id="qs-config">為自己的方案建立設定檔</h3>
+<pre><code>cd D:\src\MyCompany.Orders
+node D:\tools\11-csharp-rules-treesitter\src\cli.js --init      # 寫出含全部預設值的 csrules.json</code></pre>
+</section>
+
+<!-- ============================== 使用說明 ============================== -->
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<p class="toc"><a href="#cli-options">CLI 選項</a><a href="#exit-codes">結束碼</a><a href="#config">設定檔</a><a href="#suppression">抑制註解</a><a href="#ci-github">GitHub Actions</a><a href="#ci-azure">Azure DevOps</a><a href="#sarif-vscode">VS Code SARIF Viewer</a></p>
+<h3 id="cli-options">CLI 選項</h3>
+<pre><code>node src/cli.js [選項] &lt;檔案或資料夾...&gt;</code></pre>
+<div class="tw"><table>
+<tr><th>選項</th><th>說明</th></tr>
+<tr><td><code>--config &lt;檔案&gt;</code></td><td>指定設定檔。未指定時，從第一個目標（檔案則取其資料夾）往上層找 <code>csrules.json</code>，最後找目前資料夾；都沒有就用內建預設值。</td></tr>
+<tr><td><code>--rules R1,R3</code></td><td>只執行指定規則。</td></tr>
+<tr><td><code>--lang zh-TW|en</code></td><td>主控台與 HTML 報告預設語言（優先序：參數 &gt; 環境變數 <code>CSRULES_LANG</code> &gt; 設定檔 <code>language</code> &gt; zh-TW）。JSON/SARIF 一律同時包含兩種語言。</td></tr>
+<tr><td><code>--format console|json</code></td><td>標準輸出格式。</td></tr>
+<tr><td><code>--json / --sarif / --html &lt;檔案&gt;</code></td><td>另存結果（可同時指定，資料夾會自動建立）。</td></tr>
+<tr><td><code>--fix-suggestions</code></td><td>在主控台列出建議改寫（不會修改檔案；JSON/SARIF/HTML 一律包含建議）。</td></tr>
+<tr><td><code>--fail-on error|warning|none</code></td><td>哪個嚴重度會讓結束碼變成 1（預設 error）。</td></tr>
+<tr><td><code>--debug</code></td><td>把 query 比對到的節點、captures、略過原因輸出到 stderr 與日誌，見 <a href="#debug">除錯與日誌</a>。</td></tr>
+<tr><td><code>--log-dir</code>、<code>--log-level</code></td><td>JSONL 日誌位置與等級（debug/info/warn/error/off）。</td></tr>
+<tr><td><code>--print-config</code>、<code>--init</code>、<code>--version</code>、<code>--help</code>、<code>--no-color</code></td><td>印出合併後設定、寫出預設設定檔、版本（含文法 ABI）、說明、關閉顏色。</td></tr>
+</table></div>
+<p>路徑：主控台顯示相對於<strong>目前資料夾</strong>的路徑（在 VS Code 終端機可直接點選）；JSON 的 <code>file</code> 與 SARIF 的 <code>uri</code> 則相對於<strong>掃描目標資料夾</strong>（允許清單的 glob 也以此為準），JSON 另有 <code>path</code> 欄位為相對於目前資料夾的路徑。</p>
+<h3 id="exit-codes">結束碼</h3>
+<table>
+<tr><th>代碼</th><th>意義</th></tr>
+<tr><td>0</td><td>沒有達到 <code>--fail-on</code> 等級的問題</td></tr>
+<tr><td>1</td><td>有達到 <code>--fail-on</code> 等級的問題（預設：至少一個 error）</td></tr>
+<tr><td>2</td><td>參數錯誤、設定檔錯誤（找不到、JSON 錯誤、未知規則或嚴重度）、目標不存在</td></tr>
+<tr><td>3</td><td>內部錯誤（例如 wasm 載入失敗、文法 ABI 不相容）</td></tr>
+</table>
+<h3 id="config">設定檔 csrules.json</h3>
+<p>使用者設定會「深層合併」到預設值上；<strong>陣列是整個取代</strong>（例如自訂 <code>allow.paths</code> 時，預設的路徑不會保留，需要的話請一併寫入）。完整預設值請執行 <code>node src/cli.js --init</code> 或 <code>--print-config</code>。範例（即 <code>samples/csrules.json</code>）：</p>
+<pre><code>{
+  "language": "zh-TW",
+  "exclude": ["**/bin/**", "**/obj/**"],
+  "rules": {
+    "R1": {
+      "severity": "error",
+      "allow": {
+        "paths": ["**/*.Tests/**", "**/Startup.cs"],
+        "attributes": ["Fact", "Theory", "TestMethod"],
+        "classes": ["Startup"]
+      }
+    },
+    "R2": { "severity": "warning" },
+    "R3": { "severity": "warning", "ignoreTryPattern": true },
+    "R4": { "severity": "error" },
+    "R5": { "severity": "error" },
+    "R6": { "severity": "error" }
+  }
+}</code></pre>
+<ul>
+  <li><code>include</code> / <code>exclude</code>：相對於掃描目標資料夾的 glob（支援 <code>**</code>、<code>*</code>、<code>?</code>、<code>{a,b}</code>，不分大小寫，路徑一律用 <code>/</code>）。R6 另外會檢查 <code>.bat/.cmd/.ps1/.md/.csproj/.json</code>。</li>
+  <li>每條規則都有 <code>enabled</code>、<code>severity</code>、<code>allow</code>（<code>paths</code> glob、<code>attributes</code> 屬性名稱、<code>classes</code> 類別名稱 glob；R6 只支援 <code>paths</code>）。屬性允許清單會比對該節點外層所有方法、屬性、類別上的屬性（<code>[Fact]</code>、<code>[Xunit.Fact]</code>、<code>[FactAttribute]</code> 都算 <code>Fact</code>）。</li>
+  <li>被允許清單略過的項目不會出現在結果中，但 JSON 的 <code>allowed</code> 陣列會列出原因（例如 <code>path **/Startup.cs</code>）。</li>
+</ul>
+<h3 id="suppression">內嵌抑制註解</h3>
+<pre><code>// csrules-disable-next-line R1 -- 舊版同步 API，v3 移除
+return http.GetStringAsync(url).Result;
+
+try { Legacy(); } catch { } // csrules-disable-line R5
+
+// csrules-disable-file R3          （整個檔案）
+// csrules-disable-next-line         （不寫規則 = 全部規則）</code></pre>
+<ul>
+  <li>規則 ID 只取緊接在指令後面的那串（<code>R1, R3</code>），後面的說明文字即使提到其他 ID 也不會生效。</li>
+  <li>註解是由 tree-sitter 的 <code>(comment)</code> 節點取得，所以字串中的同樣文字不會被誤認。</li>
+  <li>R6 是位元組層級檢查，不支援註解抑制，請用 <code>rules.R6.allow.paths</code>。</li>
+</ul>
+<h3 id="ci-github">GitHub Actions（上傳 SARIF 到 code scanning）</h3>
+<p>假設本工具放在儲存庫的 <code>.csrules/</code> 資料夾，並在儲存庫根目錄放 <code>csrules.json</code>（記得把 <code>.csrules/**</code> 加入 <code>exclude</code>）。從儲存庫根目錄掃描，SARIF 中的路徑就會是相對於儲存庫的路徑。</p>
+<pre><code>name: csrules
+on: [push, pull_request]
+jobs:
+  csrules:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: .csrules
+      - run: node .csrules/src/cli.js . --sarif csrules.sarif --html csrules.html --lang en
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: csrules.sarif
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: csrules-report
+          path: csrules.html</code></pre>
+<p><span class="unverified">未在本環境驗證</span> 本專案沒有連線到 GitHub 執行上面的 workflow；SARIF 結構已由 <code>npm test</code> 驗證必要欄位（version、runs、tool.driver.rules、ruleId/ruleIndex、level、message、artifactLocation、region）。</p>
+<h3 id="ci-azure">Azure DevOps Pipelines</h3>
+<pre><code>steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '22.x'
+- script: npm ci
+  workingDirectory: .csrules
+  displayName: Install csrules
+- script: node .csrules/src/cli.js . --sarif $(Build.ArtifactStagingDirectory)/CodeAnalysisLogs/csrules.sarif --html $(Build.ArtifactStagingDirectory)/csrules.html
+  displayName: Run csrules (fails the build on errors)
+- task: PublishBuildArtifacts@1
+  condition: always()
+  inputs:
+    PathtoPublish: $(Build.ArtifactStagingDirectory)/CodeAnalysisLogs
+    ArtifactName: CodeAnalysisLogs</code></pre>
+<p>Windows agent 也可以用 <code>script: node .csrules\src\cli.js . ...</code>。名為 <code>CodeAnalysisLogs</code> 的 artifact 可由 Marketplace 的「SARIF SAST Scans Tab」擴充功能顯示。<span class="unverified">未在本環境驗證</span></p>
+<h3 id="sarif-vscode">在 VS Code 中檢視 SARIF</h3>
+<ol>
+  <li>安裝 Microsoft 的「SARIF Viewer」擴充功能（ID：<code>MS-SarifVSCode.sarif-viewer</code>）。</li>
+  <li>執行 <code>node src/cli.js &lt;你的方案資料夾&gt; --sarif output/result.sarif</code>。</li>
+  <li>在 VS Code 開啟 <code>output/result.sarif</code>，SARIF 面板會列出結果，點選即可跳到原始碼位置（路徑以 <code>originalUriBaseIds.SRCROOT</code> = 掃描目標資料夾為基準）。</li>
+</ol>
+<p><span class="unverified">未在本環境驗證</span> 本環境沒有 VS Code；以上步驟依擴充功能的公開說明撰寫。</p>
+</section>
+
+<!-- ============================== 逐步驗證指南 ============================== -->
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下每一步都附上預期結果，數字都是在本機實際執行得到的。Windows 請把 <code>/</code> 換成 <code>\</code> 或直接使用對應的 .bat。</p>
+<ol class="steps">
+  <li id="verify-install"><strong>安裝與版本</strong>
+<pre><code>npm ci
+node src/cli.js --version</code></pre>
+  預期：顯示 <code>"web-tree-sitter": "0.25.10"</code>、<code>"tree-sitter-c-sharp": "0.23.5"</code>、<code>"grammarAbi": 15</code>。</li>
+  <li id="verify-tests"><strong>自動測試</strong>
+<pre><code>npm test</code></pre>
+  預期：<code># tests 36</code>、<code># pass 36</code>、<code># fail 0</code>（約 5–6 秒；含 Playwright 開啟 HTML 報告與本說明文件）。Windows 可雙擊 <code>run-tests.bat</code>。</li>
+  <li id="verify-sample"><strong>掃描範例方案</strong>
+<pre><code>node src/cli.js samples --fix-suggestions --html output/report.html --sarif output/report.sarif</code></pre>
+  預期最後三行與結束碼：
+<pre><code>共 31 項：錯誤 22、警告 9、提示 0（掃描 22 個檔案，約 300 ms）
+已抑制 4 項（csrules-disable 註解）
+已依允許清單略過 3 項
+（結束碼 1）</code></pre>
+  依規則：R1 10、R2 6、R3 3、R4 4、R5 3、R6 5。每個違規行在 <code>samples/</code> 的原始碼行尾都有 <code>// expect: Rn</code> 標記，<code>npm test</code> 會逐行比對。
+  <img class="shot" src="examples/console-output.png" alt="主控台輸出：檔案:行:欄 嚴重度 規則 訊息，以及建議改寫" width="980" height="688" loading="lazy"></li>
+  <li id="verify-compliant"><strong>合規程式碼不會誤報</strong>
+<pre><code>node src/cli.js samples/SampleApp/Compliant</code></pre>
+  預期：<code>沒有發現問題。</code>，結束碼 0。這兩個檔案刻意包含容易誤判的寫法：非 Task 的 <code>.Result</code>/<code>.Wait()</code>、<code>Monitor.Wait</code>、事件處理常式的 <code>async void</code>、<code>TryGetCached(out ...)</code>、static <code>HttpClient</code>、同步方法中的 <code>Thread.Sleep</code>、有記錄或重拋的 catch。</li>
+  <li id="verify-allow"><strong>允許清單</strong>：<code>samples/SampleApp/Startup.cs</code> 與 <code>samples/SampleApp.Tests/</code> 中的 <code>.GetAwaiter().GetResult()</code>、<code>.Result</code> 不會出現在結果中。用 JSON 看原因：
+<pre><code>node src/cli.js samples --format json --log-level off</code></pre>
+  預期：<code>"allowed"</code> 陣列有 3 筆，<code>reason</code> 分別為 <code>path **/*.Tests/**</code>（2 筆）與 <code>path **/Startup.cs</code>。</li>
+  <li id="verify-suppress"><strong>抑制註解</strong>
+<pre><code>node src/cli.js samples/SampleApp/Violations/Suppressed.cs</code></pre>
+  預期：只剩 1 項（第 23 行，因為上一行抑制的是 R3 而不是 R1），並顯示 <code>已抑制 3 項</code>，結束碼 1。</li>
+  <li id="verify-encoding"><strong>R6 編碼檢查</strong>
+<pre><code>node src/cli.js samples/encoding-bad</code></pre>
+  預期 5 項 error：<code>Big5Legacy.cs</code>（無效 UTF-8，可能是 Big5）、<code>bom-readme.md</code>（不應有 BOM）、含中文的批次檔 legacy&#46;bat（第 2 行，非 ASCII 位元組 0xE9）、沒有 BOM 的 no-bom&#46;ps1、<code>notes-big5.md</code>（無效 UTF-8）。而 <code>samples/SampleApp/scripts/</code> 中的合規批次檔與 BOM 版 PowerShell 腳本不會被報。</li>
+  <li id="verify-html"><strong>HTML 報告</strong>：開啟 <code>output/report.html</code>（或 <a href="examples/report.html">examples/report.html</a>）。預期：上方卡片顯示 總數 31／錯誤 22／警告 9；規則表的數量與主控台一致；每個問題附前後 2 行程式碼，問題行底色標紅，問題範圍有紅框與紅色波浪底線；按「English」切換英文，按「依檔案」改為依檔案分組。
+  <img class="shot" src="examples/report-zh-TW.png" alt="HTML 報告（繁體中文、依規則分組）" width="1100" height="900" loading="lazy">
+  <img class="shot" src="examples/report-en-by-file.png" alt="HTML 報告（英文、依檔案分組）" width="1100" height="900" loading="lazy">
+  手機寬度（390px）也不會出現水平捲軸：
+  <img class="shot" src="examples/report-mobile-390.png" alt="HTML 報告在 390px 寬度" width="390" height="800" loading="lazy" style="max-width:390px;width:100%"></li>
+  <li id="verify-exit"><strong>結束碼</strong>
+<pre><code>node src/cli.js samples --rules R3                      # 只有 warning → 0
+node src/cli.js samples --rules R3 --fail-on warning    # → 1
+node src/cli.js samples --rules R9                      # 未知規則 → 2</code></pre></li>
+  <li id="verify-debug"><strong>除錯輸出</strong>
+<pre><code>node src/cli.js samples/SampleApp/Violations/R4_ResourceMisuse.cs --debug --rules R4</code></pre>
+  預期：stderr 出現 <code>[debug] {"kind":"match",...}</code>（query captures）與 <code>{"kind":"skip",...,"reason":"not inside a method body"}</code>（static 欄位上的 new HttpClient 被略過的原因），並印出日誌檔路徑。</li>
+  <li id="verify-audit"><strong>編碼稽核（儲存庫工具）</strong>
+<pre><code>node ../tools/audit-text.mjs .
+node ../tools/audit-text.mjs samples/encoding-bad</code></pre>
+  預期：第一行指令顯示 <code>problems=0</code> 與 <code>(skipped fixture folder: samples/encoding-bad)</code>；第二行直接稽核刻意違規的資料夾，顯示 <code>problems=4</code>（批次檔非 ASCII、.ps1 缺 BOM、Big5 的 .md、帶 BOM 的 .md；稽核工具不檢查 .cs，所以 Big5 的 .cs 只會被 csrules 的 R6 抓到）。</li>
+</ol>
+</section>
+
+<!-- ============================== 開發者指南 ============================== -->
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<p class="toc"><a href="#architecture">架構</a><a href="#queries">tree-sitter query</a><a href="#add-rule">新增規則</a><a href="#versions">版本與 ABI</a><a href="#changelog">變更紀錄</a></p>
+<h3 id="architecture">架構</h3>
+<pre><code>cli.js ─ parseArgs → loadConfig(csrules.json) → createLogger(JSONL)
+   └─ engine.run(targets)
+        ├─ collectFiles：include/exclude glob，.cs + R6 目標副檔名
+        ├─ loadLanguage：Parser.init() → Language.load(tree-sitter-c_sharp.wasm) → setLanguage 探測 ABI
+        ├─ loadQueries：queries/*.scm 編譯成 Query
+        └─ 每個檔案 checkFile（最多 4 個並行，讀檔非同步、解析在 wasm 內同步）
+             ├─ R6 checkEncoding(Buffer)          ← 位元組層級，不需語法樹
+             ├─ parser.parse(text) → tree
+             ├─ comments.scm → 抑制註解表
+             └─ 每條規則 rule.check(ctx)
+                  ctx.matches('R1-sync-over-async') → [{ capture 名稱: 節點 }]
+                  ctx.report(node, 訊息 key, 參數, 建議改寫)
+                      → 允許清單（路徑/屬性/類別）→ 抑制註解 → findings
+   └─ reporters：console / JSON / SARIF 2.1.0 / HTML</code></pre>
+<p>所有 I/O 都是 async（<code>fs/promises</code>）；日誌寫入以 Promise 佇列串接，結束前 <code>flush()</code>。</p>
+<h3 id="queries">tree-sitter query 怎麼運作</h3>
+<p>tree-sitter 把原始碼解析成具體語法樹（CST）。query 是 S 運算式樣式，<code>@名稱</code> 是 capture，<code>(#eq? @x "...")</code>、<code>(#match? @x "regex")</code>、<code>(#any-of? @x "a" "b")</code> 是文字述詞（web-tree-sitter 會在 <code>query.matches()</code> 中自動套用）。例如 R1 的 <code>.GetAwaiter().GetResult()</code>：</p>
+<pre><code>((invocation_expression
+   function: (member_access_expression
+     expression: (invocation_expression
+       function: (member_access_expression name: (identifier) @_awaiter))
+     name: (identifier) @_getresult)) @get_result
+ (#eq? @_awaiter "GetAwaiter")
+ (#eq? @_getresult "GetResult"))</code></pre>
+<p>query 負責「找候選節點」，型別相關或需要往上看祖先節點的判斷（例如「是否在 async 方法中」、「接收者像不像 Task」、「catch 中有沒有 throw 或記錄」）在 <code>src/rules/rN.js</code> 中用節點 API（<code>parent</code>、<code>childForFieldName</code>）完成。想知道某段程式碼的節點型別，可用 <code>--debug</code> 看 captures 的 <code>type</code>，或參考 <code>node_modules/tree-sitter-c-sharp/src/node-types.json</code>。</p>
+<div class="tw"><table>
+<tr><th>query 檔</th><th>用途</th></tr>
+<tr><td><code>queries/R1-sync-over-async.scm</code></td><td>GetResult、.Result、.Wait()、Task.WaitAll/WaitAny</td></tr>
+<tr><td><code>queries/task-decls.scm</code></td><td>收集 Task 型別宣告與 <code>var x = XxxAsync()</code> 的名稱</td></tr>
+<tr><td><code>queries/R2-prefer-async.scm</code></td><td>async void 方法與區域函式、候選 I/O 呼叫</td></tr>
+<tr><td><code>queries/R3-out-params.scm</code></td><td>含 out 參數的方法與區域函式</td></tr>
+<tr><td><code>queries/R4-resource-misuse.scm</code></td><td>new HttpClient()、目標型別 new()、Thread.Sleep</td></tr>
+<tr><td><code>queries/R5-swallowed-catch.scm</code>、<code>R5-handled.scm</code></td><td>catch 子句；catch 本體內的 throw 與呼叫</td></tr>
+<tr><td><code>queries/comments.scm</code></td><td>抑制註解</td></tr>
+</table></div>
+<h3 id="add-rule">如何新增一條規則（例：R7 禁止 <code>DateTime.Now</code>）</h3>
+<ol>
+  <li>新增 <code>queries/R7-datetime-now.scm</code>：
+<pre><code>((member_access_expression) @now
+ (#match? @now "^(System\\.)?DateTime\\.Now$"))</code></pre></li>
+  <li>新增 <code>src/rules/r7.js</code>：
+<pre><code>export default {
+  id: 'R7',
+  queries: ['R7-datetime-now'],
+  check(ctx) {
+    for (const m of ctx.matches('R7-datetime-now')) {
+      ctx.report(m.now, 'R7.now', {}, 'DateTime.UtcNow  // 或注入 TimeProvider');
+    }
+  },
+};</code></pre></li>
+  <li>在 <code>src/i18n.js</code> 的 <code>RULES_META</code> 與訊息表加入 <code>R7</code> / <code>R7.now</code>（繁中與英文）；SARIF 規則清單會自動帶入，HTML 報告也會自動出現新列。</li>
+  <li>在 <code>src/config.js</code> 的 <code>DEFAULT_CONFIG.rules</code> 加入 <code>R7: { enabled: true, severity: 'warning', allow: { paths: [], attributes: [], classes: [] } }</code>，在 <code>src/engine.js</code> 的 <code>AST_RULES</code>、<code>ALL_RULE_IDS</code> 加入 R7，並在 <code>src/reporters/sarif.js</code> 的 <code>HELP</code> 補一句說明。</li>
+  <li>在 <code>samples/SampleApp/Violations/</code> 新增違規檔，違規行尾寫 <code>// expect: R7</code>；在 <code>test/rules.test.js</code> 的 <code>ruleIds</code> 加入 <code>'R7'</code>，再更新 <code>test/cli.test.js</code>、<code>test/report.test.js</code> 中的總數，執行 <code>npm test</code>。</li>
+</ol>
+<h3 id="versions">版本與 ABI 相容性（常見地雷）</h3>
+<div class="tw"><table>
+<tr><th>套件</th><th>版本（精確鎖定）</th><th>說明</th></tr>
+<tr><td><code>web-tree-sitter</code></td><td>0.25.10</td><td>支援語言 ABI 13–15；ESM 具名匯出 <code>{ Parser, Language, Query }</code></td></tr>
+<tr><td><code>tree-sitter-c-sharp</code></td><td>0.23.5</td><td>套件內附 <code>tree-sitter-c_sharp.wasm</code>，ABI 15。npm 安裝時會跑 node-gyp-build 安裝原生綁定（有 prebuild，本工具不使用原生綁定，只讀 .wasm）</td></tr>
+<tr><td>Node.js</td><td>&gt;= 20（驗證於 22.23.4）</td><td></td></tr>
+</table></div>
+<p><strong>實測</strong>：同一個文法 wasm 搭配 web-tree-sitter 0.24.7、0.22.6、0.20.8 時，<code>Language.load()</code> 會成功，但 <code>parser.setLanguage()</code> 丟出 <code>Incompatible language version 15. Compatibility range 13 through 14.</code>。因此 <code>src/engine.js</code> 在載入後立刻用一個探測 Parser 呼叫 <code>setLanguage</code>，失敗時給出「請使用 web-tree-sitter &gt;= 0.25」的錯誤（結束碼 3），<code>npm test</code> 也會檢查 ABI 範圍與版本鎖定。<code>tree-sitter-wasms</code> 套件（收錄多種文法）未採用：它的 wasm 由較舊的 tree-sitter CLI 建置，ABI 與 web-tree-sitter 0.25 的搭配沒有在此驗證。升級任一套件時，請先跑 <code>node src/cli.js --version</code> 與 <code>npm test</code>。</p>
+<h3 id="changelog">變更紀錄</h3>
+<ul>
+  <li><strong>0.1.0</strong>（2026-11-05）：第一版。R1–R6、csrules.json、抑制註解、主控台／JSON／SARIF 2.1.0／HTML 報告、<code>--fix-suggestions</code>、<code>--debug</code>、JSONL 日誌、Windows 啟動器、範例方案與 36 項測試。</li>
+</ul>
+</section>
+
+<!-- ============================== Roslyn ============================== -->
+<section class="tab" id="roslyn">
+<h2>與 Roslyn Analyzer 比較</h2>
+<p><span class="unverified">未在本環境驗證</span> 本環境沒有 .NET SDK，以下 Roslyn 分析器的規則編號與行為是依公開文件整理，請在導入前自行確認。</p>
+<div class="tw"><table>
+<tr><th>面向</th><th>csrules（tree-sitter）</th><th>Roslyn Analyzer</th></tr>
+<tr><td>安裝需求</td><td>只要 Node.js；不用還原 NuGet、不用編譯</td><td>需要 .NET SDK 與可成功建置的方案</td></tr>
+<tr><td>型別資訊</td><td>沒有。用名稱與同檔宣告推測（例如「像不像 Task」）</td><td>有完整語意模型，可精確知道 <code>.Result</code> 是否是 <code>Task&lt;T&gt;.Result</code></td></tr>
+<tr><td>跨檔案／跨專案</td><td>只看單一檔案</td><td>整個編譯單元</td></tr>
+<tr><td>IDE 體驗</td><td>SARIF 檔案或 HTML 報告</td><td>即時波浪線、燈泡 Code Fix、<code>.editorconfig</code> 調整嚴重度</td></tr>
+<tr><td>自動修正</td><td>只有建議改寫文字</td><td>CodeFixProvider 可一鍵修正</td></tr>
+<tr><td>撰寫新規則</td><td>一個 .scm + 一個 JS 檔，幾十行</td><td>C# 專案、單元測試框架、NuGet 打包</td></tr>
+<tr><td>非 C# 檔案</td><td>R6 可檢查 .bat/.ps1/.md 編碼</td><td>不適用</td></tr>
+</table></div>
+<h3 id="roslyn-existing">現成的 Roslyn 規則可以對應</h3>
+<ul>
+  <li>R1：Microsoft.VisualStudio.Threading.Analyzers 的 VSTHRD002（避免同步等待）；</li>
+  <li>R2：VSTHRD100（避免 async void）、VSTHRD103 與 .NET 分析器 CA1849（在 async 方法中呼叫 async 版本）；</li>
+  <li>R3：CA1021（避免 out 參數，預設停用）；</li>
+  <li>R5：CA1031（不要捕捉一般例外型別）只部分相關；「吞掉例外」通常需要自訂規則；</li>
+  <li>ConfigureAwait：CA2007（建議只在類別庫啟用）。</li>
+</ul>
+<h3 id="roslyn-when">什麼時候該「畢業」改用 Roslyn Analyzer</h3>
+<ul>
+  <li>誤報或漏報因為缺少型別資訊而變得難以接受（例如大量自訂的 Task 包裝型別、沒有 Async 後綴的 Task 方法）；</li>
+  <li>團隊想在 Visual Studio 中即時看到並一鍵修正；</li>
+  <li>CI 本來就會 <code>dotnet build</code>，加入分析器幾乎沒有額外成本；</li>
+  <li>規則需要跨檔案資訊（例如「這個介面的所有實作」）。</li>
+</ul>
+<p>建議做法：先用 csrules 在沒有 .NET 環境的流程中（例如程式碼審查機器人、文件儲存庫、預先檢查）快速擋下明顯問題，並保留 R6 編碼檢查；當規則穩定後，把 R1/R2 交給現成的 Roslyn 分析器，csrules 再以 <code>enabled: false</code> 關閉對應規則。</p>
+</section>
+
+<!-- ============================== 除錯與日誌 ============================== -->
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-flag">--debug：傾印 query captures</h3>
+<pre><code>node src/cli.js samples/SampleApp/Violations/R4_ResourceMisuse.cs --debug --rules R4</code></pre>
+<p>stderr 每行一個 JSON（實際輸出節錄）：</p>
+<pre><code>[debug] {"kind":"match","rule":"R4","query":"R4-resource-misuse","file":"samples/SampleApp/Violations/R4_ResourceMisuse.cs","pattern":1,"captures":{"type":{"type":"identifier","at":"22:13","text":"HttpClient"},"new_http":{"type":"implicit_object_creation_expression","at":"22:33","text":"new()"}}}
+[debug] {"kind":"skip","rule":"R4","file":"samples/SampleApp/Violations/R4_ResourceMisuse.cs","at":"12:53","reason":"not inside a method body"}
+[debug] {"kind":"skip","rule":"R4","file":"samples/SampleApp/Violations/R4_ResourceMisuse.cs","at":"35:13","reason":"enclosing function is not async"}</code></pre>
+<ul>
+  <li><code>kind</code>：<code>match</code>（query 比對結果，含每個 capture 的節點型別、行:欄、文字）、<code>skip</code>（規則判定不報的原因）、<code>allowed</code>（允許清單）、<code>suppressed</code>（抑制註解）。</li>
+  <li>想知道為什麼某行「沒有被報」：用 <code>--debug --rules Rn</code> 找該行的 <code>skip</code> 原因。</li>
+</ul>
+<h3 id="logs">JSONL 日誌</h3>
+<div class="tw"><table>
+<tr><th>作業系統</th><th>預設位置</th></tr>
+<tr><td>Windows</td><td><code>%ProgramData%\NewMiscCode\11-csharp-rules-treesitter\csrules-YYYY-MM-DD.jsonl</code></td></tr>
+<tr><td>Linux / macOS</td><td><code>./logs/csrules-YYYY-MM-DD.jsonl</code>（本專案資料夾下）</td></tr>
+</table></div>
+<p>每行欄位：<code>ts</code>、<code>level</code>（debug/info/warn/error）、<code>pid</code>、<code>msg</code> 與事件資料。<code>info</code> 會記錄啟動參數、使用的設定檔、wasm 路徑與 ABI、版本、掃描摘要與結束碼；<code>warn</code> 會記錄有語法錯誤（tree-sitter 已容錯）的檔案；<code>error</code> 記錄單檔失敗與致命錯誤的堆疊。<code>--log-level debug</code>（或 <code>--debug</code>）會把 debug 事件也寫入。若日誌資料夾無法寫入（例如沒有 ProgramData 權限），工具會在 stderr 顯示 <code>logging disabled</code> 並繼續執行；可用 <code>--log-dir</code> 指定其他位置或 <code>--log-level off</code> 關閉。</p>
+<h3 id="debug-tips">其他技巧</h3>
+<ul>
+  <li><code>--print-config</code>：確認實際生效的設定與設定檔路徑。</li>
+  <li><code>--format json</code>：<code>suppressed</code>、<code>allowed</code> 陣列可看到被略過的項目與原因。</li>
+  <li><code>--version</code>：確認 web-tree-sitter、文法版本與 ABI。</li>
+</ul>
+</section>
+
+<!-- ============================== 限制 ============================== -->
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limitations">已知限制</h3>
+<ul>
+  <li><strong>沒有型別資訊</strong>：R1 的 <code>.Result</code>/<code>.Wait()</code> 依名稱與同檔宣告推測；回傳 Task 但沒有 Async 後綴、且結果存到 <code>var</code> 後跨方法傳遞的情況可能漏報；名稱像 Task 的非 Task 物件可能誤報（可用抑制註解）。</li>
+  <li><strong>R2 同步 I/O</strong> 依 <code>syncIoCalls</code> 名稱清單判斷，不知道接收者的真實型別；<code>Send</code>、<code>Open</code> 以接收者名稱正規表示式限縮。指派給委派的 <code>async</code> lambda（<code>Action a = async () =&gt; ...</code>）是否為 async void 無法從語法判斷，不檢查。</li>
+  <li><strong>R4</strong>：透過 <code>using</code> 別名、工廠方法或 <code>Activator</code> 建立的 HttpClient 不會被偵測；建構函式中的 <code>new HttpClient()</code> 不報（常見於 singleton）；<code>using static System.Threading.Thread;</code> 後直接呼叫 <code>Sleep()</code> 不會被偵測。</li>
+  <li><strong>R5</strong> 用 <code>loggingPatterns</code> 判斷「有記錄」，自訂日誌 API 請加入樣式；catch 中只設定錯誤狀態而不記錄仍會被報（這是預期行為）。</li>
+  <li><strong>前置處理器</strong>：<code>#if</code> 兩個分支都會被解析與檢查。</li>
+  <li><strong>欄位計算</strong>：AST 規則的欄位以 UTF-16 code unit 計（與 VS Code、SARIF <code>columnKind: utf16CodeUnits</code> 一致）；R6 的欄位以位元組計。</li>
+  <li><strong>新語法</strong>：tree-sitter-c-sharp 0.23.5 對最新 C# 語法若不支援，會產生 ERROR 節點並容錯繼續（日誌記錄 warn），該區域可能漏報。</li>
+  <li>Windows 啟動器（.bat/.ps1）在本環境（Linux，無 PowerShell）只做了編碼與結構檢查，未實際在 Windows 上執行。<span class="unverified">未在本環境驗證</span></li>
+</ul>
+<h3 id="troubleshooting">疑難排解</h3>
+<div class="tw"><table>
+<tr><th>症狀</th><th>原因與處理</th></tr>
+<tr><td><code>grammar ABI 15 not supported by this web-tree-sitter</code>（結束碼 3）</td><td>web-tree-sitter 版本太舊（&lt;= 0.24）。執行 <code>npm ci</code> 依 lock 檔安裝 0.25.10。見 <a href="#versions">版本與 ABI</a>。</td></tr>
+<tr><td>主控台中文亂碼（Windows）</td><td>請用 <code>csrules.bat</code>（.ps1 會設定 UTF-8 輸出），或先執行 <code>chcp 65001</code>；也可用 <code>--lang en</code>。</td></tr>
+<tr><td><code>logging disabled (EACCES ...)</code></td><td>沒有寫入 <code>%ProgramData%</code> 的權限；用 <code>--log-dir</code> 指定可寫入的資料夾。</td></tr>
+<tr><td>某行明明違規卻沒報</td><td>用 <code>--debug --rules Rn</code> 看 <code>skip</code> 原因；檢查是否被 <code>allow</code> 或抑制註解略過（<code>--format json</code> 的 <code>allowed</code>/<code>suppressed</code>）。</td></tr>
+<tr><td>自訂 <code>allow.paths</code> 後測試專案又開始被報</td><td>陣列是整個取代，請把預設的 <code>**/*.Tests/**</code> 等一起寫進去。</td></tr>
+<tr><td>GitHub code scanning 找不到檔案</td><td>請從儲存庫根目錄掃描（目標為 <code>.</code>），讓 SARIF 中的相對路徑等於儲存庫路徑。</td></tr>
+<tr><td><code>npm ci</code> 時 tree-sitter-c-sharp 的安裝腳本失敗</td><td>它會嘗試安裝原生綁定（本工具不需要）；可改用 <code>npm ci --ignore-scripts</code>，wasm 仍然可用。</td></tr>
+</table></div>
+<h3 id="repo-audit">給儲存庫稽核的說明</h3>
+<p><code>samples/encoding-bad/</code> 中的檔案<strong>刻意</strong>違反編碼規範（R6 測試資料），儲存庫層級的編碼稽核應排除此資料夾；<code>.gitattributes</code> 已將其標為 <code>-text</code> 以避免 git 轉換換行或編碼。</p>
+</section>
+
+<!-- ============================== English ============================== -->
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><strong>csrules</strong> is a Node.js C# team-rule checker built on <code>web-tree-sitter</code> 0.25.10 and the <code>tree-sitter-c-sharp</code> 0.23.5 grammar wasm (ABI 15). No .NET SDK is needed. Rules: <strong>R1</strong> no sync-over-async (<code>.GetAwaiter().GetResult()</code>, Task <code>.Result</code>/<code>.Wait()</code>, <code>Task.WaitAll/WaitAny</code>; allowed in test projects/Startup via path globs, attributes and class names), <strong>R2</strong> prefer async (<code>async void</code> except event handlers; sync I/O with an Async variant in public methods), <strong>R3</strong> avoid <code>out</code> parameters (Try*/Deconstruct/override/extern ignored), <strong>R4</strong> <code>new HttpClient()</code> in method bodies and <code>Thread.Sleep</code> in async code (ConfigureAwait is intentionally not enforced: no SynchronizationContext in ASP.NET Core; use CA2007 for libraries), <strong>R5</strong> catch blocks that neither log nor rethrow, <strong>R6</strong> byte-level encoding hygiene (.bat ASCII, .ps1 BOM when non-ASCII, .cs/.md valid UTF-8).</p>
+<ul>
+  <li>Config: <code>csrules.json</code> (enabled, severity, allow lists; arrays replace defaults). Suppression: <code>// csrules-disable-next-line R1</code>, <code>-line</code>, <code>-file</code>.</li>
+  <li>Outputs: console <code>file:line:col: severity RULE message</code>, <code>--json</code>, <code>--sarif</code> (2.1.0), <code>--html</code> (self-contained, zh-TW/en toggle, group by rule/file, highlighted snippet). <code>--fix-suggestions</code> prints rewrites.</li>
+  <li>Exit codes: 0 clean, 1 findings at/above <code>--fail-on</code> (default error), 2 usage/config error, 3 internal error.</li>
+  <li>Debug: <code>--debug</code> dumps query captures and skip reasons; JSONL logs in <code>%ProgramData%\NewMiscCode\11-csharp-rules-treesitter</code> (Windows) or <code>./logs</code>.</li>
+  <li>Verified: <code>npm test</code> = 36 tests passing (per-rule exact lines from <code>// expect:</code> markers, zero findings on compliant code, suppression, allowlists, SARIF structure, exit codes, Playwright report checks).</li>
+  <li>ABI pitfall (measured): web-tree-sitter 0.24.7 / 0.22.6 / 0.20.8 load this grammar but <code>setLanguage</code> fails with "Incompatible language version 15"; use 0.25.x.</li>
+  <li>Not verified here: Windows launchers on real Windows, GitHub/Azure DevOps pipelines, VS Code SARIF Viewer, Roslyn rule IDs.</li>
+</ul>
+</section>
+
+</main>
+<footer>csrules 0.1.0 · 11-csharp-rules-treesitter · 文件編碼 UTF-8（無 BOM）</footer>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-tab]');
+    if (a) show(a.dataset.tab);
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "language": "zh-TW",
+  "exclude": ["**/bin/**", "**/obj/**"],
+  "rules": {
+    "R1": {
+      "severity": "error",
+      "allow": {
+        "paths": ["**/*.Tests/**", "**/Startup.cs"],
+        "attributes": ["Fact", "Theory", "TestMethod"],
+        "classes": ["Startup"]
+      }
+    },
+    "R2": { "severity": "warning" },
+    "R3": { "severity": "warning", "ignoreTryPattern": true },
+    "R4": { "severity": "error" },
+    "R5": { "severity": "error" },
+    "R6": { "severity": "error" }
+  }
+}

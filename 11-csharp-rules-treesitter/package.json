@@ -1,0 +1,23 @@
+{
+  "name": "csharp-rules-treesitter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "C# team code-rule checker on web-tree-sitter (WASM), no .NET SDK required",
+  "bin": {
+    "csrules": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=2 \"test/*.test.js\"",
+    "check": "node src/cli.js",
+    "sample": "node src/cli.js samples --fix-suggestions --html output/report.html --sarif output/report.sarif --json output/report.json",
+    "audit": "node ../tools/audit-text.mjs ."
+  },
+  "dependencies": {
+    "tree-sitter-c-sharp": "0.23.5",
+    "web-tree-sitter": "0.25.10"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
