@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NewMiscCode 新技術實驗</title>
+<style>
+:root { --bg:#fafafa; --fg:#1f2328; --muted:#59636e; --card:#fff; --line:#d1d9e0; --accent:#0969da; --ok:#1a7f37; --warn:#9a6700; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; } }
+:root[data-theme="dark"] { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.7 "Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif; }
+header { padding:24px 16px 8px; max-width:980px; margin:auto; }
+h1 { margin:0 0 4px; font-size:26px; }
+.sub { color:var(--muted); margin:0; }
+nav { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); z-index:5; }
+nav .in { max-width:980px; margin:auto; padding:0 16px; display:flex; gap:4px; overflow-x:auto; }
+nav a { padding:10px 12px; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; }
+nav a.on { color:var(--fg); border-color:var(--accent); font-weight:600; }
+main { max-width:980px; margin:auto; padding:16px; }
+section { display:none; } section.on { display:block; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin:12px 0; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+code, pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; }
+pre { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px; overflow-x:auto; }
+a { color:var(--accent); }
+.ok { color:var(--ok); font-weight:600; } .warn { color:var(--warn); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>NewMiscCode 新技術實驗</h1>
+  <p class="sub">三個獨立小專案：MCP + Playwright UI 驗證、本機語意搜尋、瀏覽器內 DuckDB 分析。各資料夾都有自己的 README.html（含逐步驗證說明）。</p>
+</header>
+<nav><div class="in">
+  <a href="#overview">總覽</a>
+  <a href="#p1">01 UI 驗證機器人</a>
+  <a href="#p2">02 本機語意搜尋</a>
+  <a href="#p3">03 DuckDB-WASM</a>
+  <a href="#common">共通規範</a>
+  <a href="#en">English</a>
+</div></nav>
+<main>
+
+<section id="overview">
+  <div class="card">
+    <table>
+      <tr><th>資料夾</th><th>技術</th><th>用途</th><th>自動測試</th></tr>
+      <tr><td><a href="01-mcp-ui-verifier/README.html">01-mcp-ui-verifier</a></td><td>MCP SDK、Playwright</td><td>讓 AI 或人操作瀏覽器驗證 UI，錯誤處截圖紅框標示，產出 HTML 報告</td><td class="ok">npm test 8/8</td></tr>
+      <tr><td><a href="02-local-semantic-search/README.html">02-local-semantic-search</a></td><td>transformers.js (ONNX)、SQLite FTS5、sqlite-vec</td><td>完全本機的中英文混合搜尋（關鍵字 + 語意，RRF 融合）</td><td class="ok">npm test 10/10、UI 8/8</td></tr>
+      <tr><td><a href="03-duckdb-wasm-dashboard/README.html">03-duckdb-wasm-dashboard</a></td><td>DuckDB-WASM、Apache Arrow、SheetJS</td><td>零後端瀏覽器 SQL 分析；拖入 CSV/JSONL/XLSX，內建 Log 分析範本與圖表</td><td class="ok">npm test 49/49</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <b>快速開始（Windows）</b>：進入各資料夾，雙擊 <code>.bat</code> 啟動檔（ASCII 編碼，會先 <code>pushd "%~dp0"</code> 並印出 exit code）。或手動：
+    <pre>cd 01-mcp-ui-verifier
+npm install
+npm test</pre>
+  </div>
+</section>
+
+<section id="p1">
+  <div class="card">
+    <h3>01-mcp-ui-verifier</h3>
+    <ul>
+      <li>MCP Server（stdio）提供 14 個工具：open_page、click、fill、assert_text、check_console_errors、screenshot_annotate、generate_report、run_scenario 等。</li>
+      <li>CLI：<code>node src/cli.js demo</code> 會啟動內建含故意錯誤的示範頁，跑完產出報告。</li>
+      <li>選項：<code>--lang zh-TW|en</code>、<code>--headed</code>、<code>--devtools</code>、<code>--debug</code>、<code>--trace</code>、<code>--cdp-port</code>。</li>
+      <li>輸出預設：<code>%ProgramData%\NewMiscCode\01-mcp-ui-verifier</code>。</li>
+      <li>範例報告：<a href="01-mcp-ui-verifier/examples/report.html">examples/report.html</a></li>
+      <li class="warn">Windows 首次執行請跑 setup.bat（npm install + npx playwright install chromium）。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="p2">
+  <div class="card">
+    <h3>02-local-semantic-search</h3>
+    <ul>
+      <li>模型：Xenova/multilingual-e5-small（int8 ONNX，384 維），以 <code>node scripts/fetch-model.js</code> 下載（預設 HuggingFace，會驗 SHA-256），不進 git。</li>
+      <li>索引：<code>index --dry-run</code> 先預覽，再正式寫入；依檔案雜湊增量更新。</li>
+      <li>排序：FTS5 BM25（中文雙字切詞）+ sqlite-vec KNN，以 RRF 融合。</li>
+      <li>離線備援：<code>--embedder hash</code>（字元 n-gram，無語意能力）。</li>
+      <li>資料/Log 預設：<code>%ProgramData%\NewMiscCode\02-local-semantic-search</code>。</li>
+      <li class="warn">注意：雲端開發環境擋 HuggingFace，當時是從第三方 npm 套件 dsh-plugin-discover-model 取得同一模型檔（已驗 SHA-256）。正式使用請改用 HuggingFace 官方來源。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="p3">
+  <div class="card">
+    <h3>03-duckdb-wasm-dashboard</h3>
+    <ul>
+      <li><code>npm install &amp;&amp; npm run build</code> 會把 wasm（每個 30MB 以上，不進 git）複製到 public/vendor。</li>
+      <li><code>start-windows.bat</code> 啟動本機伺服器並開瀏覽器；網址加 <code>?debug=1</code> 開啟除錯輸出，<code>?lang=en</code> 切英文。</li>
+      <li><code>dist/artifact.html</code>：從 jsDelivr 載入 wasm 的單檔版本，可直接放任何靜態主機。</li>
+      <li class="warn">JSON/JSONL 改在 JS 端解析以支援離線；Parquet 需連線到 extensions.duckdb.org 下載擴充，開發環境無法測。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="common">
+  <div class="card">
+    <ul>
+      <li>文字檔 UTF-8 無 BOM；<code>.ps1</code> 含中文時用 UTF-8 BOM；<code>.bat</code> 純 ASCII（CRLF，由 .gitattributes 控制）。</li>
+      <li>編碼稽核：<code>node tools/audit-text.mjs</code>（檢查 UTF-8、BOM、U+FFFD、.bat ASCII）。</li>
+      <li>啟動鏈：<code>.bat → .ps1 → node</code>，方便分辨路徑/環境/程式問題。</li>
+      <li>Log 一律 JSONL，Windows 預設寫在 <code>%ProgramData%\NewMiscCode\&lt;專案&gt;</code>。</li>
+      <li>建議 Node 22，以 Volta 鎖定版本；原生模組（better-sqlite3、sqlite-vec、onnxruntime）換版本後需 <code>npm rebuild</code>。</li>
+      <li>未在 Windows 實機驗證：.bat/.ps1 啟動檔與 ProgramData 路徑只做過靜態檢查。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="en">
+  <div class="card">
+    <p>Three independent experiments, each with its own README.html and step-by-step verification guide:</p>
+    <ol>
+      <li><b>01-mcp-ui-verifier</b> — MCP server + CLI driving Playwright; red-box annotated screenshots and HTML reports.</li>
+      <li><b>02-local-semantic-search</b> — fully local hybrid search (SQLite FTS5 + sqlite-vec + multilingual-e5-small via transformers.js, RRF).</li>
+      <li><b>03-duckdb-wasm-dashboard</b> — zero-backend in-browser SQL analytics with DuckDB-WASM, log-analysis presets and charts.</li>
+    </ol>
+    <p>All UIs support zh-TW and English. Run <code>npm install &amp;&amp; npm test</code> in each folder.</p>
+  </div>
+</section>
+
+</main>
+<script>
+(function () {
+  var ids = ['overview', 'p1', 'p2', 'p3', 'common', 'en'];
+  function show() {
+    var id = location.hash.slice(1);
+    if (ids.indexOf(id) < 0) id = 'overview';
+    ids.forEach(function (x) { document.getElementById(x).classList.toggle('on', x === id); });
+    document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + id); });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

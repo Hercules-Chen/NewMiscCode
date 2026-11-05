@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 Local Semantic Search - 說明文件</title>
+<style>
+  :root { --fg:#1d2330; --muted:#667085; --bg:#f6f7f9; --card:#fff; --accent:#2557d6; --border:#dde1e7; --code:#f2f4f7; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif; color:var(--fg); background:var(--bg); line-height:1.65; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:14px 24px; position:sticky; top:0; z-index:2; }
+  header h1 { margin:0 0 8px; font-size:21px; }
+  nav { display:flex; flex-wrap:wrap; gap:4px; }
+  nav a { text-decoration:none; color:var(--fg); padding:5px 11px; border:1px solid var(--border); border-radius:16px; font-size:14px; background:#fafbfc; }
+  nav a.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:1000px; margin:0 auto; padding:8px 24px 40px; }
+  section { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:4px 22px 16px; margin:18px 0; }
+  body.tabs section { display:none; }
+  body.tabs section.active { display:block; }
+  h2 { border-bottom:2px solid var(--accent); padding-bottom:4px; font-size:19px; }
+  h3 { font-size:16px; margin-top:22px; }
+  code, pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; }
+  code { background:var(--code); padding:1px 5px; border-radius:3px; }
+  pre { background:#101828; color:#e4e7ec; padding:12px; border-radius:6px; overflow:auto; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:8px 0; }
+  th, td { border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f2f4f7; }
+  .note { border-left:4px solid #f79009; background:#fffaeb; padding:8px 12px; margin:10px 0; }
+  .ok { border-left:4px solid #12b76a; background:#ecfdf3; padding:8px 12px; margin:10px 0; }
+  img { max-width:100%; border:1px solid var(--border); border-radius:6px; }
+  .muted { color:var(--muted); font-size:13px; }
+  ol li, ul li { margin:3px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>02 · Local Semantic Search 本機語意 + 關鍵字混合搜尋</h1>
+  <nav id="nav">
+    <a href="#overview">概觀 Overview</a>
+    <a href="#quickstart">快速開始</a>
+    <a href="#model">模型 Model</a>
+    <a href="#usage">CLI 用法</a>
+    <a href="#webui">Web UI</a>
+    <a href="#design">設計 Design</a>
+    <a href="#debug">除錯 Debug</a>
+    <a href="#windows">Windows 注意</a>
+    <a href="#verify">驗證步驟</a>
+    <a href="#results">實測結果</a>
+    <a href="#limits">限制</a>
+    <a href="#english">English</a>
+    <a href="#all">全部顯示</a>
+  </nav>
+</header>
+<main>
+
+<section id="overview">
+<h2>概觀 Overview</h2>
+<p>完全在本機執行（不呼叫任何雲端 API）的搜尋工具，對一個資料夾（例如 Obsidian vault）裡的繁體中文 / 英文 Markdown 與 HTML 文件建立索引，提供：</p>
+<ul>
+  <li><b>關鍵字搜尋</b>：SQLite FTS5 + BM25；中文以「字元二元組（bigram）」斷詞，2 個字的詞（如「加密」）也查得到。</li>
+  <li><b>語意搜尋</b>：<code>sqlite-vec</code> 向量表 + 本機 ONNX 模型 <code>multilingual-e5-small</code>（int8，透過 <code>@huggingface/transformers</code> 在 CPU 執行）。</li>
+  <li><b>混合排序</b>：Reciprocal Rank Fusion（RRF, k=60）融合兩邊名次，結果顯示分數明細。</li>
+  <li><b>增量索引</b>：以 mtime/size 快速判斷，再以 SHA-256 確認內容；刪除的檔案會自動移除。提供 <code>--dry-run</code> 預覽。</li>
+  <li><b>介面</b>：CLI（<code>index</code> / <code>search</code> / <code>serve</code> / <code>stats</code>）與本機 Web UI（繁中 / English 切換、片段高亮、來源路徑、分數明細、除錯模式）。</li>
+</ul>
+<div class="ok"><b>本環境實際驗證的嵌入模型：</b><code>transformers:Xenova/multilingual-e5-small:q8</code>（真實模型，384 維）。離線備援 <code>hash</code> 嵌入器也由 <code>npm test</code> 端對端驗證。</div>
+<h3>檔案結構</h3>
+<pre><code>02-local-semantic-search/
+├─ src/
+│  ├─ cli.js         CLI 進入點 (index | search | serve | stats)
+│  ├─ config.js      路徑與設定（OS 感知預設位置、環境變數覆寫）
+│  ├─ logger.js      JSONL 結構化記錄（等級、檔案、ring buffer）
+│  ├─ parse.js       Markdown / HTML 解析與依標題切塊
+│  ├─ tokenize.js    中文 bigram 斷詞、FTS 查詢式、片段高亮
+│  ├─ embedder.js    可抽換 Embedder：e5（transformers.js）/ hash（離線備援）
+│  ├─ db.js          SQLite schema（files, chunks, FTS5, vec0）
+│  ├─ indexer.js     掃描、預覽、增量索引
+│  ├─ search.js      BM25 + KNN + RRF
+│  └─ server.js      node:http 本機伺服器與 /api/*
+├─ public/           Web UI（index.html, app.js, style.css；無建置步驟）
+├─ scripts/          fetch-model.js, demo-queries.js, verify-ui.js (Playwright)
+├─ test/             node:test 自動測試（npm test）
+├─ sample-docs/      示範語料（17 篇 zh-TW / English，含 2 篇 HTML）
+├─ examples/         實測輸出與截圖
+├─ lss.bat / serve.bat / index.bat → lss.ps1 → node
+└─ README.html（本文件）/ README.md</code></pre>
+</section>
+
+<section id="quickstart">
+<h2>快速開始 Quick start</h2>
+<h3>Windows（繁中）</h3>
+<ol>
+  <li>安裝 Node 22（建議 <a href="https://volta.sh/">Volta</a>：<code>winget install Volta.Volta</code>，本專案 <code>package.json</code> 已 <code>volta</code> 固定 Node 22）。</li>
+  <li>在專案資料夾執行 <code>npm ci</code>（會下載 better-sqlite3 / sqlite-vec / onnxruntime-node 的 Windows prebuild）。</li>
+  <li>下載模型：<code>npm run fetch-model</code>（約 135 MB；詳見 <a href="#model">模型</a>）。</li>
+  <li>雙擊 <code>index.bat</code>：先顯示 dry-run 預覽，按 <kbd>Y</kbd> 才寫入索引。</li>
+  <li>雙擊 <code>serve.bat</code>，瀏覽器開 <code>http://127.0.0.1:8787/</code>。</li>
+</ol>
+<p>索引自己的筆記：<code>lss.bat index --dir "D:\Obsidian\MyVault"</code>，之後 <code>lss.bat search 欄位加密連線失敗</code>。</p>
+<h3>Linux / macOS</h3>
+<pre><code>npm ci
+npm run fetch-model            # 或 npm run fetch-model:npm（huggingface.co 被擋時）
+npm run index:preview          # dry-run，不寫入
+npm run index
+npm run search -- 欄位加密連線失敗
+npm run serve                  # http://127.0.0.1:8787/</code></pre>
+<p class="muted">沒有模型也能先試：<code>node src/cli.js index --embedder hash</code>（離線備援，語意能力弱，見 <a href="#limits">限制</a>）。</p>
+</section>
+
+<section id="model">
+<h2>模型 Model</h2>
+<p>預設模型：<code>Xenova/multilingual-e5-small</code>（由 <code>intfloat/multilingual-e5-small</code> 轉成 ONNX，MIT 授權），使用 int8 量化檔 <code>onnx/model_quantized.onnx</code>，384 維，最多 512 tokens。查詢與段落分別加上 <code>query: </code> / <code>passage: </code> 前綴（e5 的訓練格式）。</p>
+<p>模型檔放在 <code>models/Xenova/multilingual-e5-small/</code>（<code>.gitignore</code> 已排除，<b>不要提交</b>）。執行時設定 <code>env.allowRemoteModels = false</code>，完全離線。</p>
+<table>
+  <tr><th>方式</th><th>指令</th><th>說明</th></tr>
+  <tr><td>Hugging Face（預設）</td><td><code>npm run fetch-model</code></td><td>從 <code>https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/</code> 下載 5 個檔案。可設 <code>HF_ENDPOINT=https://hf-mirror.com</code> 改用鏡像。<b>本容器 huggingface.co 被封鎖，此路徑未在此實測</b>。</td></tr>
+  <tr><td>npm registry</td><td><code>npm run fetch-model:npm</code></td><td>以 <code>npm pack dsh-plugin-discover-model@0.1.0</code> 下載（第三方 MIT 套件，內含相同 Xenova 檔案；不執行任何安裝腳本），解壓後複製。<b>本環境實際使用此路徑</b>。</td></tr>
+  <tr><td>手動</td><td>—</td><td>將 <code>config.json, tokenizer.json, tokenizer_config.json, special_tokens_map.json</code> 放到 <code>models/Xenova/multilingual-e5-small/</code>，<code>model_quantized.onnx</code> 放到其下 <code>onnx/</code>。</td></tr>
+  <tr><td>執行時線上下載</td><td><code>--allow-remote</code> 或 <code>LSS_ALLOW_REMOTE=1</code></td><td>讓 transformers.js 自行下載並快取到 <code>models/.cache</code>。</td></tr>
+</table>
+<p>檢查：<code>node scripts/fetch-model.js --check</code>（比對釘選的 SHA-256；<code>model_quantized.onnx</code> = <code>f80102d3…c193</code>, 118,308,185 bytes）。</p>
+<h3>Embedder 介面（可抽換）</h3>
+<pre><code>interface Embedder {
+  id: string;   // 寫入 DB meta；更換時需 --rebuild
+  dim: number;
+  init(): Promise&lt;void&gt;;
+  embedPassages(texts: string[]): Promise&lt;Float32Array[]&gt;;
+  embedQuery(text: string): Promise&lt;Float32Array&gt;;
+}</code></pre>
+<ul>
+  <li><code>e5</code>：<code>TransformersEmbedder</code>（預設）。換其他 transformers.js 相容模型時，可用 <code>createEmbedder('transformers:&lt;org/model&gt;:q8')</code> 擴充。</li>
+  <li><code>hash</code>：<code>HashEmbedder</code>，字元 1–3 gram / 英文字詞的 feature hashing（256 維）。不需任何模型檔，但只能捕捉字面重疊，不是真正的語意。</li>
+</ul>
+</section>
+
+<section id="usage">
+<h2>CLI 用法</h2>
+<pre><code>node src/cli.js index  [--dir &lt;folder&gt;] [--dry-run] [--rebuild] [--embedder e5|hash]
+node src/cli.js search &lt;query&gt; [--mode hybrid|keyword|semantic] [--k 10] [--per-file 1] [--json]
+node src/cli.js serve  [--port 8787] [--host 127.0.0.1]
+node src/cli.js stats
+共用：--data-dir &lt;dir&gt;  --model-dir &lt;dir&gt;  --allow-remote  --debug</code></pre>
+<table>
+  <tr><th>選項 / 環境變數</th><th>說明</th></tr>
+  <tr><td><code>--dir</code> / <code>LSS_DOCS_DIR</code></td><td>要索引的資料夾（預設 <code>sample-docs/</code>）。支援 <code>.md .markdown .html .htm</code>；略過 <code>.obsidian .git node_modules</code> 及以 <code>.</code> 開頭的資料夾。</td></tr>
+  <tr><td><code>--dry-run</code></td><td>只列出 new / changed / unchanged / deleted，不建立也不修改 DB。</td></tr>
+  <tr><td><code>--rebuild</code></td><td>清空後重建（更換 embedder 時必須）。換資料夾會自動重建並記錄 warn。</td></tr>
+  <tr><td><code>--per-file</code></td><td>每個檔案最多回傳幾個區塊（預設 1；0 = 不限）。</td></tr>
+  <tr><td><code>--json</code></td><td>輸出完整 JSON（含 debug 計時與 FTS 查詢式）。</td></tr>
+  <tr><td><code>--data-dir</code> / <code>LSS_DATA_DIR</code></td><td>DB 與 logs 位置。預設：Windows <code>%ProgramData%\NewMiscCode\02-local-semantic-search</code>；其他 OS 為專案下 <code>./data</code>。<code>LSS_DB</code>、<code>LSS_LOG_DIR</code> 可個別覆寫。</td></tr>
+  <tr><td><code>--model-dir</code> / <code>LSS_MODEL_DIR</code></td><td>模型根目錄（預設 <code>./models</code>）。</td></tr>
+  <tr><td><code>LSS_PORT</code>, <code>LSS_HOST</code></td><td>Web 伺服器埠號 / 綁定位址（預設 127.0.0.1:8787，只接受本機連線）。</td></tr>
+</table>
+<p>其他 npm scripts：<code>npm run demo</code>（固定查詢比較三種模式）、<code>npm run verify:ui</code>（Playwright 驗證 + 截圖）、<code>npm test</code>、<code>npm run audit</code>（文字檔編碼稽核）。</p>
+</section>
+
+<section id="webui">
+<h2>Web UI</h2>
+<ul>
+  <li>搜尋框、模式（混合 / 關鍵字 / 語意）、筆數；結果顯示標題路徑（heading path）、來源檔案與行號、<code>&lt;mark&gt;</code> 高亮片段、分數徽章：RRF、關鍵字名次 + bm25、語意名次 + cosine、命中來源。</li>
+  <li>右上角 <b>EN / 中文</b> 切換（i18n 表在 <code>public/app.js</code> 的 <code>I18N</code>；選擇存在 localStorage，失敗時自動忽略）。</li>
+  <li><b>詳細/除錯</b> 勾選後：每筆結果顯示原始分數 JSON、下方顯示該次查詢的計時（FTS / 向量 / 嵌入）與 FTS 查詢式，並連結 <code>/api/debug</code>。</li>
+  <li>URL 可重現狀態：<code>/?q=欄位加密&amp;mode=semantic&amp;k=5&amp;lang=en&amp;debug=1</code>。</li>
+  <li>DevTools Console 可用 <code>lss.search('...')</code>、<code>lss.last</code> 查看最後回應。</li>
+</ul>
+<table>
+  <tr><th>API</th><th>說明</th></tr>
+  <tr><td><code>GET /api/search?q=&amp;mode=&amp;k=&amp;perFile=</code></td><td>搜尋結果 + <code>debug</code>（計時、候選數、FTS 查詢式）</td></tr>
+  <tr><td><code>GET /api/stats</code></td><td>檔案 / 區塊 / 向量數、embedder、最後索引時間</td></tr>
+  <tr><td><code>GET /api/preview</code></td><td>dry-run 索引計畫（不寫入）</td></tr>
+  <tr><td><code>GET /api/debug?n=100</code></td><td>設定、統計、記憶體、最近 n 筆 JSONL 記錄（ring buffer）</td></tr>
+</table>
+<p><img src="examples/ui-hybrid-zh.png" alt="Hybrid search, zh-TW UI"></p>
+</section>
+
+<section id="design">
+<h2>設計 Design</h2>
+<h3>切塊 Chunking</h3>
+<p>Markdown：去除 YAML front matter、轉換 <code>[[wikilink|別名]]</code> 與連結語法，依 ATX 標題（忽略 code fence 內的 <code>#</code>）切成段落，每段帶「標題路徑」（如 <code>Always Encrypted 實務筆記 &gt; 常見錯誤</code>）。超過 450 字元的段落再依段落 / 句號切開並保留 60 字重疊。HTML：移除 script/style/head，把 <code>h1–h6</code> 轉成 Markdown 標題後走同一流程。嵌入文字 = 文件標題 + 標題路徑 + 內文。</p>
+<h3>中文關鍵字斷詞</h3>
+<p>FTS5 內建 <code>trigram</code> 無法查詢少於 3 個字的詞（實測「加密」查不到），<code>unicode61</code> 不切中文。jieba 類斷詞需要字典、對繁體較弱且多一個原生模組。本專案採用 Lucene CJKAnalyzer 的作法：<b>CJK 字元二元組</b>（「欄位加密」→ 欄位 / 位加 / 加密），英數字詞轉小寫，先做 NFKC（全形轉半形）。斷好的字串存入 <code>unicode61</code> 欄位，查詢時把 token 以 <code>OR</code> 組合交給 BM25 排序（欄位權重 title 3 : heading 2 : body 1）。</p>
+<h3>Schema</h3>
+<pre><code>files(id, path UNIQUE, title, mtime_ms, size, sha256, indexed_at)
+chunks(id, file_id → files ON DELETE CASCADE, ord, heading, text, line)
+chunks_fts  USING fts5(title, heading, body, tokenize='unicode61')   -- rowid = chunks.id
+chunks_vec  USING vec0(embedding float[384] distance_metric=cosine) -- rowid = chunks.id
+meta(key, value)  -- embedder_id, embedder_dim, chunker_version, docs_root, last_indexed_at</code></pre>
+<h3>混合排序 RRF</h3>
+<p>兩邊各取前 50 名候選：<code>rrf(d) = Σ w / (60 + rank_i(d))</code>，平手時以 cosine、再以 bm25 決定。分數解讀：<code>bm25</code> 越小（越負）越好；<code>cosine</code> = 1 − cosine distance，越大越好（e5 的分數集中在 0.75–0.9，請看名次而非絕對值）。</p>
+<h3>非同步</h3>
+<p>檔案掃描 / 讀取、模型推論、HTTP 處理皆為 async。better-sqlite3 本身是同步 API（每個檔案一個 transaction，耗時毫秒級），是刻意的選擇：比 async 包裝更快更簡單。</p>
+</section>
+
+<section id="debug">
+<h2>除錯 Debug / Trace</h2>
+<ul>
+  <li><b>JSONL 記錄</b>：<code>&lt;data-dir&gt;/logs/lss-YYYYMMDD.jsonl</code>，每行 <code>{ts, level, pid, event, ...}</code>。等級：trace / debug / info / warn / error。預設檔案記錄 info 以上、終端機（stderr）只顯示 warn 以上。</li>
+  <li><b><code>--debug</code></b>（或 <code>LSS_DEBUG=1</code>）：檔案與終端機都記錄 debug（包含每批嵌入耗時、每個 HTTP 請求）。<code>LSS_LOG_LEVEL=info</code> 可只調整終端機等級。</li>
+  <li><b>Web</b>：UI 勾選「詳細/除錯」或網址加 <code>?debug=1</code>；<code>/api/debug</code> 回傳設定與最近記錄。伺服器只用 <code>node:http</code>，沒有 CSP / 反除錯設定，Chrome DevTools（F12）的 Network、Sources（<code>app.js</code> 未壓縮）、Console 都可直接使用。</li>
+  <li><b>Node 除錯</b>：<code>node --inspect src/cli.js serve --debug</code>（或 <code>npm run serve:inspect</code>），Chrome 開 <code>chrome://inspect</code> → <i>Open dedicated DevTools for Node</i>。索引除錯：<code>node --inspect-brk src/cli.js index --debug</code>。透過 .bat 啟動時可先 <code>set NODE_OPTIONS=--inspect</code>。</li>
+  <li>查最近錯誤（PowerShell）：<code>Get-Content $env:ProgramData\NewMiscCode\02-local-semantic-search\logs\*.jsonl | ConvertFrom-Json | ? level -eq 'error'</code></li>
+</ul>
+</section>
+
+<section id="windows">
+<h2>Windows 注意事項</h2>
+<ul>
+  <li><b>固定 Node 版本</b>：better-sqlite3、sqlite-vec、onnxruntime-node 都是原生模組，綁定 Node ABI。請用 Volta（<code>volta pin node@22</code>，已寫入 package.json）。換 Node 版本後若出現 <code>NODE_MODULE_VERSION</code> 錯誤，執行 <code>npm rebuild</code>（或刪除 node_modules 後 <code>npm ci</code>）。</li>
+  <li><b>資料位置</b>：預設 <code>%ProgramData%\NewMiscCode\02-local-semantic-search\index.sqlite</code> 與 <code>logs\</code>。一般使用者對 ProgramData 子資料夾預設可建立；若權限不足，用 <code>--data-dir</code> 或 <code>LSS_DATA_DIR</code> 指向其他位置。</li>
+  <li><b>啟動器</b>：<code>lss.bat</code>（任意參數）、<code>serve.bat</code>、<code>index.bat</code>（先預覽再確認）。<code>.bat</code> 為純 ASCII + CRLF，會 <code>pushd "%~dp0"</code>、顯示路徑與結束代碼並 <code>pause</code>；實際邏輯在 <code>lss.ps1</code>（UTF-8 <b>with BOM</b>，因為含中文訊息；Windows PowerShell 5.1 才能正確讀取）。</li>
+  <li>終端機中文：<code>lss.ps1</code> 會設定 <code>[Console]::OutputEncoding = UTF8</code>。直接在 cmd 執行 node 若中文亂碼，先 <code>chcp 65001</code>。</li>
+  <li><code>node_modules</code> 約 770 MB（onnxruntime-node 含多平台二進位檔、transformers.js 相依的 sharp 等）。</li>
+  <li>首次載入模型約 1–2 秒；伺服器載入模型後 RSS 約 570 MB（本環境實測）；<code>serve</code> 啟動時會在背景預熱模型。</li>
+</ul>
+</section>
+
+<section id="verify">
+<h2>驗證步驟（同事可重現）</h2>
+<ol>
+  <li><b>安裝</b>：<code>node -v</code> 應為 v22.x → <code>npm ci</code> 無錯誤。</li>
+  <li><b>原生模組</b>：<code>node -e "const D=require('better-sqlite3');const v=require('sqlite-vec');const d=new D(':memory:');v.load(d);console.log(d.prepare('select vec_version() v').get())"</code> → 印出 <code>{ v: 'v0.1.9' }</code>。</li>
+  <li><b>模型</b>：<code>npm run fetch-model</code>（或 <code>fetch-model:npm</code>）→ 最後顯示 5 行 <code>OK</code> 與 <code>Model ready</code>。</li>
+  <li><b>預覽</b>：<code>npm run index:preview</code> → 列出 17 個 <code>new</code>，最後一行 <code>(nothing written)</code>，且 data 資料夾沒有產生 <code>index.sqlite</code>。</li>
+  <li><b>索引</b>：<code>npm run index</code> → <code>added=17 … total(files=17, chunks=39, vectors=39)</code>。</li>
+  <li><b>增量</b>：再執行一次 <code>npm run index</code> → <code>unchanged=17 newChunks=0</code>，數十毫秒完成（不載入模型）。修改任一 .md 再執行 → <code>updated=1</code>。</li>
+  <li><b>搜尋</b>：
+    <ul>
+      <li><code>node src/cli.js search 欄位加密連線失敗 --mode semantic --k 3</code> → 第 1 名 <code>database/sql-always-encrypted.md</code>（該筆記沒有「欄位」「連線」「失敗」這些字）。</li>
+      <li><code>node src/cli.js search 保護個資不讓管理員看到 --mode keyword --k 3</code> → 第 1 名是不相關的 DevTools 筆記；改 <code>--mode semantic</code> → 第 1 名是 Always Encrypted。</li>
+      <li><code>npm run demo</code> → 與 <code>examples/demo-queries.txt</code> 比對。</li>
+    </ul></li>
+  <li><b>Web</b>：<code>npm run serve</code>，開 <code>http://127.0.0.1:8787/</code>，搜尋「欄位加密連線失敗」→ 有高亮片段與分數徽章；按 EN 切換語言；勾選「詳細/除錯」→ 出現計時 JSON；開 <code>/api/debug</code> 看到 <code>recentLogs</code>。</li>
+  <li><b>自動測試</b>：<code>npm test</code> → <code>pass 10, fail 0</code>（模型不存在時 e5 測試會 skip）。</li>
+  <li><b>UI 自動驗證（選用）</b>：需要 Playwright（<code>npm i -D playwright &amp;&amp; npx playwright install chromium</code>），<code>npm run verify:ui</code> → 8 行 <code>PASS</code> 並更新 <code>examples/*.png</code>。</li>
+  <li><b>編碼稽核</b>：<code>npm run audit</code> → <code>problems=0</code>。</li>
+  <li><b>記錄</b>：檢查 <code>&lt;data-dir&gt;/logs/lss-*.jsonl</code> 每行皆為合法 JSON。</li>
+</ol>
+</section>
+
+<section id="results">
+<h2>實測結果（本環境，Linux x64，Node 22.23.4）</h2>
+<p>完整輸出：<code>examples/demo-queries.txt</code>、<code>examples/cli-session.txt</code>。各模式前 3 名（每檔一筆）：</p>
+<table>
+  <tr><th>查詢</th><th>keyword（BM25）</th><th>semantic（e5）</th><th>hybrid（RRF）</th></tr>
+  <tr><td>欄位加密連線失敗</td><td>1 msnodesqlv8 · 2 volta-node-version · 3 sql-always-encrypted</td><td><b>1 sql-always-encrypted</b> · 2 msnodesqlv8 · 3 週會 2026-10-15</td><td>1 msnodesqlv8 · <b>2 sql-always-encrypted</b> · 3 週會</td></tr>
+  <tr><td>保護個資不讓管理員看到</td><td>1 chrome-devtools-tips ✗ · 2 sql-always-encrypted</td><td><b>1 sql-always-encrypted</b> · 2 週會（客戶要求 DBA 看不到明文）</td><td><b>1 sql-always-encrypted</b> · 2 chrome-devtools-tips</td></tr>
+  <tr><td>桌面程式打包後讀不到 C++ 擴充</td><td>1 electron-asar</td><td>1 electron-asar</td><td>1 electron-asar</td></tr>
+  <tr><td>批次檔中文變成亂碼</td><td>1 powershell-encoding</td><td>1 powershell-encoding</td><td>1 powershell-encoding</td></tr>
+  <tr><td>UI hangs when waiting for a task</td><td>1 csharp-async</td><td>1 csharp-async</td><td>1 csharp-async</td></tr>
+  <tr><td>server runs out of ports under load</td><td>1 httpclient-socket-exhaustion</td><td>1 httpclient-socket-exhaustion</td><td>1 httpclient-socket-exhaustion</td></tr>
+</table>
+<p>效能：17 檔 / 39 區塊首次索引約 2.9 秒（含模型載入約 1.4 秒）；無變更重跑約 20 ms；伺服器暖機後單次查詢約 10–25 ms（其中嵌入約 10–20 ms）。</p>
+<p><img src="examples/ui-semantic-en-debug.png" alt="Semantic mode, English UI, debug panel"></p>
+</section>
+
+<section id="limits">
+<h2>限制 Limitations</h2>
+<ul>
+  <li><b>語意品質</b>：multilingual-e5-small（int8）體積小、速度快，但語意能力有限；跨語言查詢（英文問、中文筆記答）在本語料上表現普通，cosine 值彼此很接近。需要更好品質可換 <code>Xenova/multilingual-e5-base</code> 或 bge-m3（需自行取得 ONNX 檔並 <code>--rebuild</code>）。</li>
+  <li><b>Hugging Face 下載路徑未在本環境實測</b>（huggingface.co 被封鎖）；實際使用 npm registry 上內容相同（SHA-256 釘選）的第三方套件取得模型。</li>
+  <li><b>Bigram 關鍵字</b>：會有雜訊命中（例如「看到」命中 DevTools 筆記），召回率高但精確度一般；沒有同義詞與繁簡轉換。</li>
+  <li><b>hash 備援嵌入器</b>只是字面相似度，不是語意；只建議在沒有模型時使用。</li>
+  <li>HTML 解析以正規表示式實作，足以處理筆記 / 匯出頁面，不是完整的 HTML parser。只支援 UTF-8 檔案。</li>
+  <li>Windows 的 <code>.bat</code> / <code>.ps1</code> 與 <code>%ProgramData%</code> 路徑在本 Linux 環境無法實際執行，僅經過靜態檢查（ASCII / BOM / CRLF）。</li>
+  <li>單一 DB 對應單一資料夾與單一 embedder；切換時會重建。</li>
+</ul>
+</section>
+
+<section id="english">
+<h2>English summary</h2>
+<p>Fully local hybrid search for Markdown/HTML notes (zh-TW friendly). Keyword side: SQLite FTS5 with BM25 over CJK character bigrams (so 2-character words match; FTS5 trigram cannot). Semantic side: sqlite-vec <code>vec0</code> cosine KNN over 384-d embeddings from <code>Xenova/multilingual-e5-small</code> (int8 ONNX) run on CPU by <code>@huggingface/transformers</code>, with <code>allowRemoteModels=false</code>. Results are fused with Reciprocal Rank Fusion (k=60) and returned with a per-result score breakdown.</p>
+<p>Quick start: <code>npm ci</code> → <code>npm run fetch-model</code> (or <code>fetch-model:npm</code> when huggingface.co is blocked) → <code>npm run index:preview</code> → <code>npm run index</code> → <code>npm run search -- "query"</code> / <code>npm run serve</code>. Debugging: <code>--debug</code>, JSONL logs in <code>&lt;data-dir&gt;/logs</code>, <code>/api/debug</code>, UI verbose mode, <code>node --inspect src/cli.js serve</code>. Verified here with the real e5 model (CLI, <code>npm test</code>, Playwright UI run); the Windows launchers and the Hugging Face download path were not executable in this Linux container.</p>
+</section>
+
+</main>
+<script>
+// Hash-based tabs. Without JS every section is simply shown in order.
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  function show() {
+    var id = (location.hash || '#overview').slice(1);
+    var all = id === 'all';
+    document.body.classList.toggle('tabs', !all);
+    var found = all || sections.some(function (s) { return s.id === id; });
+    if (!found) id = 'overview';
+    sections.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    if (!all) window.scrollTo(0, 0);
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id || (all && a.getAttribute('href') === '#all')); });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

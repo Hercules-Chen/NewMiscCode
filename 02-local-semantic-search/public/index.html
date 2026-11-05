@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Local Semantic Search</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1 data-i18n="title">本機語意搜尋</h1>
+  <div class="tools">
+    <label><input type="checkbox" id="verbose"> <span data-i18n="verbose">詳細/除錯</span></label>
+    <button id="lang" type="button" title="Language">EN</button>
+  </div>
+</header>
+<main>
+  <form id="form" autocomplete="off">
+    <input id="q" type="search" data-i18n-placeholder="placeholder" placeholder="輸入關鍵字或一句話…" autofocus>
+    <select id="mode">
+      <option value="hybrid" data-i18n="mode_hybrid">混合 (RRF)</option>
+      <option value="keyword" data-i18n="mode_keyword">關鍵字 (BM25)</option>
+      <option value="semantic" data-i18n="mode_semantic">語意 (向量)</option>
+    </select>
+    <select id="k"><option>5</option><option selected>10</option><option>20</option></select>
+    <button id="go" type="submit" data-i18n="search">搜尋</button>
+  </form>
+  <div id="status" class="status"></div>
+  <ol id="results"></ol>
+  <section id="debug" hidden>
+    <h2 data-i18n="debug_title">除錯資訊</h2>
+    <p><a href="/api/debug" target="_blank" data-i18n="debug_link">開啟 /api/debug（設定、統計、最近記錄）</a></p>
+    <pre id="debugOut"></pre>
+  </section>
+</main>
+<footer id="footer"></footer>
+<script src="app.js"></script>
+</body>
+</html>

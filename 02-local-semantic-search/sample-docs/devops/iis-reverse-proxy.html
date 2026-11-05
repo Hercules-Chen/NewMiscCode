@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><title>IIS 反向代理到 Node.js</title></head>
+<body>
+<h1>IIS 反向代理到 Node.js</h1>
+<p>安裝 <strong>URL Rewrite</strong> 與 <strong>Application Request Routing (ARR)</strong> 模組，並在 ARR 中啟用 Proxy。</p>
+<h2>web.config 規則</h2>
+<pre>&lt;rule name="node" stopProcessing="true"&gt;
+  &lt;match url="(.*)" /&gt;
+  &lt;action type="Rewrite" url="http://127.0.0.1:8787/{R:1}" /&gt;
+&lt;/rule&gt;</pre>
+<h2>常見問題</h2>
+<table><tr><td>502.3 Bad Gateway</td><td>後端 Node 沒有啟動或埠號錯誤</td></tr>
+<tr><td>WebSocket 斷線</td><td>需在「伺服器角色」安裝 WebSocket 通訊協定</td></tr></table>
+</body></html>

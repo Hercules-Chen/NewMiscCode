@@ -1,0 +1,35 @@
+{
+  "name": "local-semantic-search",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fully local hybrid (FTS5 + sqlite-vec) semantic search over zh-TW Markdown/HTML notes",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "volta": {
+    "node": "22.23.4"
+  },
+  "bin": {
+    "lss": "src/cli.js"
+  },
+  "scripts": {
+    "index": "node src/cli.js index",
+    "index:preview": "node src/cli.js index --dry-run",
+    "search": "node src/cli.js search",
+    "serve": "node src/cli.js serve",
+    "serve:inspect": "node --inspect src/cli.js serve --debug",
+    "stats": "node src/cli.js stats",
+    "fetch-model": "node scripts/fetch-model.js",
+    "fetch-model:npm": "node scripts/fetch-model.js --source npm",
+    "demo": "node scripts/demo-queries.js",
+    "verify:ui": "node scripts/verify-ui.js",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
+    "audit": "node ../tools/audit-text.mjs ."
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
+    "better-sqlite3": "^13.0.3",
+    "sqlite-vec": "^0.1.9"
+  }
+}

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>Chrome DevTools 除錯技巧</title><style>body{font-family:sans-serif}</style></head>
+<body>
+<h1>Chrome DevTools 除錯技巧</h1>
+<p>按 <kbd>F12</kbd> 或 <kbd>Ctrl+Shift+I</kbd> 開啟開發人員工具。</p>
+<h2>Network 面板</h2>
+<p>勾選 <b>Disable cache</b> 與 <b>Preserve log</b>，可以看到每個 fetch 請求的耗時、回應 JSON 與 HTTP 狀態碼。</p>
+<h2>Node.js 除錯</h2>
+<p>以 <code>node --inspect app.js</code> 啟動，然後在網址列輸入 <code>chrome://inspect</code>，點 <i>Open dedicated DevTools for Node</i>，即可設定中斷點。</p>
+<h2>Sources 面板</h2>
+<ul><li>條件中斷點：右鍵行號 → Add conditional breakpoint。</li><li>Logpoint：不改程式碼就能輸出變數。</li></ul>
+<script>console.log('this script text should not be indexed');</script>
+</body>
+</html>

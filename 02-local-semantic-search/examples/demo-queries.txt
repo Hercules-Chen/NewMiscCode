@@ -1,0 +1,31 @@
+# demo queries  embedder=transformers:Xenova/multilingual-e5-small:q8  files=17 chunks=39  2026-11-05T04:14:15.648Z
+
+## 欄位加密連線失敗
+  keyword  1. database/msnodesqlv8.md (bm25=-10.4297)  |  2. devops/volta-node-version.md (bm25=-3.0439)  |  3. database/sql-always-encrypted.md (bm25=-1.9708)
+  semantic 1. database/sql-always-encrypted.md (cos=0.8798)  |  2. database/msnodesqlv8.md (cos=0.8686)  |  3. journal/2026-10-15.md (cos=0.8507)
+  hybrid   1. database/msnodesqlv8.md (rrf=0.03252)  |  2. database/sql-always-encrypted.md (rrf=0.03202)  |  3. journal/2026-10-15.md (rrf=0.03055)
+
+## 保護個資不讓管理員看到
+  keyword  1. frontend/chrome-devtools-tips.html (bm25=-3.1644)  |  2. database/sql-always-encrypted.md (bm25=-2.7433)  |  3. journal/2026-10-15.md (bm25=-2.6166)
+  semantic 1. database/sql-always-encrypted.md (cos=0.8307)  |  2. journal/2026-10-15.md (cos=0.821)  |  3. frontend/playwright-e2e.md (cos=0.8155)
+  hybrid   1. database/sql-always-encrypted.md (rrf=0.03202)  |  2. frontend/chrome-devtools-tips.html (rrf=0.03202)  |  3. journal/2026-10-15.md (rrf=0.032)
+
+## 桌面程式打包後讀不到 C++ 擴充
+  keyword  1. frontend/electron-asar.md (bm25=-6.4648)  |  2. devops/windows-service-nssm.md (bm25=-5.2107)  |  3. dotnet/csharp-async.md (bm25=-4.3728)
+  semantic 1. frontend/electron-asar.md (cos=0.8583)  |  2. journal/2026-10-01.md (cos=0.8533)  |  3. database/sql-always-encrypted.md (cos=0.8529)
+  hybrid   1. frontend/electron-asar.md (rrf=0.03279)  |  2. devops/windows-service-nssm.md (rrf=0.03128)  |  3. database/sql-always-encrypted.md (rrf=0.02971)
+
+## 批次檔中文變成亂碼
+  keyword  1. devops/powershell-encoding.md (bm25=-12.8588)
+  semantic 1. devops/powershell-encoding.md (cos=0.868)  |  2. devops/windows-service-nssm.md (cos=0.8648)  |  3. frontend/chrome-devtools-tips.html (cos=0.8559)
+  hybrid   1. devops/powershell-encoding.md (rrf=0.03279)  |  2. devops/windows-service-nssm.md (rrf=0.01613)  |  3. frontend/chrome-devtools-tips.html (rrf=0.01587)
+
+## UI hangs when waiting for a task
+  keyword  1. dotnet/csharp-async.md (bm25=-6.2248)
+  semantic 1. dotnet/csharp-async.md (cos=0.8298)  |  2. dotnet/httpclient-socket-exhaustion.md (cos=0.825)  |  3. journal/2026-10-01.md (cos=0.8143)
+  hybrid   1. dotnet/csharp-async.md (rrf=0.03279)  |  2. dotnet/httpclient-socket-exhaustion.md (rrf=0.01613)  |  3. journal/2026-10-01.md (rrf=0.01538)
+
+## server runs out of ports under load
+  keyword  1. dotnet/httpclient-socket-exhaustion.md (bm25=-16.6641)  |  2. frontend/electron-asar.md (bm25=-2.5217)  |  3. database/msnodesqlv8.md (bm25=-2.2988)
+  semantic 1. dotnet/httpclient-socket-exhaustion.md (cos=0.8695)  |  2. devops/iis-reverse-proxy.html (cos=0.819)  |  3. devops/git-line-endings.md (cos=0.8062)
+  hybrid   1. dotnet/httpclient-socket-exhaustion.md (rrf=0.03279)  |  2. database/msnodesqlv8.md (rrf=0.03037)  |  3. database/sql-always-encrypted.md (rrf=0.02881)

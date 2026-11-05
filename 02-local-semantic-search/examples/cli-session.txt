@@ -1,0 +1,47 @@
+$ node src/cli.js index --dry-run
+[dry-run] docs=<project>/sample-docs
+[dry-run] db=<data-dir>/index.sqlite
+  new       database/msnodesqlv8.md
+  new       database/sql-always-encrypted.md
+  new       database/sqlite-fts5.md
+  new       devops/docker-wsl.md
+  ...
+
+$ node src/cli.js index
+[index] docs=<project>/sample-docs
+[index] db=<data-dir>/index.sqlite
+  [1/17] database/msnodesqlv8.md (4 chunks)
+  [2/17] database/sql-always-encrypted.md (4 chunks)
+[index] embedder=transformers:Xenova/multilingual-e5-small:q8 added=17 updated=0 touched=0 unchanged=0 deleted=0 newChunks=39 total(files=17, chunks=39, vectors=39) 2885ms
+
+$ node src/cli.js index   # second run: incremental, nothing changed
+[index] embedder=transformers:Xenova/multilingual-e5-small:q8 added=0 updated=0 touched=0 unchanged=17 deleted=0 newChunks=0 total(files=17, chunks=39, vectors=39) 22ms
+
+$ node src/cli.js search 欄位加密連線失敗 --k 3
+Query: 欄位加密連線失敗  (mode=hybrid, 1527ms, embed 31ms, fts=""欄位" OR "位加" OR "加密" OR "密連" OR "連線" OR "線失" OR "失敗"")
+ 1. database/msnodesqlv8.md:11  msnodesqlv8 連接 SQL Server > 連線失敗排查
+    rrf=0.03252 kw#=1 bm25=-10.4297 sem#=2 cos=0.8686 by=keyword+semantic
+    1. 確認 SQL Server Browser 服務已啟動（具名執行個體需要）。 2. ODBC Driver 18 預設 Encrypt=yes，自簽憑證要加 TrustServerCertificate=yes，否則會出現 SSL 憑證鏈錯誤。 3. 防火牆開放 TCP 1…
+ 2. database/sql-always-encrypted.md:16  SQL Server Always Encrypted 實務筆記 > 常見錯誤
+    rrf=0.03202 kw#=4 bm25=-1.9708 sem#=1 cos=0.8798 by=keyword+semantic
+    …一致。 - 「找不到憑證，無法解密資料行[加密]金鑰」：執行服務的帳號沒有存取 CMK 憑證的私密金鑰權限，請在 certlm.msc 管理私密金鑰。 - 讀出來是一串 varbinary：連接字串少了[加密]設定。 相關：msnodesqlv8 連接 SQL Server
+ 3. journal/2026-10-15.md:3  2026-10-15 週會紀錄 > 決議
+    rrf=0.03055 kw#=7 bm25=-1.7742 sem#=4 cos=0.8507 by=keyword+semantic
+    - 報表系統的資料庫要升級到 SQL Server 2022。 - 客戶要求身分證字號與電話號碼不能讓 DBA 看到明文，評估導入用戶端[加密]方案。
+
+$ node src/cli.js search 保護個資不讓管理員看到 --mode semantic --k 2
+Query: 保護個資不讓管理員看到  (mode=semantic, 1633ms, embed 18ms, fts="")
+ 1. database/sql-always-encrypted.md:16  SQL Server Always Encrypted 實務筆記 > 常見錯誤
+    rrf=0.01639 kw#=- bm25=- sem#=1 cos=0.8307 by=semantic
+    …密金鑰權限，請在 certlm.msc [管理]私密金鑰。 - 讀出來是一串 varbinary：連接字串少了加密設定。 相關：msnodesqlv8 連接 SQL Server
+ 2. journal/2026-10-15.md:3  2026-10-15 週會紀錄 > 決議
+    rrf=0.01613 kw#=- bm25=- sem#=2 cos=0.821 by=semantic
+    - 報表系統的資料庫要升級到 SQL Server 2022。 - 客戶要求身分證字號與電話號碼不能讓 DBA [看到]明文，評估導入用戶端加密方案。
+
+$ node src/cli.js search "Always Encrypted" --mode keyword --k 2 --debug   (stderr shows JSONL-level debug events)
+[debug] cli.start {"cmd":"search","argv":["search","Always Encrypted","--mode","keyword","--k","2","--debug","--data-dir","<data-dir>"],"cfg":{"data
+[info] search {"q":"Always Encrypted","mode":"keyword","k":2,"results":1,"rrfK":60,"candidates":50,"ftsMs":1,"ftsQuery":"\"always\" OR \"encrypted\"","vecMs":0,"embedMs":0,"keywordHits":4,"semanticHits":0,"totalMs":2}
+Query: Always Encrypted  (mode=keyword, 2ms, embed 0ms, fts=""always" OR "encrypted"")
+ 1. database/sql-always-encrypted.md:1  SQL Server Always Encrypted 實務筆記
+    rrf=0.01639 kw#=1 bm25=-7.73 sem#=- cos=- by=keyword
+    [Always] [Encrypted]（一律加密）讓敏感資料行在用戶端就完成加解密，SQL Server 引擎本身看不到明文。

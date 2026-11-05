@@ -1,0 +1,6 @@
+node_modules/
+data/
+logs/
+*.log
+# model weights (~135 MB) are fetched with: npm run fetch-model
+models/
