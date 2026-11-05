@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DuckDB-WASM 資料分析台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23f5c400'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1 data-i18n="appTitle">DuckDB-WASM 資料分析台</h1>
+    <p class="muted small" data-i18n="appSubtitle"></p>
+  </div>
+  <div class="top-actions">
+    <span id="status" class="status" data-state="loading" role="status" aria-live="polite">…</span>
+    <button type="button" id="langBtn" class="btn" data-i18n="langBtn">English</button>
+    <button type="button" id="themeBtn" class="btn">Theme</button>
+    <button type="button" id="debugBtn" class="btn" aria-pressed="false" data-i18n="debugBtn">Debug</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <section class="card">
+      <h2 data-i18n="dataSources"></h2>
+      <div id="dropZone" class="dropzone">
+        <span data-i18n="dropHint"></span>
+        <label class="btn btn-primary file-label"><span data-i18n="chooseFiles"></span>
+          <input type="file" id="fileInput" multiple accept=".csv,.tsv,.txt,.parquet,.pq,.json,.jsonl,.ndjson,.xlsx,.xls">
+        </label>
+      </div>
+      <div class="row wrap">
+        <button type="button" id="sampleLogBtn" class="btn" data-i18n="loadSampleLog"></button>
+        <button type="button" id="sampleSalesBtn" class="btn" data-i18n="loadSampleSales"></button>
+      </div>
+      <div id="messages" class="messages" aria-live="polite"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="schema"></h2>
+      <div id="schemaList" class="schema"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="presets"></h2>
+      <p id="presetHint" class="muted small" data-i18n="presetsNeedLog"></p>
+      <div id="presetList" class="chips"></div>
+      <h3 data-i18n="examples"></h3>
+      <div id="exampleList" class="chips"></div>
+    </section>
+
+    <section class="card">
+      <div class="row between"><h2 data-i18n="history"></h2><button type="button" id="clearHistory" class="btn btn-small" data-i18n="clearHistory"></button></div>
+      <ul id="historyList" class="history"></ul>
+    </section>
+  </aside>
+
+  <main class="main">
+    <section class="card">
+      <div class="row between">
+        <h2><label for="sql" data-i18n="sqlEditor"></label></h2>
+        <div class="row wrap">
+          <button type="button" id="runBtn" class="btn btn-primary" data-i18n="runBtn"></button>
+        </div>
+      </div>
+      <textarea id="sql" spellcheck="false" rows="9" autocomplete="off"></textarea>
+    </section>
+
+    <section class="card results">
+      <div class="row between wrap">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab" role="tab" data-view="table" aria-selected="true" data-i18n="tabTable"></button>
+          <button type="button" class="tab" role="tab" data-view="chart" aria-selected="false" data-i18n="tabChart"></button>
+        </div>
+        <div id="resultMeta" class="row wrap meta" hidden>
+          <span><span data-i18n="rows"></span>: <strong id="rowCount" data-rows="0">0</strong></span>
+          <span><span data-i18n="queryTime"></span>: <strong id="queryTime">-</strong></span>
+        </div>
+        <div class="row wrap">
+          <label class="small"><input type="checkbox" id="bomChk" checked> <span data-i18n="excelBom"></span></label>
+          <button type="button" id="exportBtn" class="btn" disabled data-i18n="exportCsv"></button>
+        </div>
+      </div>
+
+      <div id="tablePane">
+        <div id="grid" class="grid-wrap"></div>
+        <div id="pager" class="row wrap pager" hidden>
+          <button type="button" id="prevBtn" class="btn btn-small" data-i18n="prev"></button>
+          <span id="pageInfo" class="small"></span>
+          <button type="button" id="nextBtn" class="btn btn-small" data-i18n="next"></button>
+          <label class="small"><span data-i18n="pageSize"></span>
+            <select id="pageSize"><option>25</option><option>50</option><option>100</option><option>500</option></select>
+          </label>
+        </div>
+      </div>
+
+      <div id="chartPane" hidden>
+        <div class="row wrap chart-controls">
+          <label class="small"><span data-i18n="chartType"></span>
+            <select id="chartType"><option value="bar" data-i18n="bar"></option><option value="line" data-i18n="line"></option></select>
+          </label>
+          <label class="small"><span data-i18n="xCol"></span> <select id="chartX"></select></label>
+          <label class="small"><span data-i18n="yCol"></span> <select id="chartY"></select></label>
+          <span id="chartNote" class="muted small"></span>
+        </div>
+        <div id="chartBox" class="chart-box"></div>
+      </div>
+    </section>
+    <footer class="muted small footer">
+      <span data-i18n="footer"></span> <span data-i18n="persistNote"></span>
+      <span id="ddbVersion"></span>
+    </footer>
+  </main>
+</div>
+
+<section id="debugPanel" class="debug" hidden>
+  <div class="row between">
+    <strong data-i18n="debugTitle"></strong>
+    <div class="row">
+      <button type="button" id="debugClear" class="btn btn-small" data-i18n="debugClear"></button>
+      <button type="button" id="debugClose" class="btn btn-small" data-i18n="debugClose"></button>
+    </div>
+  </div>
+  <ol id="debugList" class="debug-list"></ol>
+</section>
+
+<script src="vendor/duckdb.iife.js"></script>
+<script src="js/i18n.js"></script>
+<script src="js/samplegen.js"></script>
+<script src="js/chart.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

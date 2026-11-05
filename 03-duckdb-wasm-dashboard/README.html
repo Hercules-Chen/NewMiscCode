@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DuckDB-WASM 資料分析台 - 說明文件</title>
+<style>
+:root { color-scheme: light; --bg: #f6f6f4; --surface: #fff; --text: #111; --muted: #555; --border: #d9d8d2; --accent: #2a78d6; --code: #f0efeb; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg: #121211; --surface: #1a1a19; --text: #eee; --muted: #aaa; --border: #3a3936; --accent: #3987e5; --code: #242422; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif; }
+header { padding: 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+header h1 { margin: 0; font-size: 22px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+nav a { padding: 6px 12px; border-radius: 6px; color: var(--text); text-decoration: none; border: 1px solid transparent; }
+nav a.active, nav a:hover { border-color: var(--accent); color: var(--accent); }
+main { max-width: 980px; margin: 0 auto; padding: 16px; }
+section.tab { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 20px 20px; }
+section.tab.active { display: block; }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; background: var(--code); border-radius: 4px; }
+code { padding: 1px 4px; }
+pre { padding: 10px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+img { max-width: 100%; border: 1px solid var(--border); border-radius: 6px; }
+.muted { color: var(--muted); }
+ol li, ul li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>DuckDB-WASM 資料分析台 <span class="muted">/ DuckDB-WASM Data Desk</span></h1>
+  <div class="muted">純瀏覽器、零後端的資料分析工具：拖放 CSV / Parquet / JSON / XLSX，用 SQL 查詢、作圖、匯出。</div>
+</header>
+<nav id="nav">
+  <a href="#overview">概覽</a>
+  <a href="#quickstart">快速開始</a>
+  <a href="#usage">使用說明</a>
+  <a href="#verify">驗證步驟</a>
+  <a href="#build">架構與打包</a>
+  <a href="#debug">除錯與記錄</a>
+  <a href="#artifact">Artifact 版本</a>
+  <a href="#limits">限制與疑難排解</a>
+  <a href="#english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>這是一個完全在瀏覽器內執行的資料分析工具，使用 <a href="https://duckdb.org/docs/api/wasm/overview">DuckDB-WASM</a>（<code>@duckdb/duckdb-wasm</code> <b>1.32.0</b>，內含 DuckDB v1.4.3）。資料不會上傳到任何伺服器；本機伺服器 <code>server.js</code> 只負責提供靜態檔案。</p>
+<ul>
+  <li>拖放或選擇 <b>CSV / TSV / JSON / JSONL / NDJSON / XLSX / Parquet</b> 檔案，自動建立資料表（檔名轉為表名，例如 <code>app-log.jsonl</code> → <code>app_log</code>）。</li>
+  <li><b>SQL 編輯器</b>：Ctrl+Enter 執行（若有選取文字則只執行選取部分），Tab 縮排。</li>
+  <li><b>結果表格</b>：分頁（25/50/100/500）、列數、查詢耗時、NULL 標示。</li>
+  <li><b>快速圖表</b>：長條圖 / 折線圖（手寫 SVG，滑鼠移過顯示數值）。</li>
+  <li><b>資料表與欄位</b>面板、<b>查詢歷史</b>（存於瀏覽器 localStorage）、<b>範例查詢</b>、<b>匯出 CSV</b>（可選 Excel 相容 BOM）。</li>
+  <li><b>Log 分析預設</b>：每小時錯誤數、各等級筆數、最慢模組 (p95)、最常見錯誤訊息、慢請求、模組 × 小時錯誤數。</li>
+  <li>介面語言：<b>繁體中文（預設）</b>與 English，右上角切換；主題：自動 / 淺色 / 深色；手機寬度可用。</li>
+  <li>除錯記錄面板（每個查詢、耗時、錯誤），<code>?debug=1</code> 同時輸出 <code>console.debug</code>。</li>
+</ul>
+<p><img src="examples/01-errors-per-hour-chart.png" alt="每小時錯誤數折線圖" width="640"></p>
+</section>
+
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<h3>Windows（繁體中文 Windows + Chrome）</h3>
+<ol>
+  <li>安裝 <a href="https://nodejs.org/">Node.js</a> 18 以上版本（建議 22 LTS）。</li>
+  <li>雙擊 <code>start-windows.bat</code>。它會切換到程式所在資料夾、呼叫 <code>start-windows.ps1</code>。</li>
+  <li>第一次執行時會自動 <code>npm install</code> 與 <code>npm run build</code>（下載約 140 MB 的 npm 套件，複製 wasm 到 <code>public\vendor\</code>）。</li>
+  <li>伺服器啟動後自動開啟瀏覽器 <code>http://127.0.0.1:8703/</code>。關閉命令視窗或按 Ctrl+C 即停止。</li>
+</ol>
+<p class="muted">參數：<code>start-windows.ps1 -Port 9000 -LogDir D:\logs -NoBrowser</code></p>
+<h3>Linux / macOS / 手動</h3>
+<pre>npm install
+npm run build      # 複製 duckdb-wasm 的 wasm/worker 到 public/vendor/，產生 dist/artifact.html
+npm start          # node server.js  → http://127.0.0.1:8703/
+# 或 ./start.sh（自動 build 並開啟瀏覽器）</pre>
+<h3>伺服器參數</h3>
+<table>
+<tr><th>參數</th><th>環境變數</th><th>預設值</th></tr>
+<tr><td><code>--port</code></td><td><code>PORT</code></td><td>8703（<code>0</code> = 隨機）</td></tr>
+<tr><td><code>--host</code></td><td><code>HOST</code></td><td>127.0.0.1（區網分享用 0.0.0.0）</td></tr>
+<tr><td><code>--log-dir</code></td><td><code>LOG_DIR</code></td><td>Windows：<code>%ProgramData%\NewMiscCode\03-duckdb-wasm-dashboard</code>；其他：<code>./logs</code></td></tr>
+<tr><td><code>--root</code></td><td></td><td><code>public</code></td></tr>
+<tr><td><code>--open</code></td><td></td><td>啟動後開啟瀏覽器</td></tr>
+<tr><td><code>--quiet</code></td><td></td><td>不在主控台印出每個請求</td></tr>
+</table>
+<h3>部署到任何靜態主機</h3>
+<p><code>npm run build</code> 後，把整個 <code>public/</code> 資料夾（含 <code>vendor/</code>）上傳到任何靜態主機（GitHub Pages、IIS、nginx…）即可。主機需以 <code>application/wasm</code> 提供 <code>.wasm</code>（多數主機預設如此；不正確時 DuckDB 仍會退回較慢的載入方式）。不需要 COOP/COEP 標頭。</p>
+</section>
+
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<ol>
+  <li><b>載入資料</b>：把檔案拖到頁面任何地方（或左上「資料來源」區塊），或按「選擇檔案」。也可以按「載入範例 App Log」（3000 筆，48 小時）或「載入範例銷售 CSV」。範例檔也在 <code>public/sample/</code>。</li>
+  <li><b>查看結構</b>：「資料表與欄位」列出每個表的列數；展開可看欄位與型別；點表名直接執行 <code>SELECT * ... LIMIT 100</code>；點欄位名插入到編輯器游標處。</li>
+  <li><b>寫 SQL</b>：在編輯器輸入 DuckDB SQL，按「執行」或 Ctrl+Enter。錯誤訊息顯示在結果區並寫入除錯記錄。</li>
+  <li><b>作圖</b>：切到「圖表」分頁，選擇圖表類型、X 軸欄位、Y 軸數值欄位。預設查詢會自動帶入合適的設定。最多繪製前 500 列。</li>
+  <li><b>匯出</b>：「匯出 CSV」匯出完整結果（不只目前頁）。勾選「Excel 相容 (BOM)」時檔案開頭加 UTF-8 BOM，讓繁中 Windows 的 Excel 直接開啟不亂碼。</li>
+  <li><b>歷史</b>：每次成功執行的 SQL 會存到歷史（最多 50 筆，存在此瀏覽器），點一下載回編輯器。</li>
+</ol>
+<h3>Log 分析</h3>
+<p>Log 檔需為 JSON Lines（每行一個 JSON 物件），欄位：<code>timestamp</code>（如 <code>2026-11-01 08:15:23.123</code> 或 ISO 格式）、<code>level</code>（DEBUG/INFO/WARN/ERROR）、<code>module</code>、<code>message</code>、<code>elapsed_ms</code>。把檔名取為 <code>app-log.jsonl</code>（或載入後 <code>CREATE TABLE app_log AS SELECT * FROM 你的表</code>），預設查詢按鈕就會啟用。</p>
+<pre>{"timestamp":"2026-11-01 00:00:52.112","level":"INFO","module":"billing","message":"invoice created","elapsed_ms":171,"request_id":"req-186a0","user_id":12}</pre>
+<h3>支援格式</h3>
+<table>
+<tr><th>格式</th><th>處理方式</th><th>需網路？</th></tr>
+<tr><td>CSV / TSV / TXT</td><td>DuckDB <code>read_csv_auto</code>（自動偵測分隔符、型別、時間）</td><td>否</td></tr>
+<tr><td>JSON / JSONL / NDJSON</td><td>在 JS 中解析（陣列、單一物件、或每行一筆），轉 CSV 後由 DuckDB 偵測型別；巢狀物件存成 JSON 字串</td><td>否</td></tr>
+<tr><td>XLSX / XLS</td><td>SheetJS 0.18.5（首次使用時載入），每個工作表一個資料表</td><td>否（本機版）</td></tr>
+<tr><td>Parquet</td><td>DuckDB <code>read_parquet</code>；DuckDB-WASM 1.32 未內建 parquet 擴充，會自動從 <code>extensions.duckdb.org</code> 下載</td><td><b>是</b></td></tr>
+</table>
+</section>
+
+<section class="tab" id="verify">
+<h2>驗證步驟（同事可照做）</h2>
+<h3>A. 自動測試</h3>
+<pre>npm install
+npm test                 # = node scripts/build.mjs &amp;&amp; node test/e2e.mjs
+npm run audit:text       # 文字檔稽核：UTF-8、無 BOM（.ps1 例外）、無 U+FFFD、.bat 純 ASCII</pre>
+<p><code>test/e2e.mjs</code> 會：啟動 <code>server.js</code>（隨機埠）→ 以 Playwright Chromium 開頁面（<code>?debug=1</code>）→ 用檔案選擇器載入 <code>public/sample/app-log.jsonl</code> → 執行全部 6 個預設查詢並檢查列數 &gt; 0 → 在 Node 中獨立計算期望值，比對「每小時錯誤數」每一列、「各等級筆數」、「最常見錯誤訊息」及各查詢列數 → 繪製折線圖與長條圖並檢查點數/長條數、滑鼠提示 → 分頁 → 匯出 CSV 並比對內容與 BOM → 載入 CSV 與 XLSX（含中文）→ 錯誤 SQL 的顯示與記錄 → 切換英文再切回 → 手機寬度 (390px) 深色主題無水平捲動 → 以攔截請求的方式把 jsDelivr 指向 node_modules，測試 <code>dist/artifact.html</code> → 檢查伺服器 JSONL 記錄與 <code>.wasm</code> MIME → 任何 console error 都算失敗。截圖存到 <code>examples/</code>。</p>
+<p>需要 Playwright：若專案內沒有安裝，測試會使用全域安裝的 <code>playwright</code>（<code>npm root -g</code>）。沒有時請 <code>npm i -D playwright &amp;&amp; npx playwright install chromium</code>。</p>
+<h3>B. 手動驗證（約 3 分鐘）</h3>
+<ol>
+  <li>執行 <code>start-windows.bat</code>（或 <code>npm start</code>），開啟 <code>http://127.0.0.1:8703/?debug=1</code>。右上狀態顯示「就緒」，頁尾顯示 <code>DuckDB v1.4.3 / duckdb-wasm 1.32.0</code>；下方除錯記錄出現 <code>DuckDB ready</code>。</li>
+  <li>把 <code>public\sample\app-log.jsonl</code> 拖進頁面。左側出現 <code>app_log 3,000 列</code>，展開可見 <code>timestamp TIMESTAMP</code>。</li>
+  <li>按「每小時錯誤數」：列數 47；切到「圖表」看到折線圖，在 11-02 06:00 附近有明顯高峰（範例資料故意在第 30–32 小時注入 db.pool / billing 錯誤）。</li>
+  <li>按「各等級筆數」：INFO 1625、DEBUG / WARN / ERROR 其餘，合計 3000。</li>
+  <li>按「最常見錯誤訊息」：第一列為 <code>payment provider declined request</code>，47 次。</li>
+  <li>按「慢請求」：128 列，分頁顯示「頁 1 / 3」，按「下一頁」。</li>
+  <li>按「匯出 CSV」，用 Excel 開啟，中文與時間正常。</li>
+  <li>按右上「English」，介面切成英文；再按「中文」切回。按「主題」循環自動/淺色/深色。</li>
+  <li>輸入 <code>SELECT * FROM nope</code> 執行：結果區顯示紅色錯誤，除錯記錄有紅色 <code>[error]</code> 行。</li>
+  <li>打開 Chrome DevTools（F12）→ Console 無紅色錯誤；Network 可看到 <code>vendor/duckdb-eh.wasm</code> 為 <code>application/wasm</code>。</li>
+  <li>檢查伺服器記錄：<code>%ProgramData%\NewMiscCode\03-duckdb-wasm-dashboard\requests-YYYY-MM-DD.jsonl</code>。</li>
+</ol>
+<h3>參考截圖</h3>
+<p><img src="examples/02-english-results-debug.png" alt="英文介面與除錯記錄" width="640"></p>
+<p><img src="examples/03-mobile-dark.png" alt="手機寬度深色主題" width="260"></p>
+</section>
+
+<section class="tab" id="build">
+<h2>架構與打包</h2>
+<pre>03-duckdb-wasm-dashboard/
+├─ server.js               零相依靜態伺服器（MIME、JSONL 請求記錄、--open）
+├─ start-windows.bat/.ps1  Windows 啟動（bat 純 ASCII → ps1 UTF-8 BOM → node server.js）
+├─ start.sh                Linux/macOS 啟動
+├─ public/                 網站根目錄（可直接放到任何靜態主機）
+│  ├─ index.html
+│  ├─ css/app.css          主題變數（淺/深色）、RWD
+│  ├─ js/i18n.js           zh-TW / en 字串
+│  ├─ js/samplegen.js      決定性範例資料產生器（瀏覽器與 Node 共用）
+│  ├─ js/chart.js          手寫 SVG 長條/折線圖
+│  ├─ js/app.js            主程式（DuckDB 初始化、載入檔案、查詢、表格、匯出、除錯記錄）
+│  ├─ sample/              app-log.jsonl、sales.csv（build 產生並提交）
+│  └─ vendor/              ← npm run build 產生（不提交）
+├─ scripts/build.mjs       打包 duckdb-browser.mjs + apache-arrow 為 IIFE、複製 wasm/worker、產生 dist/artifact.html
+├─ scripts/audit-text.mjs  文字檔稽核
+├─ dist/artifact.html      單一 HTML（CDN 版，提交）
+├─ test/e2e.mjs            Playwright 端對端測試（npm test）
+└─ examples/               截圖</pre>
+<h3>為什麼 wasm 不提交</h3>
+<p><code>duckdb-eh.wasm</code> 約 32.7 MB、<code>duckdb-mvp.wasm</code> 約 37.5 MB，超過 10 MB 門檻，因此 <code>public/vendor/</code> 列在 <code>.gitignore</code>，由 <code>npm install &amp;&amp; npm run build</code> 從 npm 套件產生。版本鎖定在 <code>package.json</code>（精確版本）與 <code>package-lock.json</code>。</p>
+<h3>DuckDB 載入方式</h3>
+<ul>
+  <li>使用手動 bundle 設定（MVP 與 EH 兩組，由 <code>duckdb.selectBundle</code> 依瀏覽器能力選擇；Chrome 使用 EH）。不使用 COI（多執行緒）版本，因此不需要 COOP/COEP 標頭。</li>
+  <li><code>duckdb-browser.mjs</code> 依賴 <code>apache-arrow</code>，build 時用 esbuild 打包成單一 IIFE（約 220 KB，全域變數 <code>duckdb</code>），本機版與 Artifact 版共用同一份。</li>
+  <li>Worker 一律以 blob URL 建立：<code>importScripts(&lt;worker 絕對網址&gt;)</code>，因此同源（本機）與跨源（jsDelivr）走完全相同的程式路徑。</li>
+  <li>查詢設定 <code>castBigIntToDouble</code>、<code>castDecimalToDouble</code>，避免 BigInt / Decimal 在 JS 中的顯示問題。</li>
+</ul>
+<h3>JSON 為何在 JS 中解析</h3>
+<p>DuckDB-WASM 1.29 以後 json 與 parquet 擴充不再靜態連結，第一次使用 <code>read_json_auto</code> 時會從 <code>extensions.duckdb.org</code> 下載。為了在離線環境、公司代理、以及 claude.ai Artifact 的沙箱中都能運作，JSON/JSONL 改在 JS 中解析並轉成 CSV，由 DuckDB 核心的 CSV 偵測器推斷型別（時間戳記會被識別為 TIMESTAMP）。</p>
+<h3>持久化</h3>
+<p>未實作 OPFS 持久化：重新整理頁面後資料表會消失（查詢歷史、語言、主題會保留在 localStorage）。</p>
+</section>
+
+<section class="tab" id="debug">
+<h2>除錯與記錄</h2>
+<ul>
+  <li><b>頁面除錯記錄</b>：右上「除錯記錄」切換。記錄每個查詢（含內部的載入與結構查詢）、耗時、列數、錯誤、圖表繪製、匯出、語言切換、DuckDB 初始化與 bundle 選擇。最多保留 2000 筆。</li>
+  <li><b>URL 旗標</b> <code>?debug=1</code>：預設開啟面板，並把每筆記錄與 DuckDB 內部 logger 輸出到 <code>console.debug</code>（Chrome DevTools Console 選 Verbose 層級才看得到）。</li>
+  <li><b>DevTools</b>：<code>window.__ddbDebug</code> 是記錄陣列；<code>window.DDB.runQuery(sql)</code>、<code>DDB.runPreset('errors_per_hour')</code>、<code>DDB.state</code> 可直接使用。不使用任何阻擋 DevTools 的技巧，原始碼未混淆（只有 vendor 的 duckdb bundle 是壓縮過的）。</li>
+  <li><b>其他 URL 參數</b>：<code>?lang=en</code> 強制語言。</li>
+  <li><b>伺服器記錄</b>：每個請求寫一行 JSON 到 <code>&lt;log-dir&gt;/requests-YYYY-MM-DD.jsonl</code>，欄位 <code>ts, method, path, status, bytes, ms, ip, ua</code>。Windows 預設 <code>%ProgramData%\NewMiscCode\03-duckdb-wasm-dashboard</code>，其他系統 <code>./logs</code>；可用 <code>--log-dir</code> 或 <code>LOG_DIR</code> 更改。無法寫入時只警告一次，不影響服務。</li>
+</ul>
+</section>
+
+<section class="tab" id="artifact">
+<h2>Artifact 版本（dist/artifact.html）</h2>
+<p><code>dist/artifact.html</code> 由 <code>scripts/build.mjs</code> 從 <b>同一份</b> <code>public/index.html</code>、CSS 與 JS 產生：所有 CSS/JS（包括 duckdb + arrow 的 IIFE bundle）都內嵌，只在最前面加上 <code>window.DDB_CONFIG = {mode:"cdn", ...}</code>。CDN 模式下，wasm 與 worker 從<br><code>https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/dist/</code> 載入，SheetJS 從 <code>https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js</code> 載入。檔案約 290 KB，可直接發佈為 claude.ai Artifact 或用瀏覽器開啟。</p>
+<p><b>測試狀況</b>：開發容器無法連到 jsDelivr，因此 e2e 測試以 Playwright 攔截 <code>cdn.jsdelivr.net</code> 請求、改由 <code>node_modules</code> 中相同版本的檔案回應，並把頁面放在另一個網域（跨源）下執行：初始化、載入範例、執行預設查詢皆通過。真實 jsDelivr 與 claude.ai 的 CSP（例如是否允許 blob worker 與 wasm 下載）未能在此實測。</p>
+</section>
+
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<ul>
+  <li><b>狀態一直是「正在載入」或顯示「DuckDB 初始化失敗」</b>：確認已執行 <code>npm run build</code>（<code>public/vendor/</code> 存在）；開啟 <code>?debug=1</code> 看除錯記錄；檢查 Network 中 wasm 是否 200。</li>
+  <li><b>Parquet 載入失敗</b>：需要能連到 <code>extensions.duckdb.org</code>（DuckDB 自動下載 parquet 擴充）。公司網路封鎖時可先把 Parquet 轉成 CSV。</li>
+  <li><b>大檔案</b>：所有資料都在瀏覽器記憶體中（WASM 32 位元，約 4 GB 上限，實際建議 &lt; 1 GB）。JSON 會先在 JS 中整份解析，數百 MB 的 JSON 會較慢。</li>
+  <li><b>XLSX</b>：以 SheetJS 轉 CSV，公式取計算後的值；日期會依 SheetJS 格式輸出。</li>
+  <li><b>圖表</b>：單一數列，最多 500 列；需要更複雜的圖請匯出 CSV。</li>
+  <li><b>無持久化</b>：重新整理後需重新載入檔案。</li>
+  <li><b>埠被占用</b>：<code>start-windows.ps1 -Port 8710</code> 或 <code>node server.js --port 8710</code>。</li>
+  <li><b>PowerShell 執行原則</b>：<code>start-windows.bat</code> 以 <code>-ExecutionPolicy Bypass</code> 呼叫 ps1，不需修改系統設定。</li>
+</ul>
+</section>
+
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p>Zero-backend, in-browser data analysis with DuckDB-WASM (<code>@duckdb/duckdb-wasm</code> 1.32.0, DuckDB v1.4.3). Drop CSV / JSON / JSONL / XLSX / Parquet files to create tables, query them with SQL (Ctrl+Enter), page through results, draw bar/line charts, export CSV, browse schema and query history, and use the log-analysis presets on the sample app log.</p>
+<pre>npm install
+npm run build     # copies wasm/worker into public/vendor/ (not committed: ~33-38 MB each), builds dist/artifact.html
+npm start         # http://127.0.0.1:8703/   (?debug=1 for console.debug tracing, ?lang=en)
+npm test          # Playwright end-to-end test, screenshots in examples/
+npm run audit:text</pre>
+<ul>
+  <li>Windows: double-click <code>start-windows.bat</code> (installs and builds on first run, then opens the browser).</li>
+  <li>Server request log (JSONL): Windows <code>%ProgramData%\NewMiscCode\03-duckdb-wasm-dashboard</code>, else <code>./logs</code>; override with <code>--log-dir</code> / <code>LOG_DIR</code>.</li>
+  <li>JSON is parsed in JS and converted to CSV so it works offline: DuckDB-WASM 1.32 downloads the json/parquet extensions from extensions.duckdb.org on demand. Parquet therefore needs network access.</li>
+  <li><code>dist/artifact.html</code> is a single self-contained HTML generated from the same sources; it loads wasm + worker from jsDelivr. It was tested with jsDelivr requests intercepted and served from node_modules (the real CDN is blocked in the build container).</li>
+  <li>No OPFS persistence: tables are gone after reload (history, language and theme persist in localStorage).</li>
+</ul>
+</section>
+
+</main>
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  function show() {
+    var id = (location.hash || '#overview').slice(1);
+    if (!document.getElementById(id)) id = 'overview';
+    tabs.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

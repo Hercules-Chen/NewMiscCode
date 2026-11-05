@@ -1,0 +1,24 @@
+{
+  "name": "duckdb-wasm-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-backend in-browser data analysis with DuckDB-WASM",
+  "type": "module",
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "1.32.0",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node server.js",
+    "dev": "node scripts/build.mjs && node server.js --open",
+    "test": "node scripts/build.mjs && node test/e2e.mjs",
+    "audit:text": "node scripts/audit-text.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
