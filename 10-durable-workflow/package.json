@@ -1,0 +1,17 @@
+{
+  "name": "durable-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small durable-execution workflow engine (event-sourced replay, timers, signals, retries, saga) on Node 22 + node:sqlite, with web dashboard and CLI",
+  "type": "module",
+  "bin": { "wf": "bin/wf.mjs" },
+  "scripts": {
+    "start": "node bin/wf.mjs serve",
+    "worker": "node bin/wf.mjs worker",
+    "test": "node --test --test-concurrency=1 --test-reporter=spec \"test/*.test.mjs\"",
+    "test:engine": "node --test test/engine.test.mjs",
+    "test:crash": "node --test test/crash.test.mjs",
+    "test:e2e": "node --test test/e2e.test.mjs"
+  },
+  "engines": { "node": ">=22.5" }
+}

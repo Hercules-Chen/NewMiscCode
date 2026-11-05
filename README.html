@@ -5,135 +5,334 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NewMiscCode 新技術實驗</title>
 <style>
-:root { --bg:#fafafa; --fg:#1f2328; --muted:#59636e; --card:#fff; --line:#d1d9e0; --accent:#0969da; --ok:#1a7f37; --warn:#9a6700; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; } }
-:root[data-theme="dark"] { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; }
+:root { --bg:#fafafa; --fg:#1f2328; --muted:#59636e; --card:#ffffff; --line:#d1d9e0; --accent:#0969da; --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --code:#eff2f5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --code:#1f2630; } }
+:root[data-theme="dark"] { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --code:#1f2630; }
 * { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
 body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.7 "Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif; }
-header { padding:24px 16px 8px; max-width:980px; margin:auto; }
+header { padding:24px 16px 8px; max-width:1040px; margin:auto; }
 h1 { margin:0 0 4px; font-size:26px; }
+h2 { font-size:21px; margin:8px 0 12px; }
+h3 { font-size:17px; margin:20px 0 8px; }
 .sub { color:var(--muted); margin:0; }
 nav { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); z-index:5; }
-nav .in { max-width:980px; margin:auto; padding:0 16px; display:flex; gap:4px; overflow-x:auto; }
-nav a { padding:10px 12px; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; }
+nav .in { max-width:1040px; margin:auto; padding:0 16px; display:flex; gap:2px; overflow-x:auto; }
+nav a { padding:10px 10px; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; font-size:14px; }
 nav a.on { color:var(--fg); border-color:var(--accent); font-weight:600; }
-main { max-width:980px; margin:auto; padding:16px; }
-section { display:none; } section.on { display:block; }
-.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px; margin:12px 0; }
-table { border-collapse:collapse; width:100%; font-size:14px; }
-th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
-code, pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; }
-pre { background:var(--card); border:1px solid var(--line); border-radius:6px; padding:10px; overflow-x:auto; }
+main { max-width:1040px; margin:auto; padding:16px; }
+section.tab { display:none; } section.tab.on { display:block; }
+body.no-js section.tab { display:block; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin:12px 0; }
+table { border-collapse:collapse; width:100%; font-size:14px; margin:8px 0; }
+th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+th { background:var(--code); }
+code { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; background:var(--code); padding:1px 4px; border-radius:4px; }
+pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:10px; overflow-x:auto; }
+pre code { background:none; padding:0; }
 a { color:var(--accent); }
-.ok { color:var(--ok); font-weight:600; } .warn { color:var(--warn); font-weight:600; }
+.ok { color:var(--ok); font-weight:600; } .warn { color:var(--warn); font-weight:600; } .bad { color:var(--bad); font-weight:600; }
+.muted { color:var(--muted); }
+ul.check { list-style:none; padding-left:4px; }
+ul.check li::before { content:"\2610  "; color:var(--muted); }
+footer { max-width:1040px; margin:auto; padding:16px; color:var(--muted); font-size:13px; }
+@media (max-width: 640px) { table { display:block; overflow-x:auto; } h1 { font-size:22px; } }
 </style>
 </head>
-<body>
+<body class="no-js">
 <header>
   <h1>NewMiscCode 新技術實驗</h1>
-  <p class="sub">三個獨立小專案：MCP + Playwright UI 驗證、本機語意搜尋、瀏覽器內 DuckDB 分析。各資料夾都有自己的 README.html（含逐步驗證說明）。</p>
+  <p class="sub">12 個彼此獨立的小專案，每個都有自己的 README.html（含逐步驗證指南與開發者指南）。本頁是總覽與交接文件。</p>
 </header>
-<nav><div class="in">
+<nav><div class="in" id="nav">
   <a href="#overview">總覽</a>
-  <a href="#p1">01 UI 驗證機器人</a>
-  <a href="#p2">02 本機語意搜尋</a>
-  <a href="#p3">03 DuckDB-WASM</a>
-  <a href="#common">共通規範</a>
+  <a href="#quickstart">快速開始</a>
+  <a href="#env">環境需求</a>
+  <a href="#network">網路需求</a>
+  <a href="#ports">Port 與資料位置</a>
+  <a href="#windows">Windows 實機驗證清單</a>
+  <a href="#decisions">設計決策</a>
+  <a href="#verified">驗證紀錄</a>
+  <a href="#trouble">疑難排解</a>
+  <a href="#docrules">文件維護規範</a>
+  <a href="#changelog">變更紀錄</a>
   <a href="#en">English</a>
 </div></nav>
 <main>
 
-<section id="overview">
-  <div class="card">
-    <table>
-      <tr><th>資料夾</th><th>技術</th><th>用途</th><th>自動測試</th></tr>
-      <tr><td><a href="01-mcp-ui-verifier/README.html">01-mcp-ui-verifier</a></td><td>MCP SDK、Playwright</td><td>讓 AI 或人操作瀏覽器驗證 UI，錯誤處截圖紅框標示，產出 HTML 報告</td><td class="ok">npm test 8/8</td></tr>
-      <tr><td><a href="02-local-semantic-search/README.html">02-local-semantic-search</a></td><td>transformers.js (ONNX)、SQLite FTS5、sqlite-vec</td><td>完全本機的中英文混合搜尋（關鍵字 + 語意，RRF 融合）</td><td class="ok">npm test 10/10、UI 8/8</td></tr>
-      <tr><td><a href="03-duckdb-wasm-dashboard/README.html">03-duckdb-wasm-dashboard</a></td><td>DuckDB-WASM、Apache Arrow、SheetJS</td><td>零後端瀏覽器 SQL 分析；拖入 CSV/JSONL/XLSX，內建 Log 分析範本與圖表</td><td class="ok">npm test 49/49</td></tr>
-    </table>
-  </div>
-  <div class="card">
-    <b>快速開始（Windows）</b>：進入各資料夾，雙擊 <code>.bat</code> 啟動檔（ASCII 編碼，會先 <code>pushd "%~dp0"</code> 並印出 exit code）。或手動：
-    <pre>cd 01-mcp-ui-verifier
-npm install
-npm test</pre>
-  </div>
+<section class="tab" id="overview">
+<h2>總覽</h2>
+<table>
+  <tr><th>#</th><th>專案</th><th>技術</th><th>用途</th><th>自動測試（Linux 實測）</th></tr>
+  <tr><td>01</td><td><a href="01-mcp-ui-verifier/README.html">mcp-ui-verifier</a></td><td>MCP SDK、Playwright</td><td>讓 AI 或人操作瀏覽器驗證 UI，錯誤處截圖紅框標示，產出 HTML 報告</td><td class="ok">8/8</td></tr>
+  <tr><td>02</td><td><a href="02-local-semantic-search/README.html">local-semantic-search</a></td><td>transformers.js、SQLite FTS5、sqlite-vec</td><td>完全本機的中英文混合搜尋（關鍵字 + 語意，RRF 融合）</td><td class="ok">10/10，UI 8/8</td></tr>
+  <tr><td>03</td><td><a href="03-duckdb-wasm-dashboard/README.html">duckdb-wasm-dashboard</a></td><td>DuckDB-WASM、Apache Arrow</td><td>零後端瀏覽器 SQL 分析，內建 Log 分析範本與圖表</td><td class="ok">49/49</td></tr>
+  <tr><td>04</td><td><a href="04-otel-trace-viewer/README.html">otel-trace-viewer</a></td><td>OpenTelemetry JS、node:sqlite</td><td>跨服務分散式追蹤、自製 OTLP collector 與瀑布圖檢視器，Log 與 Trace 對照</td><td class="ok">7/7</td></tr>
+  <tr><td>05</td><td><a href="05-crdt-collab/README.html">crdt-collab</a></td><td>Yjs、WebSocket、IndexedDB</td><td>多人即時協作筆記與任務板，離線編輯後自動合併</td><td class="ok">19/19</td></tr>
+  <tr><td>06</td><td><a href="06-encoding-doctor-wasm/README.html">encoding-doctor-wasm</a></td><td>Go → WebAssembly、golang.org/x/text</td><td>編碼醫生：偵測/修復 Big5、UTF-8、BOM、CRLF、亂碼與檔案類型規則（網頁 + CLI）</td><td class="ok">go test + CLI + e2e 全過</td></tr>
+  <tr><td>07</td><td><a href="07-passkeys-webauthn/README.html">passkeys-webauthn</a></td><td>WebAuthn、SimpleWebAuthn</td><td>Passkeys 免密碼登入，虛擬驗證器自動測試，附 ASP.NET Core 對照</td><td class="ok">13/13</td></tr>
+  <tr><td>08</td><td><a href="08-pwa-offline-sync/README.html">pwa-offline-sync</a></td><td>Service Worker、IndexedDB、Background Sync</td><td>離線優先的現場巡檢 PWA，離線寫入排隊、恢復連線同步、衝突處理</td><td class="ok">20/20</td></tr>
+  <tr><td>09</td><td><a href="09-visual-regression-rust-wasm/README.html">visual-regression-rust-wasm</a></td><td>Rust → WebAssembly</td><td>截圖像素比對，變更區域紅框標示，前後對照報告</td><td class="ok">cargo 6/6，npm 10/10</td></tr>
+  <tr><td>10</td><td><a href="10-durable-workflow/README.html">durable-workflow</a></td><td>node:sqlite、事件溯源</td><td>Durable Workflow 引擎：當機重啟後從斷點繼續，已完成步驟不重跑</td><td class="ok">17/17</td></tr>
+  <tr><td>11</td><td><a href="11-csharp-rules-treesitter/README.html">csharp-rules-treesitter</a></td><td>web-tree-sitter、SARIF</td><td>C# 團隊規則檢查（同步等待 async、async void、out 參數…），不需 .NET SDK</td><td class="ok">36/36</td></tr>
+  <tr><td>12</td><td><a href="12-api-compat-guard/README.html">api-compat-guard</a></td><td>OpenAPI、錄製/重播</td><td>API 相容性守門員：找出會破壞舊呼叫的變更</td><td class="ok">73/73</td></tr>
+</table>
+<div class="card">
+  <b>建議閱讀順序（接手者）</b>：本頁「快速開始」→「Windows 實機驗證清單」→ 想用的專案 README.html 的「逐步驗證指南」→ 要改程式時看該專案的「開發者指南」。
+</div>
+<div class="card">
+  <b>共用工具</b>（在 repo 根目錄）：
+  <ul>
+    <li><code>verify-all.bat</code> / <code>node tools/verify-all.mjs</code>：依序跑每個專案的 <code>npm test</code>，列出結果表。</li>
+    <li><code>node tools/audit-text.mjs</code>：文字檔編碼稽核（UTF-8、BOM 規則、U+FFFD、.bat 純 ASCII）。</li>
+    <li><code>node tools/check-docs.mjs</code>：文件檢查（連結、錨點、npm 指令、啟動檔是否存在；每個分頁實際開瀏覽器檢查錯誤與手機寬度）。</li>
+  </ul>
+</div>
 </section>
 
-<section id="p1">
-  <div class="card">
-    <h3>01-mcp-ui-verifier</h3>
-    <ul>
-      <li>MCP Server（stdio）提供 14 個工具：open_page、click、fill、assert_text、check_console_errors、screenshot_annotate、generate_report、run_scenario 等。</li>
-      <li>CLI：<code>node src/cli.js demo</code> 會啟動內建含故意錯誤的示範頁，跑完產出報告。</li>
-      <li>選項：<code>--lang zh-TW|en</code>、<code>--headed</code>、<code>--devtools</code>、<code>--debug</code>、<code>--trace</code>、<code>--cdp-port</code>。</li>
-      <li>輸出預設：<code>%ProgramData%\NewMiscCode\01-mcp-ui-verifier</code>。</li>
-      <li>範例報告：<a href="01-mcp-ui-verifier/examples/report.html">examples/report.html</a></li>
-      <li class="warn">Windows 首次執行請跑 setup.bat（npm install + npx playwright install chromium）。</li>
-    </ul>
-  </div>
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<h3 id="qs-prereq">1. 先裝好的東西</h3>
+<table>
+  <tr><th>項目</th><th>版本</th><th>說明</th></tr>
+  <tr><td>Node.js</td><td><b>22.13 以上</b>（建議 22 LTS 並以 Volta 鎖定）</td><td>04、08 用到 <code>node:sqlite</code>，需要 22.13+；其他專案 18/20 也可，但統一用 22 最省事。</td></tr>
+  <tr><td>Playwright 的 Chromium</td><td>隨 Playwright 1.63.0</td><td>大部分專案的 <code>npm test</code> 需要。在任一專案資料夾執行 <code>npx playwright install chromium</code> 一次即可。</td></tr>
+  <tr><td>Go（選用）</td><td>1.24+</td><td>只有要<b>重新編譯</b> 06 的 wasm / exe 時才需要；repo 已附 <code>encdoc.wasm</code>。</td></tr>
+  <tr><td>Rust（選用）</td><td>stable + wasm32-unknown-unknown</td><td>只有要<b>重新編譯</b> 09 的 wasm 時才需要；repo 已附 <code>vr_core.wasm</code>。</td></tr>
+</table>
+<h3 id="qs-node-check">2. 確認 Node 正常</h3>
+<pre><code>node -e "console.log('node-ok', process.version)"</code></pre>
+<p>預期印出 <code>node-ok v22.x.x</code>。若 errorlevel 為 <code>-1073741819</code>，是 Node 本身崩潰（執行環境問題），不是專案程式問題。</p>
+<h3 id="qs-all">3. 一次驗證全部</h3>
+<p>雙擊根目錄 <code>verify-all.bat</code>（純 ASCII，會先 <code>pushd "%~dp0"</code>、印出路徑與 Node 版本，最後顯示 exit code 並 pause）。沒有 node_modules 的專案會自動 <code>npm ci</code>。也可以只跑部分專案：</p>
+<pre><code>node tools/verify-all.mjs --only 01,03
+node tools/verify-all.mjs --install</code></pre>
+<p>預期最後出現 <code>[verify-all] projects=12 failed=0 exit=0</code>。紀錄寫到 <code>%ProgramData%\NewMiscCode\verify-all\verify-all-YYYY-MM-DD.jsonl</code>。</p>
+<h3 id="qs-one">4. 單一專案</h3>
+<pre><code>cd 03-duckdb-wasm-dashboard
+npm ci
+npm test</code></pre>
+<p>每個專案都有自己的 <code>.bat</code> 啟動檔（例如 <code>start-windows.bat</code>、<code>run-tests.bat</code>），細節見各自 README.html 的「快速開始」。</p>
 </section>
 
-<section id="p2">
-  <div class="card">
-    <h3>02-local-semantic-search</h3>
-    <ul>
-      <li>模型：Xenova/multilingual-e5-small（int8 ONNX，384 維），以 <code>node scripts/fetch-model.js</code> 下載（預設 HuggingFace，會驗 SHA-256），不進 git。</li>
-      <li>索引：<code>index --dry-run</code> 先預覽，再正式寫入；依檔案雜湊增量更新。</li>
-      <li>排序：FTS5 BM25（中文雙字切詞）+ sqlite-vec KNN，以 RRF 融合。</li>
-      <li>離線備援：<code>--embedder hash</code>（字元 n-gram，無語意能力）。</li>
-      <li>資料/Log 預設：<code>%ProgramData%\NewMiscCode\02-local-semantic-search</code>。</li>
-      <li class="warn">注意：雲端開發環境擋 HuggingFace，當時是從第三方 npm 套件 dsh-plugin-discover-model 取得同一模型檔（已驗 SHA-256）。正式使用請改用 HuggingFace 官方來源。</li>
-    </ul>
-  </div>
+<section class="tab" id="env">
+<h2>環境需求</h2>
+<table>
+  <tr><th>#</th><th>Node</th><th>原生模組（換 Node 版本要 npm rebuild）</th><th>其他</th></tr>
+  <tr><td>01</td><td>≥ 20</td><td>無</td><td>Chromium（Playwright）</td></tr>
+  <tr><td>02</td><td>≥ 20 &lt; 25（Volta 22.23.4）</td><td>better-sqlite3、sqlite-vec、onnxruntime-node</td><td>模型約 135 MB；node_modules 約 770 MB；伺服器載入模型後約 570 MB 記憶體</td></tr>
+  <tr><td>03</td><td>≥ 18</td><td>無</td><td>build 時複製 wasm（每個 30 MB 以上）</td></tr>
+  <tr><td>04</td><td>≥ 22.13</td><td>無（使用 node:sqlite）</td><td>—</td></tr>
+  <tr><td>05</td><td>≥ 20.10</td><td>無</td><td>—</td></tr>
+  <tr><td>06</td><td>≥ 18</td><td>無</td><td>Go 1.24（僅重新編譯時）</td></tr>
+  <tr><td>07</td><td>≥ 20 &lt; 25（Volta 22.23.4）</td><td>better-sqlite3</td><td>—</td></tr>
+  <tr><td>08</td><td>≥ 22.13 &lt; 25（Volta 22.23.4）</td><td>無（使用 node:sqlite）</td><td>—</td></tr>
+  <tr><td>09</td><td>≥ 20</td><td>無</td><td>Rust（僅重新編譯時）</td></tr>
+  <tr><td>10</td><td>≥ 22.5</td><td>無（使用 node:sqlite）</td><td>—</td></tr>
+  <tr><td>11</td><td>≥ 20</td><td>無（tree-sitter 為 wasm）</td><td>不需要 .NET SDK</td></tr>
+  <tr><td>12</td><td>≥ 20</td><td>無</td><td>—</td></tr>
+</table>
+<p class="muted">Node 版本出現 <code>NODE_MODULE_VERSION</code> 或 <code>Module did not self-register</code> 錯誤時，代表原生模組與目前 Node 不相容：先確認 <code>node -v</code>，再在該專案執行 <code>npm rebuild</code>（或刪除 node_modules 後 <code>npm ci</code>）。</p>
 </section>
 
-<section id="p3">
-  <div class="card">
-    <h3>03-duckdb-wasm-dashboard</h3>
-    <ul>
-      <li><code>npm install &amp;&amp; npm run build</code> 會把 wasm（每個 30MB 以上，不進 git）複製到 public/vendor。</li>
-      <li><code>start-windows.bat</code> 啟動本機伺服器並開瀏覽器；網址加 <code>?debug=1</code> 開啟除錯輸出，<code>?lang=en</code> 切英文。</li>
-      <li><code>dist/artifact.html</code>：從 jsDelivr 載入 wasm 的單檔版本，可直接放任何靜態主機。</li>
-      <li class="warn">JSON/JSONL 改在 JS 端解析以支援離線；Parquet 需連線到 extensions.duckdb.org 下載擴充，開發環境無法測。</li>
-    </ul>
-  </div>
+<section class="tab" id="network">
+<h2>網路需求</h2>
+<p>開發時的雲端容器封鎖了 huggingface.co、cdn.jsdelivr.net、github.com；npm、PyPI、crates.io、Go proxy 可連。下表是<b>在你的電腦上</b>各專案需要連到哪裡：</p>
+<table>
+  <tr><th>對象</th><th>哪些專案</th><th>何時需要</th><th>被封鎖時</th></tr>
+  <tr><td>registry.npmjs.org</td><td>全部</td><td><code>npm ci</code></td><td>設定公司 npm 鏡像（<code>npm config set registry ...</code>）</td></tr>
+  <tr><td>Playwright 瀏覽器下載</td><td>01、02、03…（所有含 Playwright 測試者）</td><td><code>npx playwright install chromium</code> 一次</td><td>01 可用 <code>--browser-path</code> 指向已安裝的 Chrome</td></tr>
+  <tr><td>huggingface.co</td><td>02</td><td><code>npm run fetch-model</code>（約 135 MB）</td><td>設 <code>HF_ENDPOINT</code> 鏡像，或手動放模型檔（見 02 README「模型」）</td></tr>
+  <tr><td>cdn.jsdelivr.net</td><td>03（只有 <code>dist/artifact.html</code>）</td><td>開啟 artifact 單檔版時</td><td>改用本機版：<code>npm run build</code> + <code>npm start</code></td></tr>
+  <tr><td>extensions.duckdb.org</td><td>03</td><td>載入 Parquet 檔時</td><td>先把 Parquet 轉成 CSV</td></tr>
+  <tr><td>proxy.golang.org</td><td>06</td><td>重新編譯時</td><td>直接使用 repo 附的 wasm</td></tr>
+  <tr><td>static.rust-lang.org、crates.io</td><td>09</td><td>重新編譯時</td><td>直接使用 repo 附的 wasm</td></tr>
+</table>
+<p>除上表外，所有專案執行時<b>不呼叫任何雲端 API</b>，伺服器預設只綁定 127.0.0.1。</p>
 </section>
 
-<section id="common">
-  <div class="card">
-    <ul>
-      <li>文字檔 UTF-8 無 BOM；<code>.ps1</code> 含中文時用 UTF-8 BOM；<code>.bat</code> 純 ASCII（CRLF，由 .gitattributes 控制）。</li>
-      <li>編碼稽核：<code>node tools/audit-text.mjs</code>（檢查 UTF-8、BOM、U+FFFD、.bat ASCII）。</li>
-      <li>啟動鏈：<code>.bat → .ps1 → node</code>，方便分辨路徑/環境/程式問題。</li>
-      <li>Log 一律 JSONL，Windows 預設寫在 <code>%ProgramData%\NewMiscCode\&lt;專案&gt;</code>。</li>
-      <li>建議 Node 22，以 Volta 鎖定版本；原生模組（better-sqlite3、sqlite-vec、onnxruntime）換版本後需 <code>npm rebuild</code>。</li>
-      <li>未在 Windows 實機驗證：.bat/.ps1 啟動檔與 ProgramData 路徑只做過靜態檢查。</li>
-    </ul>
-  </div>
+<section class="tab" id="ports">
+<h2>Port 與資料位置</h2>
+<h3 id="ports-table">預設 Port（都只綁 127.0.0.1）</h3>
+<table>
+  <tr><th>#</th><th>預設網址</th><th>變更方式</th></tr>
+  <tr><td>01</td><td>示範網站 http://127.0.0.1:4173/（<code>serve-demo</code>）；MCP 走 stdio 不佔 Port</td><td><code>--port</code></td></tr>
+  <tr><td>02</td><td>http://127.0.0.1:8787/</td><td><code>--port</code> / <code>LSS_PORT</code></td></tr>
+  <tr><td>03</td><td>http://127.0.0.1:8703/</td><td><code>--port</code> / <code>PORT</code></td></tr>
+  <tr><td>04</td><td>Collector 與檢視器 http://127.0.0.1:4318/；示範服務 3400 起</td><td>見 04 README</td></tr>
+  <tr><td>05</td><td>http://127.0.0.1:8705/</td><td>見 05 README</td></tr>
+  <tr><td>06</td><td>http://127.0.0.1:8706/</td><td>見 06 README</td></tr>
+  <tr><td>07</td><td>http://localhost:3007/（WebAuthn 需要 localhost 或 HTTPS）</td><td><code>--port</code>、<code>--rp-id</code>、<code>--origin</code></td></tr>
+  <tr><td>08</td><td>http://localhost:8808/（Service Worker 需要 localhost 或 HTTPS）</td><td>見 08 README</td></tr>
+  <tr><td>09</td><td>瀏覽器介面 http://127.0.0.1:5179/</td><td><code>vr serve --port</code></td></tr>
+  <tr><td>10</td><td>http://127.0.0.1:8710/</td><td>見 10 README</td></tr>
+  <tr><td>11</td><td>（純 CLI，無伺服器）</td><td>—</td></tr>
+  <tr><td>12</td><td>示範舊 API 3001、新 API 3002、錄製代理 9000、mock 4010</td><td>CLI 參數</td></tr>
+</table>
+<h3 id="ports-data">資料與 Log 位置</h3>
+<p>Windows 上所有專案預設寫到 <code>%ProgramData%\NewMiscCode\&lt;資料夾名稱&gt;\</code>（例如 <code>C:\ProgramData\NewMiscCode\02-local-semantic-search</code>）；Linux/macOS 寫在專案下的 <code>./data</code>、<code>./logs</code> 或 <code>./output</code>（已在 .gitignore）。每個專案都可用參數或環境變數改位置，名稱見各 README 的「除錯與日誌」。</p>
+<p>Log 一律為 JSONL（一行一個 JSON，含 <code>ts</code> 與 <code>level</code>）。PowerShell 篩選範例：</p>
+<pre><code>Get-Content "$env:ProgramData\NewMiscCode\02-local-semantic-search\logs\*.jsonl" -Encoding UTF8 | ConvertFrom-Json | Where-Object level -eq 'error'</code></pre>
 </section>
 
-<section id="en">
-  <div class="card">
-    <p>Three independent experiments, each with its own README.html and step-by-step verification guide:</p>
-    <ol>
-      <li><b>01-mcp-ui-verifier</b> — MCP server + CLI driving Playwright; red-box annotated screenshots and HTML reports.</li>
-      <li><b>02-local-semantic-search</b> — fully local hybrid search (SQLite FTS5 + sqlite-vec + multilingual-e5-small via transformers.js, RRF).</li>
-      <li><b>03-duckdb-wasm-dashboard</b> — zero-backend in-browser SQL analytics with DuckDB-WASM, log-analysis presets and charts.</li>
-    </ol>
-    <p>All UIs support zh-TW and English. Run <code>npm install &amp;&amp; npm test</code> in each folder.</p>
-  </div>
+<section class="tab" id="windows">
+<h2>Windows 實機驗證清單</h2>
+<p>以下項目<b>在開發用的 Linux 容器無法執行</b>，只做過編碼與內容的靜態檢查。請在繁體中文 Windows 上依序確認，有問題時記下步驟與截圖。</p>
+<h3 id="win-common">共通</h3>
+<ul class="check">
+  <li><code>node -e "console.log('node-ok', process.version)"</code> → 印出 v22.x。</li>
+  <li>雙擊 <code>verify-all.bat</code> → 視窗不閃退、最後顯示 <code>exit code=0</code>。若有失敗，表格會列出是哪個專案。</li>
+  <li><code>C:\ProgramData\NewMiscCode\</code> 底下有產生各專案資料夾（代表預設路徑寫入權限正常）。若出現 EPERM，用各專案的資料夾參數改位置。</li>
+  <li>任一專案的 <code>.bat</code> 啟動後，命令視窗中文不亂碼（.ps1 已設定 UTF-8；直接用 cmd 跑 node 時可先 <code>chcp 65001</code>）。</li>
+  <li>PowerShell 執行原則：所有 .bat 都以 <code>-ExecutionPolicy Bypass</code> 呼叫 .ps1，不需要改系統設定。</li>
+</ul>
+<h3 id="win-specific">各專案特有項目</h3>
+<table>
+  <tr><th>#</th><th>要確認的事</th><th>預期結果</th></tr>
+  <tr><td>01</td><td><code>setup.bat</code> → <code>run-demo.bat</code>；再用 <code>claude mcp add</code> 註冊並在 Claude Code 中 <code>/mcp</code></td><td>報告 10 通過 / 4 失敗（刻意的）；MCP 狀態 connected、14 個工具</td></tr>
+  <tr><td>02</td><td><code>npm run fetch-model</code>（從 HuggingFace 官方下載）→ <code>index.bat</code> → <code>serve.bat</code></td><td>5 個檔案 SHA-256 OK；索引 17 檔；搜尋「欄位加密連線失敗」語意模式第 1 名為 Always Encrypted</td></tr>
+  <tr><td>03</td><td><code>start-windows.bat</code>；另外用 Chrome 直接開 <code>dist/artifact.html</code></td><td>兩者都顯示「就緒」並可載入範例 Log</td></tr>
+  <tr><td>04</td><td><code>start.bat</code> → <code>loadgen.bat</code> → 開 http://127.0.0.1:4318/</td><td>看到 trace 列表與瀑布圖</td></tr>
+  <tr><td>05</td><td><code>run-server.bat</code>，開兩個瀏覽器視窗（一般 + 無痕）</td><td>雙方即時看到對方游標與內容；中文輸入法選字時不亂跳</td></tr>
+  <tr><td>06</td><td><code>build-windows.bat</code> 產生 <code>encdoc.exe</code> → <code>encdoc-scan.bat</code> 掃描 <code>testdata</code></td><td>exe 可執行；列出 Big5、缺 BOM 的 .ps1、含中文的 .bat 等違規</td></tr>
+  <tr><td>07</td><td><code>start.bat</code> → 用 <b>Windows Hello</b> 註冊並登入</td><td>出現 Windows Hello 對話框；帳號頁列出 passkey</td></tr>
+  <tr><td>08</td><td><code>start.bat</code> → Chrome DevTools &gt; Network 勾 Offline → 新增紀錄 → 取消 Offline</td><td>待同步數增加後歸零；伺服器只多一筆資料</td></tr>
+  <tr><td>09</td><td><code>run-demo.bat</code></td><td>產生差異報告；注意 Windows 字型渲染不同，像素數會與文件中的 Linux 數字不同</td></tr>
+  <tr><td>10</td><td>依 10 README「逐步驗證指南」做「中途強制關閉再重啟」示範</td><td>工作流從斷點繼續，已完成步驟不重跑</td></tr>
+  <tr><td>11</td><td><code>run-sample.bat</code>；用 VS Code SARIF Viewer 開輸出的 .sarif</td><td>31 個發現、exit code 1；VS Code 問題面板顯示定位</td></tr>
+  <tr><td>12</td><td><code>run-demo.bat</code>；（選用）從自己的 ASP.NET Core 專案匯出 OpenAPI 再 diff</td><td>14 項破壞性變更；.NET 匯出指令文件中標示「未驗證」，請以實際結果為準</td></tr>
+</table>
+</section>
+
+<section class="tab" id="decisions">
+<h2>設計決策紀錄</h2>
+<p>記錄「為什麼這樣做」，避免接手者在不知道原因的情況下改回去。</p>
+<table>
+  <tr><th>決策</th><th>原因</th><th>影響</th></tr>
+  <tr><td>01 的 MCP 伺服器絕不寫 stdout</td><td>stdout 是 MCP 的通訊通道，任何 <code>console.log</code> 都會破壞協定</td><td>診斷只寫 JSONL 檔與 stderr</td></tr>
+  <tr><td>02 中文關鍵字用「字元二元組」斷詞，不用 FTS5 trigram 或 jieba</td><td>trigram 查不到 2 個字的詞（實測「加密」查不到）；jieba 需要字典、對繁體較弱、多一個原生模組</td><td>召回率高、會有雜訊命中；改斷詞要 <code>--rebuild</code></td></tr>
+  <tr><td>02 開發時從第三方 npm 套件取得模型</td><td>容器封鎖 HuggingFace；檔案以 SHA-256 核對與官方相同</td><td>正式使用請走預設的 HuggingFace 官方來源</td></tr>
+  <tr><td>03 的 JSON 在 JavaScript 端解析</td><td>新版 DuckDB-WASM 讀 JSON/Parquet 要線上下載擴充，離線與公司網路會失敗</td><td>JSON 離線可用；Parquet 仍需連線</td></tr>
+  <tr><td>03 的 wasm 不進 git，06、09 的 wasm 進 git</td><td>03 每個 30 MB 以上，可由 npm 重建；06 約 4 MB、09 約 0.3 MB，且重建需要 Go / Rust 工具鏈</td><td>03 第一次要 <code>npm run build</code></td></tr>
+  <tr><td>04、08、10 用 node:sqlite；02、07 用 better-sqlite3</td><td>node:sqlite 免編譯原生模組（Windows 部署簡單），但需要較新的 Node；07 作者認為它在 Node 22 仍標示實驗性</td><td>04/08/10 需要 Node 22.13+（10 為 22.5+）</td></tr>
+  <tr><td>根目錄 <code>.gitattributes</code> 對 <code>testdata/</code>、<code>encoding-bad/</code> 設 <code>-text</code></td><td>這些是故意做壞的編碼範例，換行被 Git 正規化就失去測試意義</td><td>commit 時已驗證位元組不變</td></tr>
+  <tr><td>.bat 純 ASCII，中文訊息放在 UTF-8 BOM 的 .ps1</td><td>繁中 Windows 的 cmd 以 CP950 讀 .bat；Windows PowerShell 5.1 沒有 BOM 時會用 ANSI 讀 .ps1</td><td>啟動鏈固定為 .bat → .ps1 → node</td></tr>
+  <tr><td>11 用 tree-sitter 而不是 Roslyn</td><td>不需要安裝 .NET SDK、可在任何 CI 跑；代價是沒有型別資訊</td><td>部分規則靠名稱推測，可能漏抓；需要精準時改寫成 Roslyn Analyzer</td></tr>
+</table>
+</section>
+
+<section class="tab" id="verified">
+<h2>驗證紀錄</h2>
+<p>環境：雲端 Linux 容器（4 核心、15 GB）、Node 22.23.4、Playwright 1.63.0 / Chromium、Go 1.24.7、Rust 1.97.0。日期：2026-11-05。</p>
+<p>每個專案都由實作者跑過一次測試，再由整合者（主 session）在 commit 前<b>重跑一次</b>；表中是整合者重跑的結果。</p>
+<table>
+  <tr><th>#</th><th>整合者重跑結果</th><th>編碼稽核</th><th>備註</th></tr>
+  <tr><td>01</td><td class="ok">npm test 8/8</td><td>0 問題</td><td>—</td></tr>
+  <tr><td>02</td><td class="ok">npm test 10/10</td><td>0 問題</td><td>使用真實 e5-small 模型</td></tr>
+  <tr><td>03</td><td class="ok">npm test 49/49</td><td>0 問題</td><td>artifact.html 以攔截 CDN 請求的方式測試，未連真實 jsDelivr</td></tr>
+  <tr><td>04</td><td class="ok">npm test 7/7</td><td>0 問題</td><td>—</td></tr>
+  <tr><td>05</td><td class="ok">npm test 19/19</td><td>0 問題</td><td>—</td></tr>
+  <tr><td>06</td><td class="ok">go test、CLI、e2e 全過</td><td>0 問題（testdata 為刻意的壞檔，已排除）</td><td>Windows exe 只編譯未執行</td></tr>
+  <tr><td>07</td><td class="ok">npm test 13/13（連跑 5 次）</td><td>0 問題</td><td>整合時修正一個不穩定的測試（讀到前一步的訊息）</td></tr>
+  <tr><td>08</td><td class="ok">npm test 20/20</td><td>0 問題</td><td>—</td></tr>
+  <tr><td>09</td><td class="ok">cargo test 6/6、npm test 10/10</td><td>0 問題</td><td>wasm 與原生輸出位元組相同</td></tr>
+  <tr><td>10</td><td class="ok">npm test 17/17</td><td>0 問題</td><td>含真實 SIGKILL 兩次再重啟的當機復原測試</td></tr>
+  <tr><td>11</td><td class="ok">npm test 36/36</td><td>0 問題（encoding-bad 為刻意的壞檔，已排除）</td><td>—</td></tr>
+  <tr><td>12</td><td class="ok">npm test 73/73</td><td>0 問題</td><td>—</td></tr>
+</table>
+<h3 id="verified-not">沒有驗證到的項目</h3>
+<ul>
+  <li>所有 Windows <code>.bat</code> / <code>.ps1</code> 啟動檔與 <code>%ProgramData%</code> 預設路徑（見「Windows 實機驗證清單」）。</li>
+  <li>02 從 HuggingFace 官方下載模型的路徑；03 的真實 jsDelivr 與 Parquet 擴充下載。</li>
+  <li>07 的 Windows Hello；07、10、11、12 文件中的 .NET / ASP.NET Core / Azure / Roslyn 對照內容（各文件已標示「未驗證」）。</li>
+  <li>11 的 GitHub Actions / Azure DevOps 範例與 VS Code SARIF Viewer。</li>
+</ul>
+</section>
+
+<section class="tab" id="trouble">
+<h2>疑難排解</h2>
+<table>
+  <tr><th>症狀</th><th>原因</th><th>處理</th></tr>
+  <tr><td><code>Executable doesn't exist at ...ms-playwright...</code></td><td>沒有安裝 Playwright 的 Chromium</td><td>在該專案 <code>npx playwright install chromium</code></td></tr>
+  <tr><td><code>NODE_MODULE_VERSION</code> / <code>Module did not self-register</code></td><td>原生模組與目前 Node 版本不符</td><td>確認 <code>node -v</code> → <code>npm rebuild</code></td></tr>
+  <tr><td><code>No such built-in module: node:sqlite</code></td><td>Node 太舊</td><td>升級到 Node 22.13 以上</td></tr>
+  <tr><td>寫入 <code>C:\ProgramData\...</code> 出現 EPERM</td><td>權限不足</td><td>用該專案的 <code>--data-dir</code> / <code>--out</code> / 環境變數改位置</td></tr>
+  <tr><td>.bat 執行後閃退</td><td>Node 不在 PATH、或 .ps1 被封鎖</td><td>所有 .bat 會 pause 並顯示 exit code；先跑「快速開始」第 2 步確認 Node</td></tr>
+  <tr><td>主控台中文亂碼</td><td>cmd 預設 CP950</td><td>透過 .bat → .ps1 啟動，或先 <code>chcp 65001</code></td></tr>
+  <tr><td>Port 被占用（EADDRINUSE）</td><td>上次的伺服器還在跑</td><td>關閉舊視窗，或用 <code>--port</code> 換 Port</td></tr>
+  <tr><td>Passkey / Service Worker 在區網 IP 上無效</td><td>瀏覽器只允許 localhost 或 HTTPS</td><td>用 localhost 開，或設定 HTTPS</td></tr>
+</table>
+</section>
+
+<section class="tab" id="docrules">
+<h2>文件維護規範</h2>
+<ul>
+  <li><b>編碼</b>：文字檔一律 UTF-8 無 BOM；<code>.ps1</code> 含中文時用 UTF-8 BOM；<code>.bat</code> 純 ASCII + CRLF（由 <code>.gitattributes</code> 強制）。</li>
+  <li><b>寫法</b>：文件以整份重建為主，不在舊內容上反覆局部追加；有歷史殘留就重寫。</li>
+  <li><b>每個專案 README.html 必備分頁</b>：概覽、快速開始（Windows / Linux）、使用說明、逐步驗證指南（含預期結果與截圖）、開發者指南（流程、模組、擴充方式、版本、變更紀錄）、除錯與日誌、限制與疑難排解、English。</li>
+  <li><b>分頁內的小節</b>要能用網址直接連到（例如 <code>README.html#dev-add-action</code> 會開啟該分頁並捲動到該處）。</li>
+  <li><b>寫完一定要跑</b>：
+<pre><code>node tools/audit-text.mjs
+node tools/check-docs.mjs</code></pre>
+    兩個都要 0 問題。<code>check-docs</code> 會實際開瀏覽器檢查每個分頁、每個錨點、以及 390px 手機寬度不出現水平捲動。</li>
+  <li><b>刻意做壞的範例檔</b>只能放在名為 <code>testdata</code> 或 <code>encoding-bad</code> 的資料夾，稽核工具會略過，Git 也不會改動位元組。</li>
+  <li><b>新增專案</b>：資料夾命名 <code>NN-名稱</code>，<code>verify-all</code> 與 <code>check-docs</code> 會自動納入；記得在本頁各表格補一列。</li>
+</ul>
+</section>
+
+<section class="tab" id="changelog">
+<h2>變更紀錄</h2>
+<table>
+  <tr><th>日期</th><th>內容</th></tr>
+  <tr><td>2026-11-05</td><td>建立 repo 與共用工具（audit-text、check-docs、verify-all）。</td></tr>
+  <tr><td>2026-11-05</td><td>第一輪：01 MCP UI 驗證、02 本機語意搜尋、03 DuckDB-WASM 分析台。</td></tr>
+  <tr><td>2026-11-05</td><td>01～03 補開發者指南；修正 02/03 文件的小節錨點導覽與手機寬度表格。</td></tr>
+  <tr><td>2026-11-05</td><td>第二輪：04 OpenTelemetry、05 Yjs 協作、06 編碼醫生、07 Passkeys。</td></tr>
+  <tr><td>2026-11-05</td><td>第三輪：08 PWA 離線同步、09 Rust 視覺回歸、10 Durable Workflow、11 C# 規則檢查、12 API 相容性守門員。</td></tr>
+  <tr><td>2026-11-05</td><td>本頁改寫為完整總覽與交接文件。</td></tr>
+</table>
+</section>
+
+<section class="tab" id="en">
+<h2>English summary</h2>
+<p>Twelve independent experiments, each with its own tabbed README.html (quick start, step-by-step verification guide, developer guide, debugging, limitations, English summary):</p>
+<ol>
+  <li>01 MCP server + CLI driving Playwright, red-box annotated screenshots and HTML reports.</li>
+  <li>02 Fully local hybrid search (SQLite FTS5 + sqlite-vec + multilingual-e5-small, RRF).</li>
+  <li>03 Zero-backend in-browser SQL analytics with DuckDB-WASM.</li>
+  <li>04 OpenTelemetry tracing across Node services with a home-made OTLP collector and waterfall viewer.</li>
+  <li>05 Yjs CRDT real-time collaboration with offline editing.</li>
+  <li>06 Text-encoding doctor (Go compiled to WebAssembly + native CLI).</li>
+  <li>07 Passkeys / WebAuthn with virtual-authenticator tests.</li>
+  <li>08 Offline-first PWA with a hand-written service worker and outbox sync.</li>
+  <li>09 Visual regression testing with a Rust pixel-diff core (wasm + native).</li>
+  <li>10 Durable workflow engine (event-sourced replay, durable timers, signals, crash recovery).</li>
+  <li>11 C# team-rule checker on tree-sitter with SARIF output (no .NET SDK needed).</li>
+  <li>12 API compatibility guard: OpenAPI breaking-change diff and traffic record/replay.</li>
+</ol>
+<p>Requirements: Node 22.13+ (pin with Volta), Playwright Chromium for tests. Run <code>verify-all.bat</code> or <code>node tools/verify-all.mjs</code> to test everything. On Windows, data and logs default to <code>%ProgramData%\NewMiscCode\&lt;project&gt;</code>. Everything was verified on Linux; the Windows launchers and the items in the "Windows 實機驗證清單" tab still need checking on a real Windows machine.</p>
 </section>
 
 </main>
+<footer>NewMiscCode · 文件編碼 UTF-8（無 BOM）</footer>
 <script>
 (function () {
-  var ids = ['overview', 'p1', 'p2', 'p3', 'common', 'en'];
+  document.body.classList.remove('no-js');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
   function show() {
-    var id = location.hash.slice(1);
-    if (ids.indexOf(id) < 0) id = 'overview';
-    ids.forEach(function (x) { document.getElementById(x).classList.toggle('on', x === id); });
-    document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + id); });
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
+    var el = id && document.getElementById(id);
+    var anchor = null;
+    if (el && tabs.indexOf(el) < 0) {
+      var sec = el.closest('section.tab');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    } else if (!el) {
+      id = 'overview';
+    }
+    tabs.forEach(function (s) { s.classList.toggle('on', s.id === id); });
+    links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + id); });
+    if (anchor) anchor.scrollIntoView();
   }
   window.addEventListener('hashchange', show);
   show();

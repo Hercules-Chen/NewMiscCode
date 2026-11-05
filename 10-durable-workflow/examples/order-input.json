@@ -1,0 +1,1 @@
+{ "orderId": "SO-2001", "sku": "NB-14", "qty": 1, "amount": 26000, "simulate": { "chargeFailures": 2, "shipFails": true, "delayMs": 300 } }

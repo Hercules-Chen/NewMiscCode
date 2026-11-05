@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Durable Workflow 引擎 - 說明文件</title>
+<style>
+:root { color-scheme: light; --bg: #f6f6f4; --surface: #fff; --text: #111; --muted: #555; --border: #d9d8d2; --accent: #2a78d6; --code: #f0efeb; --ok: #1f8a4c; --warn: #b26a00; --err: #c62828; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg: #121211; --surface: #1a1a19; --text: #eee; --muted: #aaa; --border: #3a3936; --accent: #5a9cf0; --code: #242422; --ok: #4cc27f; --warn: #f0a63a; --err: #ff6b6b; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif; }
+header { padding: 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+header h1 { margin: 0; font-size: 22px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 3; }
+nav a { padding: 5px 10px; border-radius: 6px; color: var(--text); text-decoration: none; border: 1px solid transparent; font-size: 14px; }
+nav a.active, nav a:hover { border-color: var(--accent); color: var(--accent); }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+section.tab { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 20px 20px; min-width: 0; }
+section.tab.active { display: block; }
+a { color: var(--accent); }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; background: var(--code); border-radius: 4px; font-size: 13px; }
+code { padding: 1px 4px; overflow-wrap: anywhere; }
+pre { padding: 10px; overflow-x: auto; line-height: 1.45; }
+pre code { padding: 0; background: none; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code); }
+img { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; }
+figure { margin: 12px 0; }
+figcaption { color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); }
+.note { border-left: 4px solid var(--warn); background: var(--code); padding: 8px 12px; border-radius: 4px; }
+.ok { color: var(--ok); } .err { color: var(--err); }
+.unverified { color: var(--warn); font-weight: 600; }
+ol li, ul li { margin: 3px 0; }
+svg.diagram { width: 100%; height: auto; max-width: 900px; display: block; margin: 8px auto; }
+svg.diagram text { fill: var(--text); font-family: "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+svg.diagram text.mono { font-family: Consolas, "Cascadia Mono", monospace; }
+svg.diagram .box { fill: var(--surface); stroke: var(--border); }
+svg.diagram .hist { fill: var(--code); stroke: var(--border); }
+svg.diagram .run { stroke: var(--accent); fill: none; stroke-width: 2; }
+svg.diagram .replay { stroke: var(--muted); fill: none; stroke-width: 2; stroke-dasharray: 5 4; }
+svg.diagram .wait { stroke: var(--warn); fill: none; stroke-width: 2; stroke-dasharray: 2 4; }
+svg.diagram .lbl { fill: var(--muted); font-size: 12px; }
+svg.diagram .acc { fill: var(--accent); }
+svg.diagram .okc { fill: var(--ok); }
+svg.diagram .warnc { fill: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Durable Workflow 引擎 <span class="muted">/ durable execution on Node 22 + SQLite</span></h1>
+  <div class="muted">以一般 async 函式撰寫「可中斷、可重啟、可等待數天」的工作流程：事件溯源歷程 (history) + 重播 (replay)、耐久計時器、外部訊號、重試退避、Saga 補償、非決定性偵測；附網頁儀表板、REST API 與 CLI。</div>
+</header>
+<nav id="nav">
+  <a href="#overview">概覽</a>
+  <a href="#concepts">核心概念</a>
+  <a href="#quickstart">快速開始</a>
+  <a href="#usage">使用說明</a>
+  <a href="#verify">逐步驗證指南</a>
+  <a href="#dev">開發者指南</a>
+  <a href="#compare">與 Durable Functions / Temporal 對照</a>
+  <a href="#debug">除錯與日誌</a>
+  <a href="#limits">限制與疑難排解</a>
+  <a href="#english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>這是一個<b>小型、可讀懂</b>的 durable execution 引擎，概念與 Temporal、Azure Durable Functions 相同：工作流程 (workflow) 用一般的 <code>async</code> 函式撰寫，所有對外副作用都透過 <code>ctx.step()</code> 執行並把結果寫入 SQLite；程序當掉或重開機後，引擎<b>從頭重播</b>工作流程函式，已完成的步驟直接回傳歷程中的結果，不會再執行一次。</p>
+<ul>
+  <li><b>零執行期相依套件</b>：只用 Node.js 22 內建的 <code>node:sqlite</code>（SQLite 3.53）、<code>node:http</code>、<code>node:test</code>。</li>
+  <li><b>Context API</b>：<code>ctx.step(name, fn, {retry, timeoutMs})</code>、<code>ctx.sleep(ms)</code>、<code>ctx.waitForSignal(name, {timeout})</code>、<code>ctx.now()</code> / <code>ctx.random()</code> / <code>ctx.uuid()</code> / <code>ctx.sideEffect()</code>、<code>ctx.patched(id)</code>、<code>ctx.log()</code>。</li>
+  <li><b>耐久性</b>：事件歷程 (history_events)、計時器、訊號、具租約 (lease) 與心跳的工作佇列，全部在一個 SQLite 檔；多個程序（儀表板、worker、CLI）可共用。</li>
+  <li><b>可靠性</b>：指數退避重試、不可重試錯誤、Saga 補償、取消 (cancel)、崩潰復原（租約到期由其他 worker 接手）、租約圍籬 (fencing) 防止兩個 worker 同時寫同一個 run。</li>
+  <li><b>決定性防護</b>：重播時若程式碼呼叫的步驟和歷程不一致，丟出 <code>NonDeterminismError</code>，run 標記為失敗，儀表板以紅色橫幅清楚顯示是哪個 seq、預期什麼、實際呼叫什麼。</li>
+  <li><b>示範流程</b>：訂單處理 Saga（預留庫存 → 扣款 → 出貨，失敗依反序補償）、請假簽核（等待核准訊號，逾時升級，再逾時自動駁回）、批次報表（步驟間 durable sleep，用來示範 kill/重啟）。</li>
+  <li><b>儀表板</b>：執行清單（狀態篩選）、事件歷程時間軸、計時器 / 訊號 / 工作佇列狀態、送訊號（含「核准 / 駁回」按鈕）、取消、以相同輸入重試；繁體中文預設、English 切換、淺色 / 深色、手機寬度可用、除錯頁顯示日誌與 worker。</li>
+  <li><b>CLI</b>：<code>wf start</code>、<code>wf signal</code>、<code>wf status</code>、<code>wf worker</code>、<code>wf serve</code>、<code>wf cancel</code>、<code>wf retry</code>。</li>
+</ul>
+<figure><img src="examples/02-run-detail-approved.png" alt="請假簽核執行明細：事件歷程時間軸，已核准完成" width="1200" height="760"><figcaption>請假簽核：在儀表板按「核准」後，時間軸出現 SignalReceived → recordLeave → WorkflowCompleted。</figcaption></figure>
+<p class="muted">版本：0.1.0 ・ Node.js 22.5 以上（在 v22.23.4 實測）・ SQLite 3.53.4（node:sqlite 內建）・ 測試用 Playwright 為全域安裝版本（非本專案相依）。</p>
+</section>
+
+<section class="tab" id="concepts">
+<h2>核心概念：history、replay、determinism</h2>
+<h3 id="concepts-history">1. 事件歷程 (history) 才是真相</h3>
+<p>引擎不保存「執行到一半的 JavaScript 堆疊」——那在程序當掉時就消失了。它只保存一串<b>只增不改的事件</b>：每次 <code>ctx.*</code> 呼叫會依呼叫順序拿到一個序號 <code>seq</code>，相關事件（例如 <code>StepStarted</code> / <code>StepCompleted</code>、<code>TimerStarted</code> / <code>TimerFired</code>、<code>SignalWaitStarted</code> / <code>SignalReceived</code>）都帶著這個 seq 寫入 <code>history_events</code>。</p>
+<h3 id="concepts-replay">2. 重播 (replay)</h3>
+<p>每當 run 需要往前推進（計時器到期、訊號到達、worker 重開），worker 就<b>從頭執行</b>整個工作流程函式。執行到第 N 個 <code>ctx.*</code> 呼叫時：</p>
+<ul>
+  <li>如果歷程中 seq N 已有結果 → 直接回傳（<b>不</b>執行 activity）。這就是重播。</li>
+  <li>如果沒有 → 這裡是「前線 (frontier)」：真正執行 activity、建立計時器、或檢查訊號，並把結果寫入歷程。</li>
+  <li>如果還不能完成（計時器未到、訊號未到、重試退避中）→ 回傳一個永遠不會 resolve 的 Promise；當沒有任何 activity 在執行時，run 被「暫停 (suspend)」，工作佇列設定在最早的喚醒時間再執行。</li>
+</ul>
+<svg class="diagram" viewBox="0 0 900 400" role="img" aria-labelledby="svgTitle">
+  <title id="svgTitle">重播示意：三次執行共用同一份事件歷程</title>
+  <rect class="box" x="10" y="10" width="250" height="180" rx="8"/>
+  <text x="24" y="34" font-weight="700" font-size="14">工作流程程式碼（每行皆 await）</text>
+  <text x="24" y="62" font-size="13" class="mono">ctx.step('reserve')  // seq 1</text>
+  <text x="24" y="88" font-size="13" class="mono">ctx.sleep(60_000)    // seq 2</text>
+  <text x="24" y="114" font-size="13" class="mono">ctx.waitForSignal(</text>
+  <text x="24" y="132" font-size="13" class="mono">  'approval')        // seq 3</text>
+  <text x="24" y="158" font-size="13" class="mono">ctx.step('ship')     // seq 4</text>
+  <rect class="hist" x="10" y="210" width="250" height="180" rx="8"/>
+  <text x="24" y="234" font-weight="700" font-size="14">history_events（SQLite）</text>
+  <text x="24" y="258" font-size="12" class="mono">1 StepStarted/Completed reserve</text>
+  <text x="24" y="280" font-size="12" class="mono">2 TimerStarted · TimerFired</text>
+  <text x="24" y="302" font-size="12" class="mono">3 SignalWaitStarted</text>
+  <text x="24" y="324" font-size="12" class="mono">3 SignalReceived {approved}</text>
+  <text x="24" y="346" font-size="12" class="mono">4 StepStarted/Completed ship</text>
+  <text x="24" y="368" font-size="12" class="mono">- WorkflowCompleted</text>
+  <text x="290" y="34" font-weight="700" font-size="14">執行 #1（新 run）</text>
+  <line class="run" x1="290" y1="60" x2="420" y2="60"/><text x="428" y="64" font-size="12" class="acc">seq 1 執行 reserve，寫入結果</text>
+  <line class="wait" x1="290" y1="86" x2="420" y2="86"/><text x="428" y="90" font-size="12" class="warnc">seq 2 建立計時器 → 暫停（程序可結束）</text>
+  <text x="290" y="140" font-weight="700" font-size="14">執行 #2（60 秒後，可能是另一個 worker）</text>
+  <line class="replay" x1="290" y1="166" x2="420" y2="166"/><text x="428" y="170" font-size="12" class="lbl">seq 1 重播：直接回傳歷程結果</text>
+  <line class="run" x1="290" y1="192" x2="420" y2="192"/><text x="428" y="196" font-size="12" class="acc">seq 2 計時器到期 → TimerFired</text>
+  <line class="wait" x1="290" y1="218" x2="420" y2="218"/><text x="428" y="222" font-size="12" class="warnc">seq 3 等待訊號 → 暫停</text>
+  <text x="290" y="272" font-weight="700" font-size="14">執行 #3（主管按下「核准」）</text>
+  <line class="replay" x1="290" y1="298" x2="420" y2="298"/><text x="428" y="302" font-size="12" class="lbl">seq 1、2 重播（不重做副作用）</text>
+  <line class="run" x1="290" y1="324" x2="420" y2="324"/><text x="428" y="328" font-size="12" class="acc">seq 3 消化訊號 → SignalReceived</text>
+  <line class="run" x1="290" y1="350" x2="420" y2="350"/><text x="428" y="354" font-size="12" class="okc">seq 4 執行 ship → WorkflowCompleted</text>
+  <text x="890" y="390" font-size="12" class="lbl" text-anchor="end">實線＝真正執行　虛線＝重播　點線＝等待</text>
+</svg>
+<h3 id="concepts-determinism">3. 決定性 (determinism) 規則</h3>
+<p>因為工作流程函式會被重播很多次，<b>每次重播必須以相同順序發出相同的 ctx 呼叫</b>。所以工作流程程式碼（activity 以外）不可以：</p>
+<ul>
+  <li>直接用 <code>Date.now()</code>、<code>new Date()</code>、<code>Math.random()</code>、<code>crypto.randomUUID()</code> 來決定流程 → 改用 <code>ctx.now()</code>、<code>ctx.random()</code>、<code>ctx.uuid()</code>（第一次執行時記錄，重播時回傳記錄值）。</li>
+  <li>直接呼叫 HTTP、資料庫、檔案 → 放進 <code>ctx.step()</code> 的 activity 函式裡。</li>
+  <li><code>await</code> 非 ctx 的 Promise（例如 <code>setTimeout</code>）→ 用 <code>ctx.sleep()</code>。</li>
+  <li>讀取會變動的全域狀態或環境變數來決定分支 → 把它放進輸入 (input) 或 <code>ctx.sideEffect()</code>。</li>
+</ul>
+<p>違反時，引擎在重播比對 seq 的「種類 + 名稱」時就會發現不一致，丟出 <code>NonDeterminismError</code>，例如：</p>
+<pre><code>replay diverged at seq 1: history recorded step "reserve" but workflow code now calls step "validate"</code></pre>
+<p>若程式碼刪掉了步驟，導致函式提早結束而歷程還有更後面的 seq，也會被偵測（"workflow code returned after seq N, but history has recorded commands up to seq M"）。要安全地改版，請見 <a href="#dev-versioning">開發者指南：版本演進</a>。</p>
+<h3 id="concepts-guarantees">4. 保證與語意</h3>
+<div class="table-wrap"><table>
+<tr><th>項目</th><th>語意</th></tr>
+<tr><td>工作流程程式碼</td><td>可能被執行很多次（重播），但每個 seq 的結果只記錄一次。</td></tr>
+<tr><td>activity（ctx.step 的 fn）</td><td><b>至少一次 (at-least-once)</b>：完成後不會再執行；但若 worker 在 activity 執行中途當掉，重啟後會再執行一次（歷程會出現兩個 <code>StepStarted</code>）。請用 <code>idempotencyKey</code>（<code>runId:seq</code>）讓外部系統去重。</td></tr>
+<tr><td>計時器</td><td>到期時間存在 SQLite，程序關掉也不會遺失；到期後由任何 worker 觸發（不早於到期時間，可能稍晚 = 輪詢間隔）。</td></tr>
+<tr><td>訊號</td><td>先存入 <code>signals</code> 表；工作流程還沒走到 <code>waitForSignal</code> 時會先緩衝，之後依 FIFO 消化。對已結束的 run 送訊號會被拒絕 (HTTP 409)。</td></tr>
+<tr><td>租約</td><td>同一個 run 同時只會有一個 worker 執行；寫入歷程時會檢查租約持有者（fencing），失去租約的 worker 寫入會失敗並放棄該 task。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<h3 id="qs-windows">Windows（繁體中文 Windows）</h3>
+<ol>
+  <li>安裝 <a href="https://nodejs.org/">Node.js</a> <b>22.5 以上</b>（需要內建的 <code>node:sqlite</code>，建議 22 LTS 最新版）。</li>
+  <li>在本資料夾雙擊 <code>start-dashboard.bat</code>：它切換到程式所在資料夾 → 呼叫 <code>start-dashboard.ps1</code> → 執行 <code>node bin/wf.mjs serve --open</code>，自動開啟瀏覽器 <code>http://127.0.0.1:8710/</code>。</li>
+  <li>不需要 <code>npm install</code>（沒有執行期相依套件）。資料預設存放在 <code>%ProgramData%\NewMiscCode\10-durable-workflow\data\workflow.db</code>，日誌在同層的 <code>logs\</code>。</li>
+  <li>命令列操作用 <code>wf.bat</code>，例如 <code>wf.bat status</code>、<code>wf.bat worker</code>。若不想每次結束時暫停，先 <code>set WF_NOPAUSE=1</code>。</li>
+  <li>執行測試：雙擊 <code>run-tests.bat</code>（等同 <code>npm test</code>；Playwright 測試需另外安裝，見下方）。</li>
+</ol>
+<p class="note"><span class="unverified">未在 Windows 實機驗證：</span>啟動器 (.bat / .ps1) 依照慣例撰寫並已檢查編碼（.bat 純 ASCII + CRLF、.ps1 為 UTF-8 BOM + CRLF），但開發環境是 Linux，未在真正的 Windows 上執行過。若 <code>%ProgramData%</code> 無寫入權限，請用 <code>--data-dir</code> / <code>--log-dir</code> 或環境變數 <code>WF_DATA_DIR</code> / <code>WF_LOG_DIR</code> 改到使用者資料夾。</p>
+<h3 id="qs-linux">Linux / macOS</h3>
+<pre><code>cd 10-durable-workflow
+./start.sh                      # = node bin/wf.mjs serve（儀表板 + 內嵌 worker）
+# 另開終端機：
+node bin/wf.mjs start leave-approval
+node bin/wf.mjs status
+npm test</code></pre>
+<p>Linux 上資料預設在專案下的 <code>./data</code>，日誌在 <code>./logs</code>（兩者都在 .gitignore）。</p>
+<h3 id="qs-playwright">Playwright（只有 e2e 測試需要）</h3>
+<p>e2e 測試 <code>test/e2e.test.mjs</code> 用 <code>require('playwright')</code>；找不到時該測試會<b>標示為 skipped</b>，其餘測試照跑。要在自己的電腦跑 e2e：</p>
+<pre><code>npm i -D playwright
+npx playwright install chromium
+npm run test:e2e</code></pre>
+</section>
+
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<h3 id="usage-dashboard">儀表板</h3>
+<ul>
+  <li><b>執行清單</b>：上方狀態晶片（全部 / 等待排程 / 執行中 / 等待中 / 已完成 / 失敗 / 已取消）可篩選；點一列進入明細。每 1.5 秒自動更新（可關閉；游標在輸入框時暫停更新）。</li>
+  <li><b>啟動新的執行</b>：選工作流程，輸入框會自動填入範例 JSON，可修改後按「啟動」。</li>
+  <li><b>執行明細</b>：摘要（狀態、版本、程式碼雜湊、等待中的項目）、結果 / 錯誤、事件歷程時間軸（每個事件可展開資料）、計時器、訊號、工作佇列租約。</li>
+  <li><b>操作</b>：送出訊號（請假簽核有「核准 / 駁回」快速按鈕）、取消執行（會在工作流程中丟出 <code>CancelledError</code>，訂單 Saga 會跑補償）、已結束的 run 可「以相同輸入重試」（建立新 run，記錄 retry_of）。</li>
+  <li><b>除錯頁</b>：worker 清單與心跳、待觸發計時器、伺服器程序的最近日誌（可依等級篩選）。</li>
+  <li>右上角：<b>EN / 中文</b> 切換語言（記在 localStorage，也可用 <code>?lang=en</code>）、<b>主題</b>（自動 → 淺色 → 深色）。</li>
+</ul>
+<figure><img src="examples/01-runs-list.png" alt="執行清單與啟動表單" width="1200" height="760"><figcaption>執行清單（狀態篩選）與啟動表單。</figcaption></figure>
+<h3 id="usage-cli">CLI：wf</h3>
+<div class="table-wrap"><table>
+<tr><th>指令</th><th>說明</th></tr>
+<tr><td><code>wf serve [--port 8710] [--host 127.0.0.1] [--no-worker] [--open]</code></td><td>儀表板 + REST API；預設同時啟動內嵌 worker。</td></tr>
+<tr><td><code>wf worker [--concurrency 4] [--lease-ms 15000] [--poll-ms 250]</code></td><td>獨立 worker 程序，可開多個（不同機器需共用同一個 SQLite 檔，見限制）。</td></tr>
+<tr><td><code>wf start &lt;workflow&gt; [--input JSON | --input-file f.json] [--id runId] [--wait]</code></td><td>啟動 run；省略 input 時用該工作流程的範例輸入。<code>--wait</code> 等到結束並印出結果。</td></tr>
+<tr><td><code>wf signal &lt;runId&gt; &lt;name&gt; [--payload JSON | --payload-file f.json]</code></td><td>送外部訊號。</td></tr>
+<tr><td><code>wf status [runId] [--status waiting] [--json]</code></td><td>沒有 runId：列出 runs；有 runId：顯示狀態與完整歷程。</td></tr>
+<tr><td><code>wf cancel &lt;runId&gt;</code> / <code>wf retry &lt;runId&gt;</code> / <code>wf workflows</code></td><td>取消、以相同輸入重試、列出已註冊工作流程。</td></tr>
+</table></div>
+<p>共通參數：<code>--data-dir</code>、<code>--log-dir</code>、<code>--db</code>、<code>--workflows &lt;module&gt;</code>（載入自訂工作流程）、<code>--debug</code>。Windows 用 <code>wf.bat</code>；Linux 用 <code>node bin/wf.mjs</code>（或 <code>npm link</code> 後直接 <code>wf</code>）。</p>
+<p>PowerShell 傳 JSON 字串容易被引號吃掉，建議用檔案：</p>
+<pre><code>wf.bat start order-saga --input-file examples\order-input.json
+wf.bat signal leave-approval-xxxx approval --payload-file examples\approval-yes.json</code></pre>
+<h3 id="usage-demos">示範工作流程</h3>
+<div class="table-wrap"><table>
+<tr><th>名稱</th><th>流程</th><th>輸入重點</th></tr>
+<tr><td><code>order-saga</code> 訂單處理</td><td>reserveStock → chargePayment（最多 4 次、500ms 起指數退避）→ shipOrder → notifyCustomer。任一步永久失敗或被取消 → 依反序執行 refundPayment、releaseStock。</td><td><code>simulate.chargeFailures</code>：扣款前 N 次暫時失敗；<code>simulate.shipFails</code>：出貨丟出不可重試錯誤；<code>simulate.delayMs</code>：每步模擬耗時。</td></tr>
+<tr><td><code>leave-approval</code> 請假簽核</td><td>submitRequest → notifyApprover → 等待 <code>approval</code> 訊號；逾時 → escalate（升級給上一層主管）→ 再等一次；再逾時 → 自動駁回 → recordLeave（核准時）→ notifyEmployee。</td><td><code>timeoutMs</code>、<code>escalationTimeoutMs</code>（預設各 120 秒）。訊號內容 <code>{"approved":true,"by":"陳經理","comment":"同意"}</code>。</td></tr>
+<tr><td><code>batch-report</code> 批次報表</td><td>buildPart1..N，中間各 <code>ctx.sleep(sleepMs)</code>；開頭結尾用 <code>ctx.now()</code> 計算耗時。</td><td><code>parts</code>（預設 4）、<code>sleepMs</code>（預設 5000）。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<h3 id="verify-tests">步驟 1：自動測試</h3>
+<pre><code>npm test</code></pre>
+<p>預期結果（本機實測輸出節錄，總計約 10 秒）：</p>
+<pre><code>✔ wf start -&gt; wf signal -&gt; wf worker -&gt; wf status
+✔ worker killed (SIGKILL) during a durable sleep and during an activity; restarts resume from history
+✔ dashboard: list runs, filter, timeline, approve via UI, non-determinism banner, language/theme toggle, 390px, no console errors
+▶ replay
+  ✔ each step runs exactly once although the workflow function is replayed several times
+▶ durable timer
+  ✔ sleep survives a worker/engine restart and fires after its due time
+▶ signals
+  ✔ signal delivered before the timeout resolves the wait with its payload
+  ✔ timeout fires when no signal arrives
+  ✔ signal sent before the workflow waits is buffered
+  ✔ leave-approval demo escalates after timeout then accepts approval
+▶ retries
+  ✔ exponential backoff between attempts, then success
+  ✔ non-retryable error fails immediately; exhausted retries surface StepFailedError
+▶ saga
+  ✔ order-saga compensates in reverse order when shipping fails
+  ✔ order-saga happy path with one transient charge failure
+▶ non-determinism
+  ✔ changing step order in code while a run is in flight is detected and reported
+  ✔ ctx.patched() lets new code take a new branch only for new runs
+▶ task routing
+  ✔ a worker only claims runs of workflows it has registered
+▶ cancel and retry
+  ✔ cancelling a waiting run throws CancelledError into the workflow (compensation runs)
+ℹ tests 17
+ℹ pass 17
+ℹ fail 0</code></pre>
+<p>其中 <b>崩潰復原測試</b>（<code>test/crash.test.mjs</code>）真的啟動 <code>bin/wf.mjs worker</code> 子程序兩次並以 SIGKILL 殺掉：第一次在 durable sleep 期間、第二次在一個慢 activity 執行中；第三個 worker 等租約到期後接手完成。每個 activity 會把一行寫進 effects 檔，測試斷言 s1/s2/s3/s5 各只出現一次；被中斷的 s4 執行了兩次（at-least-once）但靠 idempotencyKey 只提交一次。</p>
+<h3 id="verify-kill">步驟 2：手動 kill-and-restart 示範</h3>
+<p>開兩個終端機（Windows 用 <code>wf.bat</code> 取代 <code>node bin/wf.mjs</code>）。</p>
+<ol>
+  <li>終端機 A：<code>node bin/wf.mjs worker</code> → 預期看到 <code>INFO [worker] worker started</code>。</li>
+  <li>終端機 B：<code>node bin/wf.mjs start batch-report --input-file 檔案</code>（內容 <code>{"parts":4,"sleepMs":3000}</code>；Linux 可直接 <code>--input '{"parts":4,"sleepMs":3000}' --id demo-kill</code>）→ <code>started demo-kill (batch-report)</code>。</li>
+  <li>約 4 秒後 <code>node bin/wf.mjs status demo-kill</code>：狀態 <code>waiting</code>，歷程停在第二個 <code>TimerStarted</code>。</li>
+  <li>在終端機 A <b>強制結束</b> worker（Linux：<code>kill -9 &lt;pid&gt;</code>；Windows：工作管理員結束 node.exe 或直接關閉視窗）。</li>
+  <li><code>node bin/wf.mjs status</code> → run 仍是 <code>waiting</code>（狀態在 SQLite，沒有遺失）。</li>
+  <li>重新啟動 worker：<code>node bin/wf.mjs worker</code>。約 9 秒後 <code>status demo-kill</code> → <code>completed</code>。</li>
+</ol>
+<p>實測輸出（Linux，節錄）：</p>
+<pre><code>--- before kill
+demo-kill  workflow=batch-report v1  status=waiting
+waiting on: timer until 11/5/2026, 4:53:40 AM
+  #3     04:53:34.348  seq=2   StepStarted buildPart1
+  #4     04:53:34.348  seq=2   StepCompleted buildPart1
+  #5     04:53:34.348  seq=3   TimerStarted
+  #6     04:53:37.353  seq=3   TimerFired
+  #7     04:53:37.354  seq=4   StepStarted buildPart2
+  #8     04:53:37.354  seq=4   StepCompleted buildPart2
+  #9     04:53:37.354  seq=5   TimerStarted
+killed worker pid 32253
+--- after kill
+waiting    demo-kill    batch-report     11/5/2026, 4:53:34 AM
+--- after restart
+demo-kill  workflow=batch-report v1  status=completed
+result: {"parts":4,"totalRows":1000,"elapsedMs":9181}
+  #9     04:53:37.354  seq=5   TimerStarted
+  #10    04:53:40.521  seq=5   TimerFired
+  #11    04:53:40.521  seq=6   StepStarted buildPart3
+  ...
+  #16    04:53:43.528  seq=8   StepCompleted buildPart4
+  #18    04:53:43.528  seq=-   WorkflowCompleted</code></pre>
+<p><b>判讀</b>：buildPart1、buildPart2 各只有一組 <code>StepStarted/StepCompleted</code>（重啟後是重播，沒有重做）；第 5 號計時器在 worker 被殺時仍待觸發，新 worker 啟動後照原到期時間觸發。若 worker 是在 activity <i>執行中</i> 被殺，該 task 的租約（預設 15 秒）到期後才會被接手，日誌會出現 <code>WARN [worker] recovered task from expired lease</code>。</p>
+<h3 id="verify-dashboard">步驟 3：儀表板 + 訊號</h3>
+<ol>
+  <li>執行 <code>start-dashboard.bat</code>（或 <code>npm start</code>），開啟 <code>http://127.0.0.1:8710/</code> → 預期看到「Durable Workflow 儀表板」，介面為繁體中文。</li>
+  <li>右側選 <code>leave-approval</code> → 按「啟動」→ 自動跳到明細，狀態「等待中」，時間軸最後是 <code>SignalWaitStarted approval</code>，計時器表有一個 <code>signal-timeout</code>。</li>
+  <li>按「✔ 核准」→ 約 1 秒內狀態變「已完成」，時間軸出現 <code>SignalReceived</code>、<code>recordLeave</code>、<code>WorkflowCompleted</code>，計時器變 <code>cancelled</code>（見概覽的截圖）。</li>
+  <li>啟動 <code>order-saga</code>，把 <code>shipFails</code> 改成 <code>true</code> → 結果 <code>status: "compensated"</code>，時間軸可見 <code>StepFailed shipOrder</code> 之後依序 <code>refundPayment</code>、<code>releaseStock</code>。</li>
+  <li>按右上角 <b>EN</b> → 介面變英文；按「主題」切換淺色 / 深色。</li>
+</ol>
+<figure><img src="examples/03-mobile-dark-en-saga.png" alt="手機寬度、深色、英文介面的訂單補償時間軸" width="390" height="760"><figcaption>390px 手機寬度、深色主題、英文：order-saga 出貨失敗後的補償時間軸。</figcaption></figure>
+<h3 id="verify-nd">步驟 4：非決定性偵測（自行體驗）</h3>
+<ol>
+  <li>啟動一個 <code>leave-approval</code>（timeout 設大一點），讓它停在等待核准。</li>
+  <li>停止伺服器，修改 <code>src/workflows/leave-approval.js</code>：在 <code>submitRequest</code> 前面加一行 <code>await ctx.step('precheck', async () =&gt; 1);</code>。</li>
+  <li>重新啟動並按「核准」→ run 變成「失敗」，明細頁上方出現紅色橫幅「偵測到非決定性」，訊息 <code>replay diverged at seq 1: history recorded step "submitRequest" but workflow code now calls step "precheck"</code>。</li>
+  <li>改用 <code>if (ctx.patched('precheck')) await ctx.step('precheck', ...)</code> 就能讓舊 run 走舊路徑、新 run 走新路徑（測試 <code>ctx.patched()</code> 已涵蓋）。記得把檔案改回來。</li>
+</ol>
+<h3 id="verify-audit">步驟 5：文字編碼與文件檢查</h3>
+<pre><code>node ../tools/audit-text.mjs .            # 預期 problems=0
+node ../tools/check-docs.mjs --no-browser # 預期本資料夾沒有問題</code></pre>
+</section>
+
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<h3 id="dev-arch">架構</h3>
+<pre><code>bin/wf.mjs            CLI（serve / worker / start / signal / status / cancel / retry）
+src/config.js         資料 / 日誌路徑（OS 判斷）、環境變數
+src/logger.js         JSONL 日誌 + 記憶體 ring buffer（儀表板除錯頁）
+src/store.js          node:sqlite schema 與查詢（WAL、busy_timeout、交易、租約）
+src/engine.js         Engine（client API）+ Execution（重播執行器）+ WorkflowContext（ctx）
+src/worker.js         Worker 迴圈：claim task（租約）→ 心跳 → executeRunTask → finishTask
+src/server.js         REST API + 靜態檔（public/）
+src/saga.js           Saga 補償小工具
+src/errors.js         NonDeterminismError / NonRetryableError / StepFailedError / TimeoutError / CancelledError
+src/workflows/        示範工作流程（order-saga / leave-approval / batch-report）
+public/               儀表板（原生 JS，無建置步驟）
+test/                 node:test 測試（engine / crash / cli / e2e）與 fixtures</code></pre>
+<p><b>一個 workflow task 的生命週期</b>：(1) <code>start/signal/cancel</code> 呼叫 <code>enqueue(runId)</code>（每個 run 最多一筆 task，gen+1）→ (2) worker 以單一 <code>UPDATE … RETURNING</code> 原子地取得可見且未被租用（或租約已過期）的 task → (3) 每 leaseMs/3 延長租約 → (4) 載入歷程並重播工作流程函式 → (5) 結果：完成 / 失敗 / 取消（刪除 task）或暫停（task 的 <code>visible_at</code> 設成最早的喚醒時間；只等訊號且沒有逾時則刪除 task，訊號到達時再 enqueue）。執行期間若 gen 改變（例如剛好收到訊號），task 會立即重新排入。</p>
+<h3 id="dev-schema">SQLite schema</h3>
+<div class="table-wrap"><table>
+<tr><th>資料表</th><th>主要欄位</th><th>用途</th></tr>
+<tr><td><code>workflow_runs</code></td><td>id, workflow, version, code_hash, status, input, result, error, waiting_on, cancel_requested, retry_of, created_at, updated_at, completed_at</td><td>每個 run 一列；status ∈ pending / running / waiting / completed / failed / cancelled。</td></tr>
+<tr><td><code>history_events</code></td><td>id (自增), run_id, seq, type, name, data (JSON), ts</td><td>只增不改的事件歷程（重播的依據）。</td></tr>
+<tr><td><code>timers</code></td><td>run_id, seq, kind (sleep / signal-timeout / retry), fire_at, status</td><td>待觸發計時器（供顯示與查詢；實際喚醒靠 tasks.visible_at）。</td></tr>
+<tr><td><code>signals</code></td><td>run_id, name, payload, status (pending / consumed), consumed_seq</td><td>外部訊號收件匣。</td></tr>
+<tr><td><code>tasks</code></td><td>run_id (PK), visible_at, gen, lease_owner, lease_expires_at, prev_owner, attempts</td><td>工作佇列 + 租約。</td></tr>
+<tr><td><code>workers</code></td><td>id, pid, host, workflows, started_at, heartbeat_at, stopped_at</td><td>worker 註冊與心跳（儀表板顯示）。</td></tr>
+<tr><td><code>meta</code></td><td>key, value</td><td>schema_version = 1。</td></tr>
+</table></div>
+<p>事件種類：<code>WorkflowStarted</code>、<code>StepStarted</code>、<code>StepAttemptFailed</code>、<code>StepCompleted</code>、<code>StepFailed</code>、<code>TimerStarted</code>、<code>TimerFired</code>、<code>SignalWaitStarted</code>、<code>SignalReceived</code>、<code>SignalTimedOut</code>、<code>SideEffectRecorded</code>、<code>CancelRequested</code>、<code>Patched</code>、<code>WorkflowCompleted</code>、<code>WorkflowFailed</code>、<code>WorkflowCancelled</code>。</p>
+<h3 id="dev-api">REST API</h3>
+<div class="table-wrap"><table>
+<tr><th>方法</th><th>路徑</th><th>說明</th></tr>
+<tr><td>GET</td><td><code>/api/health</code></td><td>存活檢查、資料庫路徑、內嵌 worker id。</td></tr>
+<tr><td>GET</td><td><code>/api/workflows</code></td><td>已註冊工作流程（name, version, codeHash, title, sampleInput, signals）。</td></tr>
+<tr><td>GET</td><td><code>/api/runs?status=&amp;workflow=&amp;limit=</code></td><td>列出 runs（新到舊）。</td></tr>
+<tr><td>POST</td><td><code>/api/runs</code></td><td>body <code>{"workflow":"leave-approval","input":{…},"runId":"選填"}</code> → 新 run。重複 runId 回 409。</td></tr>
+<tr><td>GET</td><td><code>/api/runs/:id</code></td><td>run + events + timers + signals + task + codeChanged。</td></tr>
+<tr><td>POST</td><td><code>/api/runs/:id/signal</code></td><td>body <code>{"name":"approval","payload":{…}}</code>；已結束回 409。</td></tr>
+<tr><td>POST</td><td><code>/api/runs/:id/cancel</code></td><td>要求取消（協作式：下一個 ctx 呼叫丟出 CancelledError）。</td></tr>
+<tr><td>POST</td><td><code>/api/runs/:id/retry</code></td><td>對已結束的 run 以相同輸入建立新 run（retry_of）。</td></tr>
+<tr><td>GET</td><td><code>/api/stats</code></td><td>各狀態數量、task 數、待觸發計時器、workers。</td></tr>
+<tr><td>GET</td><td><code>/api/logs?level=&amp;runId=&amp;limit=</code></td><td>伺服器程序記憶體中的最近日誌。</td></tr>
+</table></div>
+<p>錯誤一律回 <code>{"error":"訊息","name":"…"}</code>，狀態碼 400 / 404 / 409 / 500。API 沒有驗證機制，預設只綁 127.0.0.1。</p>
+<h3 id="dev-write">如何撰寫工作流程</h3>
+<pre><code>// my-workflows.mjs
+import { defineWorkflow } from './src/engine.js';
+import { NonRetryableError } from './src/errors.js';
+
+export const invoice = defineWorkflow({
+  name: 'invoice',
+  version: '1',
+  title: { 'zh-TW': '開立發票', en: 'Issue invoice' },
+  sampleInput: { customer: 'C001', amount: 1200 },
+  signals: ['confirm'],
+  async handler(ctx, input) {
+    const no = await ctx.step('allocateNumber', async a =&gt; {
+      // a = { runId, seq, attempt, idempotencyKey, log }
+      return callErp('/invoice/number', { key: a.idempotencyKey });
+    }, { retry: { maxAttempts: 5, initialIntervalMs: 1000, backoffCoefficient: 2, maxIntervalMs: 30000, nonRetryableErrors: ['ValidationError'] }, timeoutMs: 10000 });
+    try {
+      await ctx.waitForSignal('confirm', { timeout: 24 * 3600 * 1000 });
+    } catch (e) {
+      if (e.name !== 'TimeoutError') throw e;
+      await ctx.step('voidInvoice', async () =&gt; callErp('/invoice/void', { no }));
+      return { voided: true };
+    }
+    await ctx.sleep(5 * 60 * 1000);
+    const at = await ctx.now();
+    return { no, sentAt: at };
+  },
+});
+export const workflows = [invoice];</code></pre>
+<p>執行：<code>node bin/wf.mjs serve --workflows ./my-workflows.mjs</code>（worker 與 CLI 也要加同一個 <code>--workflows</code>）。要成為內建示範，就加進 <code>src/workflows/index.js</code> 的 <code>demoWorkflows</code>。</p>
+<ul>
+  <li>activity 回傳值必須可 JSON 序列化（會存進歷程；重播時拿到的是 JSON 還原值）。</li>
+  <li>想讓失敗不重試：丟 <code>NonRetryableError</code>，或設定 <code>err.nonRetryable = true</code>，或把錯誤名稱放進 <code>retry.nonRetryableErrors</code>。</li>
+  <li>永久失敗時 <code>ctx.step</code> 丟出 <code>StepFailedError</code>（<code>stepName</code>、<code>attempts</code>、<code>cause</code>），工作流程可 catch 後做補償（見 <code>src/saga.js</code> 與 <code>order-saga</code>）。</li>
+  <li>可用 <code>Promise.all([ctx.step('a', …), ctx.step('b', …)])</code> 平行執行；seq 依呼叫順序分配，重播時順序相同即可。</li>
+  <li>工作流程內的日誌用 <code>ctx.log(msg, fields)</code>：重播時不會重複輸出。</li>
+</ul>
+<h3 id="dev-versioning">版本演進（避免非決定性）</h3>
+<ol>
+  <li><b>只改 activity 內部實作</b>（fn 內容）：安全，重播不執行 activity。</li>
+  <li><b>新增 / 刪除 / 重排 ctx 呼叫</b>：對進行中的 run 不安全。做法 A：用 <code>ctx.patched('變更代號')</code> 包住新邏輯（舊 run 回傳 false，新 run 回傳 true）；做法 B：用新的工作流程名稱（例如 <code>order-saga-v2</code>），舊 run 跑完再移除舊版。</li>
+  <li>每個 run 記錄啟動時的 <code>code_hash</code>（handler 原始碼 SHA-256 前 12 碼）。程式碼變更後，明細頁顯示黃色提醒「程式碼已變更」；真正不相容時才會變成非決定性錯誤。</li>
+</ol>
+<h3 id="dev-tests">測試</h3>
+<div class="table-wrap"><table>
+<tr><th>指令</th><th>內容</th></tr>
+<tr><td><code>npm test</code></td><td>全部（約 10 秒，依序執行）。</td></tr>
+<tr><td><code>npm run test:engine</code></td><td>重播次數、耐久計時器跨重啟、訊號 / 逾時 / 緩衝、重試退避、不可重試、Saga 補償順序、非決定性、patched、取消。</td></tr>
+<tr><td><code>npm run test:crash</code></td><td>SIGKILL 子程序 worker 兩次後重啟完成，無重複副作用。</td></tr>
+<tr><td><code>npm run test:e2e</code></td><td>Playwright：清單、篩選、明細時間軸、UI 核准、語言 / 主題切換、390px 無水平捲動、無 console error；輸出截圖到 <code>examples/</code>。</td></tr>
+</table></div>
+<p>測試暫存資料夾預設在系統 temp，可用環境變數 <code>WF_TEST_TMP</code> 指定；<code>WF_TEST_LOG=1</code> 會把引擎日誌印到終端機。</p>
+<h3 id="dev-versions">版本</h3>
+<div class="table-wrap"><table>
+<tr><th>元件</th><th>版本</th></tr>
+<tr><td>本專案</td><td>0.1.0</td></tr>
+<tr><td>Node.js</td><td>需要 ≥ 22.5（node:sqlite）；實測 v22.23.4</td></tr>
+<tr><td>SQLite</td><td>3.53.4（Node 內建）</td></tr>
+<tr><td>執行期 npm 套件</td><td>無</td></tr>
+<tr><td>Playwright（僅 e2e 測試）</td><td>開發環境的全域安裝版本；未列為相依</td></tr>
+</table></div>
+<h3 id="dev-changelog">變更紀錄</h3>
+<ul>
+  <li><b>0.1.0</b>（2026-11-05）：第一版。重播執行器、ctx API（step / sleep / waitForSignal / sideEffect / now / random / uuid / patched / log）、租約工作佇列與 fencing、崩潰復原、重試退避、取消、Saga、非決定性偵測、三個示範工作流程、REST API、儀表板（zh-TW / en、淺色 / 深色、除錯頁）、CLI、Windows 啟動器、測試 17 項。</li>
+</ul>
+</section>
+
+<section class="tab" id="compare">
+<h2>與 Azure Durable Functions / Temporal .NET SDK 對照</h2>
+<p class="note"><span class="unverified">說明：</span>下表的 Durable Functions（isolated worker, <code>TaskOrchestrationContext</code>）與 Temporal .NET SDK（<code>Temporalio</code>）API 名稱是依記憶整理，<b>未在本專案中實際編譯或執行驗證</b>；不同版本可能有差異，請以官方文件為準。</p>
+<div class="table-wrap"><table>
+<tr><th>本專案</th><th>Durable Functions (C#)</th><th>Temporal .NET SDK</th></tr>
+<tr><td>工作流程 <code>defineWorkflow({ handler(ctx, input) })</code></td><td>Orchestrator：<code>[Function] … ([OrchestrationTrigger] TaskOrchestrationContext context)</code></td><td><code>[Workflow]</code> 類別 + <code>[WorkflowRun]</code> 方法</td></tr>
+<tr><td><code>ctx.step(name, fn)</code>（activity，inline 執行）</td><td><code>context.CallActivityAsync&lt;T&gt;("Name", input)</code></td><td><code>Workflow.ExecuteActivityAsync(…)</code></td></tr>
+<tr><td><code>{ retry: { maxAttempts, initialIntervalMs, backoffCoefficient } }</code></td><td><code>TaskOptions.FromRetryPolicy(new RetryPolicy(…))</code></td><td><code>ActivityOptions.RetryPolicy</code></td></tr>
+<tr><td><code>NonRetryableError</code> / <code>nonRetryableErrors</code></td><td>RetryPolicy 的 handle 委派（較有限）</td><td><code>ApplicationFailureException(nonRetryable: true)</code> / <code>NonRetryableErrorTypes</code></td></tr>
+<tr><td><code>ctx.sleep(ms)</code></td><td><code>context.CreateTimer(fireAt, ct)</code></td><td><code>Workflow.DelayAsync(…)</code></td></tr>
+<tr><td><code>ctx.waitForSignal(name, { timeout })</code> → 逾時丟 <code>TimeoutError</code></td><td><code>context.WaitForExternalEvent&lt;T&gt;(name, timeout)</code> → <code>TimeoutException</code></td><td><code>[WorkflowSignal]</code> 方法 + <code>Workflow.WaitConditionAsync(…, timeout)</code></td></tr>
+<tr><td><code>wf signal</code> / <code>POST /api/runs/:id/signal</code></td><td><code>client.RaiseEventAsync(instanceId, name, data)</code></td><td><code>handle.SignalAsync(…)</code></td></tr>
+<tr><td><code>ctx.now()</code> / <code>ctx.random()</code> / <code>ctx.uuid()</code></td><td><code>context.CurrentUtcDateTime</code> / <code>context.NewGuid()</code></td><td><code>Workflow.UtcNow</code> / <code>Workflow.Random</code> / <code>Workflow.NewGuid()</code></td></tr>
+<tr><td><code>ctx.patched(id)</code></td><td>主要靠新 orchestrator 名稱或版本化部署</td><td><code>Workflow.Patched(id)</code></td></tr>
+<tr><td><code>NonDeterminismError</code>（run 標記失敗）</td><td><code>NonDeterministicOrchestrationException</code></td><td>Workflow task 失敗（nondeterminism）；預設<b>不會</b>讓 workflow 失敗，而是卡住重試直到修正程式</td></tr>
+<tr><td><code>wf cancel</code>（協作式 CancelledError）</td><td><code>TerminateInstanceAsync</code>（強制終止，不會跑補償）</td><td><code>handle.CancelAsync()</code>（CancellationToken，可跑清理）</td></tr>
+<tr><td><code>wf retry</code>（新 run、相同輸入）</td><td>Rewind（預覽功能）/ 重新啟動</td><td>Reset 到某個事件</td></tr>
+<tr><td><code>history_events</code> 表</td><td>History table（Azure Storage provider）</td><td>Temporal Server 中的 Event History</td></tr>
+<tr><td><code>tasks</code> 表 + 租約</td><td>control / work-item queues</td><td>Task Queue + Worker 長輪詢</td></tr>
+<tr><td>儀表板</td><td>Durable Functions Monitor / DTS dashboard</td><td>Temporal Web UI</td></tr>
+<tr><td>（未實作）子工作流程、Query、Update、continue-as-new</td><td><code>CallSubOrchestratorAsync</code>、custom status、<code>ContinueAsNew</code></td><td><code>Workflow.ExecuteChildWorkflowAsync</code>、<code>[WorkflowQuery]</code>、<code>[WorkflowUpdate]</code>、<code>ContinueAsNewException</code></td></tr>
+</table></div>
+<h3 id="compare-diff">主要差異</h3>
+<ul>
+  <li><b>Activity 執行位置</b>：本專案在同一個 worker task 內「就地」執行 activity，沒有獨立的 activity task queue；慢的 activity 會占用該 run 的工作租約（有心跳延長）。Temporal / Durable Functions 會把 activity 排到獨立佇列、可分散到其他 worker。</li>
+  <li><b>非決定性的處理</b>：本專案直接讓 run 失敗並清楚報告；Temporal 預設讓 workflow task 一直重試（run 不會失敗），以便部署修正後繼續 <span class="unverified">（依記憶，未驗證）</span>。</li>
+  <li><b>規模</b>：單一 SQLite 檔，適合單機 / 小團隊工具、學習原理；不是分散式叢集。</li>
+  <li><b>C# 思維對應</b>：<code>await ctx.step(...)</code> 就像 <code>await context.CallActivityAsync(...)</code>；「orchestrator 程式碼必須 deterministic」的規則完全相同（不要用 <code>DateTime.Now</code> / <code>Guid.NewGuid()</code>，改用 context 提供的版本）。</li>
+</ul>
+</section>
+
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-logs">JSONL 日誌</h3>
+<p>每個程序把日誌附加到 <code>&lt;logDir&gt;/wf-YYYY-MM-DD.jsonl</code>（依 UTC 日期換檔），每行一個 JSON：<code>ts</code>、<code>level</code>（debug / info / warn / error）、<code>pid</code>、<code>comp</code>（engine / executor / worker / activity / workflow / http）、<code>msg</code>，以及 <code>runId</code>、<code>workflow</code>、<code>step</code>、<code>workerId</code>、<code>err</code> 等欄位。</p>
+<pre><code>{"ts":"2026-11-05T04:53:34.277Z","level":"info","pid":32320,"comp":"engine","msg":"run started","runId":"demo-kill","workflow":"batch-report"}</code></pre>
+<ul>
+  <li><code>--debug</code>（或 <code>WF_DEBUG=1</code>）輸出 debug 等級：每次執行 workflow task、每個 step 完成、暫停與喚醒時間、API 請求耗時。</li>
+  <li>路徑：Windows 預設 <code>%ProgramData%\NewMiscCode\10-durable-workflow\logs</code>，Linux <code>./logs</code>；可用 <code>--log-dir</code> 或 <code>WF_LOG_DIR</code> 修改。</li>
+  <li>PowerShell 篩選某個 run：<code>Get-Content .\logs\wf-2026-11-05.jsonl | ConvertFrom-Json | Where-Object runId -eq 'demo-kill'</code></li>
+  <li>Linux：<code>grep '"runId":"demo-kill"' logs/*.jsonl</code></li>
+</ul>
+<h3 id="debug-dashboard">儀表板除錯頁</h3>
+<p>上方「除錯」分頁顯示 worker 心跳、待觸發計時器、統計，以及伺服器程序的最近 200 筆日誌（可依等級篩選）。網址加 <code>?debug=1</code> 時前端會把每個 API 呼叫印到 <code>console.debug</code>。儀表板不會阻擋 DevTools（F12 隨時可用）。</p>
+<h3 id="debug-inspect">Node 偵錯器</h3>
+<pre><code>node --inspect bin/wf.mjs serve --debug
+node --inspect-brk bin/wf.mjs worker</code></pre>
+<p>開啟 Chrome 的 <code>chrome://inspect</code> → Open dedicated DevTools for Node，在 <code>src/engine.js</code> 的 <code>executeRunTask</code> 或你的工作流程中下中斷點。注意：工作流程函式在每次喚醒時都會從頭重播，中斷點會被觸發多次；用 <code>ctx.isReplaying</code> 判斷是否為重播。</p>
+<h3 id="debug-sql">直接查 SQLite</h3>
+<pre><code>node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/workflow.db');console.table(db.prepare('select seq,type,name from history_events where run_id=?').all('demo-kill'))"</code></pre>
+</section>
+
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limits-list">已知限制</h3>
+<ul>
+  <li>沒有子工作流程、Query、Update、continue-as-new；歷程會一直增長（長期迴圈型流程請改成定期結束並重新啟動新 run）。</li>
+  <li>activity 至少一次執行；外部副作用請用 <code>idempotencyKey</code> 去重。</li>
+  <li>activity 在 worker 內 inline 執行，沒有獨立 activity 佇列；長時間 activity 會占用一個併發槽。</li>
+  <li>取消是協作式：只有在工作流程下一次呼叫 ctx 時才生效；正在執行的 activity 不會被中斷。</li>
+  <li>單一 SQLite 檔（WAL）：多程序同一台機器可用；<b>不要</b>把資料庫放在網路磁碟（SMB）上給多台機器共用。</li>
+  <li>REST API 無驗證，預設只綁 127.0.0.1；若改 <code>--host 0.0.0.0</code>，請自行加反向代理與驗證。</li>
+  <li>計時器精度約等於 worker 輪詢間隔（預設 250ms）。</li>
+  <li><code>node:sqlite</code> 在 Node 22 仍標示為實驗性功能（程式已隱藏該警告）。</li>
+  <li>Windows 啟動器未在 Windows 實機測試（見快速開始）。</li>
+</ul>
+<h3 id="limits-trouble">疑難排解</h3>
+<div class="table-wrap"><table>
+<tr><th>症狀</th><th>原因 / 處理</th></tr>
+<tr><td><code>No such built-in module: node:sqlite</code></td><td>Node 版本太舊，請升級到 22.5 以上。</td></tr>
+<tr><td>run 一直是 <code>pending</code></td><td>沒有 worker 在跑：用 <code>wf serve</code>（預設內嵌 worker）或另開 <code>wf worker</code>；兩者必須指向同一個 <code>--data-dir</code>。worker 只領取<b>自己有註冊</b>的工作流程，自訂工作流程記得在 worker 加上 <code>--workflows</code>（除錯頁的 worker 清單可看到各 worker 的程序資訊）。</td></tr>
+<tr><td>run 失敗：<code>NonDeterminismError</code></td><td>進行中的 run 遇到不相容的程式碼變更；見 <a href="#dev-versioning">版本演進</a>。可用「以相同輸入重試」重新開始。</td></tr>
+<tr><td>kill worker 後 run 過了十幾秒才繼續</td><td>activity 執行中被殺，要等租約到期（預設 15 秒，可用 <code>--lease-ms</code> 調整）。</td></tr>
+<tr><td><code>database is locked</code></td><td>有其他程式長時間鎖住資料庫（例如 DB 瀏覽工具開著交易）；已設定 busy_timeout 5 秒。</td></tr>
+<tr><td>連接埠 8710 已被使用</td><td><code>start-dashboard.bat --port 8711</code> 或環境變數 <code>WF_PORT</code>。</td></tr>
+<tr><td>PowerShell 顯示亂碼</td><td>啟動器已設定 UTF-8 輸出；若仍亂碼，請改用 Windows Terminal。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p>A small, readable <b>durable execution</b> engine for Node.js 22 using the built-in <code>node:sqlite</code> (no runtime npm dependencies). Workflows are plain async functions using a context API: <code>ctx.step(name, fn, {retry, timeoutMs})</code> for activities whose results are persisted, <code>ctx.sleep(ms)</code> for durable timers, <code>ctx.waitForSignal(name, {timeout})</code> for external events (e.g. human approval), <code>ctx.now()/random()/uuid()/sideEffect()</code> for deterministic values, and <code>ctx.patched(id)</code> for versioning.</p>
+<ul>
+  <li><b>Event-sourced history + replay</b>: every ctx call gets a sequence number; on each wake-up the workflow function re-runs from the start and calls already recorded in history return their stored result instead of re-executing.</li>
+  <li><b>Task queue with leases and heartbeats</b> in SQLite; history writes are fenced by lease ownership. If a worker is killed (SIGKILL), the lease expires and another worker resumes the run from history - completed steps are not executed again (activities are at-least-once if killed mid-activity; an idempotency key is provided).</li>
+  <li>Exponential-backoff retries, non-retryable errors, saga compensation, cooperative cancellation, and a <b>non-determinism guard</b> that fails the run with a clear message when replay diverges from history.</li>
+  <li>Demo workflows: order saga (reserve → charge → ship with reverse compensation), leave approval (signal wait with escalation on timeout), batch report (durable sleeps; kill/restart demo).</li>
+  <li>Web dashboard (zh-TW default, English toggle, light/dark, mobile), REST API, and CLI: <code>wf serve | worker | start | signal | status | cancel | retry</code>.</li>
+  <li>Verification: <code>npm test</code> runs 17 tests including a crash test that SIGKILLs a real worker child process twice, and a Playwright dashboard test that approves a leave request through the UI.</li>
+  <li>Windows: <code>start-dashboard.bat</code>, <code>wf.bat</code>, <code>run-tests.bat</code> (ASCII .bat → UTF-8 BOM .ps1 → node). Data/logs default to <code>%ProgramData%\NewMiscCode\10-durable-workflow</code> on Windows and <code>./data</code>, <code>./logs</code> elsewhere. The launchers were not tested on real Windows.</li>
+</ul>
+</section>
+
+</main>
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  function show() {
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
+    var el = id && document.getElementById(id);
+    var anchor = null;
+    if (el && !el.classList.contains('tab')) {
+      // a sub-anchor inside a tab (e.g. #dev-schema): open its tab, then scroll to it
+      var sec = el.closest('section.tab');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    } else if (!el) {
+      id = 'overview';
+    }
+    tabs.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+    if (anchor) anchor.scrollIntoView(); else window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>
