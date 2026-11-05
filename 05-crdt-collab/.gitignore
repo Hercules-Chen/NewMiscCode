@@ -1,0 +1,6 @@
+node_modules/
+data/
+logs/
+public/dist/
+test-results/
+*.log

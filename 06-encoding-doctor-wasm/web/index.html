@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>編碼醫生 Encoding Doctor</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1><span data-i18n="title">編碼醫生</span> <small class="muted" data-i18n="subtitle">Encoding Doctor</small></h1>
+    <div id="status" class="muted" data-state="loading">…</div>
+  </div>
+  <div class="controls">
+    <button id="langBtn" type="button" title="Language">EN</button>
+    <select id="themeSel" aria-label="theme">
+      <option value="auto" data-i18n="themeAuto">主題：自動</option>
+      <option value="light" data-i18n="themeLight">淺色</option>
+      <option value="dark" data-i18n="themeDark">深色</option>
+    </select>
+    <button id="debugBtn" type="button" data-i18n="debug">除錯</button>
+  </div>
+</header>
+
+<main>
+  <section id="drop" class="drop" tabindex="0">
+    <p data-i18n="dropHint">把檔案或資料夾拖放到這裡（檔案不會上傳，全部在瀏覽器內以 Go WebAssembly 分析）</p>
+    <div class="row">
+      <label class="btn"><input id="fileInput" type="file" multiple hidden><span data-i18n="pickFiles">選擇檔案</span></label>
+      <label class="btn"><input id="dirInput" type="file" webkitdirectory multiple hidden><span data-i18n="pickFolder">選擇資料夾</span></label>
+    </div>
+    <div class="row opts">
+      <label><input id="optForceAscii" type="checkbox"> <span data-i18n="optForceAscii">.bat 非 ASCII 換成 ?（--force-ascii）</span></label>
+      <label><input id="optLossy" type="checkbox"> <span data-i18n="optLossy">允許有損的亂碼還原（--allow-lossy）</span></label>
+    </div>
+  </section>
+
+  <section id="summary" class="summary" hidden>
+    <span id="sumText"></span>
+    <span class="row">
+      <button id="fixAllBtn" type="button" data-i18n="fixAll">全部修復並下載 ZIP</button>
+      <button id="clearBtn" type="button" data-i18n="clear">清除</button>
+    </span>
+  </section>
+
+  <div class="tablewrap">
+    <table id="results" hidden>
+      <thead><tr>
+        <th data-i18n="colFile">檔案</th><th data-i18n="colEncoding">編碼（信心度）</th><th>BOM</th><th data-i18n="colEol">換行</th><th data-i18n="colIssues">問題</th><th data-i18n="colActions">動作</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <section id="preview" class="panel" hidden>
+    <div class="panelhead">
+      <h2 id="pvTitle"></h2>
+      <button id="pvClose" type="button" data-i18n="close">關閉</button>
+    </div>
+    <div class="row">
+      <label><span data-i18n="decodeAs">以此編碼顯示</span> <select id="pvEnc"></select></label>
+      <span id="pvInfo" class="muted"></span>
+    </div>
+    <div id="pvCands" class="cands"></div>
+    <div class="grid2">
+      <div><h3 data-i18n="decoded">解碼結果</h3><pre id="pvText" class="text"></pre></div>
+      <div id="pvFixedBox" hidden><h3 data-i18n="repaired">亂碼還原後</h3><pre id="pvFixed" class="text"></pre></div>
+    </div>
+    <div class="row convert">
+      <strong data-i18n="convert">轉換並下載</strong>
+      <label><span data-i18n="to">目標</span> <select id="cvTo"></select></label>
+      <label><input id="cvBom" type="checkbox"> BOM</label>
+      <label><span data-i18n="eol">換行</span> <select id="cvEol"><option value="keep" data-i18n="keep">不變</option><option value="crlf">CRLF</option><option value="lf">LF</option></select></label>
+      <button id="cvBtn" type="button" data-i18n="download">下載</button>
+    </div>
+  </section>
+
+  <section id="debugPanel" class="panel" hidden>
+    <div class="panelhead"><h2 data-i18n="debugLog">除錯記錄</h2><button id="dbgClear" type="button" data-i18n="clear">清除</button></div>
+    <pre id="debugLog" class="text small"></pre>
+    <p class="muted small" data-i18n="debugHint">DevTools 主控台可用 window.encdocApp 與 window.encdoc。網址加上 ?debug=1 會同時輸出 console.debug。</p>
+  </section>
+</main>
+<footer class="muted small"><span data-i18n="footer">規則：.bat/.cmd → ASCII + CRLF；.ps1 → 有中文時 UTF-8 with BOM；.md/.json/.js/.html → UTF-8 無 BOM。</span></footer>
+<script src="wasm_exec.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

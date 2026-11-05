@@ -1,0 +1,6 @@
+bin/
+logs/
+node_modules/
+test-output/
+*.log
+*.bak

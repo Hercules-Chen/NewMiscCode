@@ -48,7 +48,7 @@ for (const rel of docs) {
       checks++;
       if (!(await exists(join(dir, m[1])))) problems.push(`${rel}: "node ${m[1]}" file missing`);
     }
-    for (const m of new Set([...text.matchAll(/\b([\w-]+\.(?:bat|ps1|sh))\b/g)].map(x => x[1]))) {
+    for (const m of new Set([...text.matchAll(/(?<![\w./\\-])([\w-]+(?:[\/\\][\w.-]+)*\.(?:bat|ps1|sh))\b/g)].map(x => x[1].replace(/\\/g, '/')))) {
       checks++;
       if (!(await exists(join(dir, m)))) problems.push(`${rel}: referenced launcher ${m} missing`);
     }

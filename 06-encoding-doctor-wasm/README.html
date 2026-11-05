@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>編碼醫生 Encoding Doctor - 說明文件</title>
+<style>
+:root { color-scheme: light; --bg: #f6f6f4; --surface: #fff; --text: #111; --muted: #555; --border: #d9d8d2; --accent: #2a63c7; --code: #f0efeb; --warn: #8a5300; }
+@media (prefers-color-scheme: dark) { :root { color-scheme: dark; --bg: #121314; --surface: #1b1c1f; --text: #eee; --muted: #aaa; --border: #3a3b40; --accent: #6ea2ff; --code: #25262a; --warn: #f0b04a; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.65 "Segoe UI", "Microsoft JhengHei", "Noto Sans TC", system-ui, sans-serif; }
+header { padding: 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+header h1 { margin: 0; font-size: 22px; }
+nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+nav a { padding: 5px 10px; border-radius: 6px; color: var(--text); text-decoration: none; border: 1px solid transparent; }
+nav a.active, nav a:hover { border-color: var(--accent); color: var(--accent); }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+section.tab { display: none; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 20px 20px; }
+section.tab.active { display: block; }
+a { color: var(--accent); }
+code, pre { font-family: Consolas, "Cascadia Mono", monospace; background: var(--code); border-radius: 4px; }
+code { padding: 1px 4px; overflow-wrap: anywhere; }
+pre { padding: 10px; overflow-x: auto; max-width: 100%; }
+.tw { overflow-x: auto; max-width: 100%; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; vertical-align: top; }
+th { background: var(--code); }
+img { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 6px; }
+.muted { color: var(--muted); }
+.note { border-left: 4px solid var(--warn); padding: 4px 12px; background: var(--code); border-radius: 4px; }
+ol li, ul li { margin: 3px 0; }
+@media (max-width: 600px) { section.tab { padding: 6px 12px 14px; } main { padding: 10px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>編碼醫生 <span class="muted">/ Encoding Doctor (encdoc)</span></h1>
+  <div class="muted">文字編碼診斷與修復：Big5/CP950 vs UTF-8、BOM、CRLF/LF、亂碼還原。同一份 Go 程式碼編譯成瀏覽器 WebAssembly 與原生 CLI（含 Windows exe）。</div>
+</header>
+<nav id="nav">
+  <a href="#overview">概覽</a>
+  <a href="#quickstart">快速開始</a>
+  <a href="#usage">使用說明</a>
+  <a href="#cheatsheet">編碼知識速查</a>
+  <a href="#verify">逐步驗證指南</a>
+  <a href="#dev">開發者指南</a>
+  <a href="#debug">除錯與日誌</a>
+  <a href="#limits">限制與疑難排解</a>
+  <a href="#english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>在繁體中文 Windows 上，最常見的編碼問題是：舊檔是 Big5（CP950）、新檔是 UTF-8；<code>.bat</code> 混入中文後換台電腦就亂碼；<code>.ps1</code> 沒有 BOM 時 Windows PowerShell 5.1 把中文讀成亂碼；CRLF / LF 混用；或 UTF-8 被誤當 ANSI 開啟又存檔造成的「亂碼」。編碼醫生把這些檢查與修復集中在一個工具裡。</p>
+<ul>
+  <li><b>編碼偵測</b>：BOM（UTF-8 / UTF-16LE / UTF-16BE）、UTF-8 是否有效、無 BOM 的 UTF-16、Big5/CP950、GBK、Shift_JIS、Windows-1252，附信心度與候選清單（依常用字頻率評分）。</li>
+  <li><b>檢查</b>：換行統計（CRLF / LF / CR / 混用）、U+FFFD 取代字元、NUL 位元組、無效位元組序列、亂碼（mojibake）偵測。</li>
+  <li><b>亂碼還原</b>：嘗試反向轉換「UTF-8 被誤讀為 Windows-1252 / Big5 / GBK / Shift_JIS 後再存檔」，以中日文可讀性評分選出最佳結果；Windows-1252 類可完整還原，Big5 類通常有損（會標示）。</li>
+  <li><b>依檔案類型的規則</b>（你的規範）：<code>.bat/.cmd</code> → ASCII + CRLF；<code>.ps1</code> → 有非 ASCII 時 UTF-8 with BOM；<code>.md/.json/.js/.html</code> 等 → UTF-8 無 BOM；<code>.sh</code> → LF。違規會附建議修法，可一鍵修復。</li>
+  <li><b>轉換</b>：任意支援編碼互轉、加 / 移除 BOM、統一換行。</li>
+  <li><b>兩種介面、同一份 Go 程式碼</b>：
+    <ul>
+      <li>瀏覽器介面（<code>GOOS=js GOARCH=wasm</code>）：拖放檔案或資料夾、診斷表、以指定編碼預覽、一鍵修復下載、全部修復打包 ZIP。zh-TW / English、淺色 / 深色、手機寬度可用。檔案<b>不會上傳</b>。</li>
+      <li>原生 CLI <code>encdoc</code>：遞迴掃描、<code>--fix</code> 預設只預覽、<code>--apply</code> 才寫入並保留 <code>.bak</code>、JSON 輸出、<code>convert</code> 子命令。可交叉編譯 Windows exe。</li>
+    </ul>
+  </li>
+</ul>
+<p><img src="examples/01-diagnosis-table.png" alt="診斷表：Big5、BOM、批次檔違規" width="640"></p>
+<div class="tw"><table>
+<tr><th>產物</th><th>大小</th><th>說明</th></tr>
+<tr><td><code>web/encdoc.wasm</code></td><td>約 4.0 MB（gzip 約 1.3 MB）</td><td>標準 Go 1.24 編譯（<code>-ldflags=-s -w</code>），已提交到 repo（&lt; 5 MB），沒有 Go 也能直接開 UI。</td></tr>
+<tr><td><code>bin/encdoc</code> / <code>bin/encdoc.exe</code></td><td>約 2.4 / 2.5 MB</td><td>不提交（.gitignore），用 <code>build-windows.bat</code> 或 <code>build.sh</code> 產生。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<h3 id="qs-windows">Windows（繁體中文 Windows）</h3>
+<ol>
+  <li>安裝 <a href="https://nodejs.org/">Node.js</a> 18 以上（只用來跑本機靜態伺服器）。要建置 CLI 或重新編譯 wasm 時再安裝 <a href="https://go.dev/dl/">Go</a> 1.24 以上。</li>
+  <li><b>瀏覽器介面</b>：雙擊 <code>start-windows.bat</code>。它會切換到程式資料夾、印出路徑、呼叫 <code>start-windows.ps1</code>，啟動 <code>node server.js --open</code> 並開啟 <code>http://127.0.0.1:8706/</code>。結束時印出結束代碼並暫停。</li>
+  <li><b>CLI</b>：先雙擊 <code>build-windows.bat</code>（產生 <code>bin\encdoc.exe</code>，需要 Go），再雙擊 <code>encdoc-scan.bat</code>：它會問要掃描的資料夾（直接 Enter = <code>testdata</code>）並執行 <code>--fix</code> 預覽（不寫入）。也可以在命令列：<code>encdoc-scan.bat D:\work\scripts --fix --apply</code>。</li>
+</ol>
+<p class="muted">參數：<code>start-windows.ps1 -Port 9000 -LogDir D:\logs -NoBrowser</code>；<code>build-windows.ps1 -Test</code> 建置後順便跑 Go 測試與 CLI 測試。</p>
+<h3 id="qs-linux">Linux / macOS</h3>
+<pre>./start.sh                 # 或 node server.js --open   → http://127.0.0.1:8706/
+./build.sh                 # = node scripts/build.mjs --windows：wasm + bin/encdoc + bin/encdoc.exe
+./bin/encdoc testdata      # 掃描範例檔
+npm test                   # 建置 + go test + CLI 驗證 + Playwright e2e</pre>
+<p>Go 不在 PATH 時，建置腳本會嘗試 <code>/usr/local/go/bin/go</code>，或用環境變數 <code>GO=/path/to/go</code> 指定。</p>
+</section>
+
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<h3 id="usage-ui">瀏覽器介面</h3>
+<ol>
+  <li>把檔案或整個資料夾拖放到虛線框，或按「選擇檔案」/「選擇資料夾」。資料夾模式只收已知文字副檔名，略過 <code>.git</code>、<code>node_modules</code> 與 &gt; 20 MB 的檔案。</li>
+  <li>診斷表每列：檔名與套用的規則、偵測編碼與信心度條、BOM、換行、問題（紅 = 錯誤、橘 = 警告；每個問題附「→ 建議修法」）、動作按鈕。</li>
+  <li>「預覽」：以 auto 或任一編碼解碼顯示，列出候選編碼與分數（滑鼠移到候選上看樣本）。若偵測到亂碼，右側同時顯示「亂碼還原後」。下方「轉換並下載」可指定目標編碼、BOM、換行。</li>
+  <li>「修復下載」：依規則修復後下載同名檔案。「全部修復並下載 ZIP」：所有有變更的檔案打包成 <code>encdoc-fixed.zip</code>（保留資料夾相對路徑）。</li>
+  <li>選項：「.bat 非 ASCII 換成 ?」與「允許有損的亂碼還原」對應 CLI 的 <code>--force-ascii</code>、<code>--allow-lossy</code>。</li>
+  <li>右上角：EN / 中文 切換（記在 localStorage，也可用 <code>?lang=en</code>）、主題（自動 / 淺色 / 深色）、除錯面板。</li>
+</ol>
+<p><img src="examples/02-preview-mojibake.png" alt="預覽：亂碼與還原結果並排" width="640"></p>
+<h3 id="usage-cli">CLI：encdoc</h3>
+<pre>encdoc [options] [path ...]               掃描（預設 "."，遞迴）
+encdoc --fix [options] [path ...]         預覽修復（dry run，不寫入）
+encdoc --fix --apply [options] [path ...] 寫入修復（原檔保留為 *.bak）
+encdoc convert --from big5 --to utf-8 [--bom] [--eol crlf|lf] IN OUT
+encdoc version</pre>
+<div class="tw"><table>
+<tr><th>選項</th><th>說明</th></tr>
+<tr><td><code>--json</code></td><td>JSON 輸出（每檔完整 report、fix 計畫與 summary）。</td></tr>
+<tr><td><code>--all</code></td><td>也檢查未知副檔名（預設只看已知文字類型）。</td></tr>
+<tr><td><code>--encoding NAME</code></td><td>強制來源編碼：utf-8、big5（cp950）、gbk（cp936）、shift_jis（cp932）、windows-1252、utf-16le、utf-16be、ascii。</td></tr>
+<tr><td><code>--force-ascii</code></td><td><code>.bat</code> 的非 ASCII 字元換成 <code>?</code>（預設不自動改，因為會遺失內容）。</td></tr>
+<tr><td><code>--allow-lossy</code></td><td>套用會遺失字元的亂碼還原（例如 Big5 類）。</td></tr>
+<tr><td><code>--no-backup</code></td><td><code>--apply</code> 時不留 <code>.bak</code>。</td></tr>
+<tr><td><code>--exclude a,b</code></td><td>略過的資料夾名稱（預設 <code>.git,node_modules</code>）。</td></tr>
+<tr><td><code>--lang zh|en</code></td><td>訊息語言，預設 zh。</td></tr>
+<tr><td><code>--debug</code> / <code>--log-dir DIR</code></td><td>見「除錯與日誌」。</td></tr>
+</table></div>
+<p>結束代碼：<code>0</code> 沒有錯誤、<code>1</code> 有錯誤（適合 CI / pre-commit）、<code>2</code> 用法或 I/O 錯誤。</p>
+<pre>encdoc --fix --lang en testdata
+...
+[FAIL] testdata/no-bom.ps1  utf-8 99% - CRLF
+       - error ps1-bom-missing [fixable]: .ps1 with non-ASCII text must be UTF-8 with BOM (now utf-8). ...
+       >> would change: added utf-8 BOM (66 -> 69 bytes, errors after: 0)
+files 22, errors 10, warnings 7, fixable 12; dry run: 12 files would change (add --apply to write).</pre>
+<h3 id="usage-rules">規則與問題代碼</h3>
+<div class="tw"><table>
+<tr><th>代碼</th><th>適用</th><th>意義 / 自動修復</th></tr>
+<tr><td><code>bat-non-ascii</code></td><td>.bat .cmd</td><td>含非 ASCII 字元。只有 <code>--force-ascii</code> 才自動處理（換成 ?）；建議把中文訊息移到 .ps1。</td></tr>
+<tr><td><code>bat-eol</code> / <code>bat-bom</code></td><td>.bat .cmd</td><td>必須 CRLF、不可有 BOM。可自動修復。</td></tr>
+<tr><td><code>ps1-bom-missing</code> / <code>ps1-utf16</code></td><td>.ps1 .psm1 .psd1</td><td>有非 ASCII 時需 UTF-8 with BOM。自動轉換（Big5 來源也會先正確解碼）。</td></tr>
+<tr><td><code>utf8-bom-unexpected</code> / <code>not-utf8</code></td><td>.md .json .js .mjs .cjs .ts .html .htm .css .svg .jsonl</td><td>必須 UTF-8 無 BOM。自動移除 BOM / 轉 UTF-8。</td></tr>
+<tr><td><code>sh-eol</code></td><td>.sh</td><td>必須 LF。</td></tr>
+<tr><td><code>legacy-encoding</code></td><td>.txt .csv .xml .yml .ini .py .go ... </td><td>舊式編碼，建議轉 UTF-8（警告，可自動）。</td></tr>
+<tr><td><code>mixed-eol</code></td><td>所有文字檔</td><td>換行混用，統一成多數的那一種。</td></tr>
+<tr><td><code>mojibake</code></td><td>所有文字檔</td><td>疑似亂碼；無損時可自動還原，有損需 <code>--allow-lossy</code>。</td></tr>
+<tr><td><code>invalid-utf8</code>、<code>decode-errors</code>、<code>replacement-char</code>、<code>nul-bytes</code>、<code>low-confidence</code></td><td>所有文字檔</td><td>資料已遺失或無法確定，只報告、不自動修。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="cheatsheet">
+<h2>編碼知識速查</h2>
+<div class="tw"><table>
+<tr><th>項目</th><th>重點</th></tr>
+<tr><td>BOM 位元組</td><td>UTF-8：<code>EF BB BF</code>；UTF-16LE：<code>FF FE</code>；UTF-16BE：<code>FE FF</code>；UTF-32LE：<code>FF FE 00 00</code>（本工具不處理 UTF-32）。BOM 是 U+FEFF 以該編碼寫出的結果。</td></tr>
+<tr><td>CP950 vs Big5</td><td>Big5 是 1984 年的業界標準，各家擴充不同。CP950 是微軟版 Big5（繁中 Windows 的「ANSI」），多了少數字元（例如 <code>A3E1</code> 歐元符號、<code>F9D6–F9FE</code> 倚天擴充字與框線）。Big5-HKSCS 是香港擴充。Go 的 <code>x/text</code> 使用 WHATWG Big5 表（涵蓋 CP950 常用部分與 HKSCS），本工具把 big5 與 cp950 視為同一個選項。</td></tr>
+<tr><td>為什麼 .bat 要純 ASCII</td><td><code>cmd.exe</code> 依「目前代碼頁」逐位元組讀批次檔：繁中 Windows 預設 <code>chcp 950</code>，有人設成 <code>chcp 65001</code>（UTF-8）時 Big5 中文就壞；反之 UTF-8 中文在 950 下也壞，甚至讓多位元組字吃掉後面的引號或換行，造成指令錯亂。UTF-8 BOM 則會變成第一行指令的一部分（<code>'&#xFEFF;@echo' 不是內部或外部命令</code>）。LF 換行會讓 <code>goto</code> / <code>call :label</code> 在某些情況找不到標籤。結論：.bat 只放 ASCII + CRLF，中文訊息交給 .ps1。</td></tr>
+<tr><td>PowerShell 5.1 與 BOM</td><td>Windows PowerShell 5.1 讀沒有 BOM 的腳本時使用系統 ANSI 代碼頁（繁中為 CP950），所以 UTF-8 無 BOM 的中文字串會變亂碼，甚至造成語法錯誤（引號被吃掉）。加上 UTF-8 BOM 即可。PowerShell 7+ 預設 UTF-8，無 BOM 也正確，但有 BOM 也沒問題，因此 UTF-8 with BOM 是兩邊都安全的選擇。</td></tr>
+<tr><td><code>chcp 65001</code></td><td>把主控台代碼頁改成 UTF-8，影響之後 cmd 讀批次檔與程式輸出的解讀。在批次檔中途切換可能讓已讀取的行與後續行解讀不一致；舊版主控台字型也可能顯示不了。本專案的 .ps1 改用 <code>[Console]::OutputEncoding = UTF8</code>，不靠 chcp。</td></tr>
+<tr><td>CRLF / LF</td><td>Windows 慣例 CRLF（<code>0D 0A</code>），Unix 為 LF（<code>0A</code>），舊 Mac 為 CR。.sh 有 CRLF 會出現 <code>$'\r': command not found</code>。Git 的 <code>core.autocrlf</code> 與 <code>.gitattributes</code> 也會改換行。</td></tr>
+<tr><td>U+FFFD「&#xFFFD;」</td><td>解碼失敗時的取代字元。一旦存檔，原始位元組就沒了，無法還原，只能找備份。</td></tr>
+<tr><td>常見亂碼長相</td><td>UTF-8 被當 Windows-1252：<code>ç·¨ç¢¼</code>、<code>Ã©</code>、<code>â€™</code>（可完整還原）。UTF-8 被當 CP950：<code>蝺函Ⅳ</code>、<code>銝剜?</code>（部分位元組遺失）。Big5 被當 UTF-8：滿滿的 <code>&#xFFFD;</code>（無法還原）。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下每一步都附預期結果。<code>testdata/</code> 是由 <code>cmd/gentestdata</code> 產生的「故意壞掉」的範例檔（位元組精確、可重現）。</p>
+<h3 id="verify-auto">A. 一鍵自動驗證</h3>
+<ol>
+  <li><code>npm test</code>（Windows 也可 <code>build-windows.bat</code> 後執行 <code>build-windows.ps1 -Test</code>）。<br>預期：Go 測試 <code>ok encdoc/encdoc</code>；CLI 驗證最後一行 <code>all CLI checks passed</code>；e2e 最後一行 <code>all e2e checks passed</code>，並更新 <code>examples/</code> 三張截圖。</li>
+</ol>
+<h3 id="verify-cli">B. CLI 手動驗證</h3>
+<ol>
+  <li><code>bin/encdoc testdata</code>（Windows：<code>bin\encdoc.exe testdata</code>）。<br>預期：22 個檔案；<code>big5-notes.txt</code> 判為 <code>big5 96%</code>；<code>gbk-simplified.txt</code> 為 gbk；<code>sjis-japanese.txt</code> 為 shift_jis；<code>testdata/no-bom.ps1</code> 出現 <code>ps1-bom-missing</code>；<code>testdata/chinese-echo.bat</code> 出現 <code>bat-non-ascii</code> 與 <code>bat-eol</code>；<code>bom-readme.md</code> 出現 <code>utf8-bom-unexpected</code>；<code>mojibake-latin1.md</code> 出現 <code>mojibake</code> 並顯示還原樣本「編碼醫生：這段文字原本是 UTF-8…」；最後一行「錯誤 10，警告 7，可自動修復 12」；結束代碼 1。</li>
+  <li>複製一份：<code>cp -r testdata /tmp/td</code>（Windows：<code>xcopy testdata %TEMP%\td\ /E</code>），執行 <code>bin/encdoc --fix /tmp/td</code>。<br>預期：每個可修檔案顯示 <code>&gt;&gt; 預計修改: ...</code>，最後「預覽模式：12 個檔案會被修改」，檔案內容完全沒變。</li>
+  <li><code>bin/encdoc --fix --apply --force-ascii --allow-lossy /tmp/td</code>，再執行 <code>bin/encdoc /tmp/td</code>。<br>預期：第二次掃描「錯誤 0、可自動修復 0」，結束代碼 0；只剩 3 個無法自動修的警告（<code>lost-fffd.txt</code> 與 <code>mojibake-cp950.txt</code> 的 U+FFFD、<code>nul-bytes.txt</code>）。<code>/tmp/td/no-bom.ps1</code> 開頭變成 <code>EF BB BF</code>，原檔保留為 <code>/tmp/td/no-bom.ps1.bak</code>。</li>
+  <li><code>bin/encdoc convert --from big5 --to utf-8 --bom --eol lf testdata/big5-notes.txt /tmp/out.txt</code>。<br>預期：<code>... (254 bytes, lost 0)</code>，<code>/tmp/out.txt</code> 開頭為 UTF-8 BOM、內容為「編碼醫生測試檔案」。</li>
+  <li><code>bin/encdoc --json testdata</code> 可直接用 jq / PowerShell <code>ConvertFrom-Json</code> 處理。</li>
+</ol>
+<h3 id="verify-ui">C. 瀏覽器介面手動驗證</h3>
+<ol>
+  <li>執行 <code>start-windows.bat</code>（或 <code>./start.sh</code>）。預期：瀏覽器開啟，右上狀態顯示「就緒：encdoc 0.1.0（wasm 4.0 MB …）」。</li>
+  <li>把整個 <code>testdata</code> 資料夾拖進虛線框。預期：出現 22 列（與 CLI 結果相同），摘要「共 22 個檔案：錯誤 10、警告 7、可自動修復 12」。</li>
+  <li>在 <code>big5-notes.txt</code> 按「預覽」，把編碼改為 utf-8。預期：中文變成 &#xFFFD;；改回 big5 或 auto 顯示正常中文。</li>
+  <li>在 <code>testdata/no-bom.ps1</code> 按「修復下載」。預期：下載的檔案以 <code>EF BB BF</code> 開頭，其餘位元組與原檔相同。</li>
+  <li>按「全部修復並下載 ZIP」。預期：下載 <code>encdoc-fixed.zip</code>，內含 12 個修復後的檔案。</li>
+  <li>按 EN。預期：介面與問題訊息都變英文。調整視窗到手機寬度，表格變成卡片、沒有水平捲動。</li>
+</ol>
+<p><img src="examples/03-mobile-dark-en.png" alt="手機寬度、深色、英文介面" width="300"></p>
+</section>
+
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<h3 id="dev-arch">架構</h3>
+<pre>encdoc/              核心套件（純 Go，無 cgo；CLI 與 wasm 共用）
+  codec.go           編碼名稱/別名、Decode/Encode（含自製無損 Windows-1252 表）、BOM
+  detect.go          Detect：BOM → UTF-16 零位元組樣式 → 二進位判斷 → ASCII → UTF-8 → 舊式編碼評分
+  score.go           可讀性評分：常用繁/簡/日字表、假名、標點；PUA、半形片假名、C1 控制碼扣分
+  mojibake.go        亂碼偵測與反向轉換（含 Big5 缺位元組推測）
+  eol.go             換行統計與統一
+  rules.go           檔案類型規則、Analyze（Report/Issue）、Fix、Convert
+  encdoc_test.go     表格式測試（使用 testdata/）
+cmd/encdoc/          原生 CLI
+cmd/wasm/            syscall/js 橋接（GOOS=js GOARCH=wasm）
+cmd/gentestdata/     產生 testdata/ 範例檔
+web/                 index.html、app.js、style.css、encdoc.wasm、wasm_exec.js（從 GOROOT 複製）
+server.js            零相依靜態伺服器（application/wasm MIME、JSONL 請求記錄）
+scripts/build.mjs    建置 wasm / CLI / Windows exe；scripts/go.mjs 尋找 go 執行檔
+test/cli.mjs         CLI 驗證；test/e2e.mjs Playwright 端對端測試</pre>
+<h3 id="dev-bridge">Go ↔ JS 橋接</h3>
+<p><code>cmd/wasm/main.go</code> 把 <code>globalThis.encdoc</code> 設成一個物件，然後 <code>select{}</code> 讓 Go runtime 常駐。位元組以 <code>Uint8Array</code> 傳遞（<code>js.CopyBytesToGo</code> / <code>js.CopyBytesToJS</code>），結構化結果以 JSON 字串傳回，避免逐欄位建立 JS 物件。每個函式都包在 <code>guard()</code> 裡，Go panic 會變成 <code>{error}</code> 而不是讓整個 runtime 結束。載入完成時呼叫 <code>window.__encdocReady()</code>。</p>
+<div class="tw"><table>
+<tr><th>函式</th><th>回傳</th></tr>
+<tr><td><code>encdoc.analyze(name, u8, optsJSON)</code></td><td>Report JSON 字串</td></tr>
+<tr><td><code>encdoc.fix(name, u8, optsJSON)</code></td><td><code>{json, bytes}</code></td></tr>
+<tr><td><code>encdoc.decode(u8, encoding)</code></td><td><code>{text, invalid, bom, encoding}</code></td></tr>
+<tr><td><code>encdoc.convert(u8, optsJSON)</code></td><td><code>{bytes, lost}</code> 或 <code>{error}</code></td></tr>
+<tr><td><code>encdoc.zip(names, u8s)</code></td><td>ZIP 的 <code>Uint8Array</code>（Go <code>archive/zip</code>）</td></tr>
+<tr><td><code>encdoc.policy(name)</code>、<code>encdoc.version</code>、<code>encdoc.encodings</code></td><td>規則名稱、版本、支援編碼</td></tr>
+</table></div>
+<p>問題訊息的中英文都在 Go（<code>Issue.Message.zh/en</code>），CLI 與 UI 共用同一份文字；UI 只負責介面字串。</p>
+<h3 id="dev-add-rule">新增規則</h3>
+<ol>
+  <li>在 <code>encdoc/rules.go</code> 的 <code>policyByExt</code> 加副檔名對應（或新增 Policy 常數）。</li>
+  <li>在 <code>Analyze</code> 的 <code>switch r.Policy</code> 用 <code>r.add(code, severity, fixable, zh, en, fixZh, fixEn)</code> 報告問題。</li>
+  <li>在 <code>Fix</code> 的 <code>switch rep.Policy</code> 設定目標編碼 / BOM / 換行。</li>
+  <li>在 <code>cmd/gentestdata</code> 加一個違規範例，在 <code>encdoc_test.go</code> 的表格加一列，執行 <code>npm run gen-testdata</code> 與 <code>npm run test:go</code>。</li>
+</ol>
+<h3 id="dev-add-encoding">新增編碼</h3>
+<ol>
+  <li><code>codec.go</code>：加常數、<code>aliases</code>、<code>Encodings</code>，並在 <code>xenc()</code> 回傳對應的 <code>x/text</code> encoding（例如 <code>korean.EUCKR</code>）。</li>
+  <li><code>detect.go</code> 的 <code>scoreLegacy</code> 候選清單加入它；<code>score.go</code> 的 <code>langFor</code> / <code>runeWeight</code> 視需要加語言權重。</li>
+  <li>若可能被當成亂碼的「錯誤解碼器」，加入 <code>MojibakeVias</code>。</li>
+</ol>
+<h3 id="dev-build">建置</h3>
+<pre>npm run build            # web/encdoc.wasm + web/wasm_exec.js + bin/encdoc
+npm run build:windows    # 另外交叉編譯 bin/encdoc.exe（GOOS=windows GOARCH=amd64）
+node scripts/build.mjs --all-platforms   # windows/amd64、linux/amd64、darwin/arm64
+npm run gen-testdata     # 重新產生 testdata/
+npm run test:go          # go test ./...
+npm run test:cli         # CLI 驗證
+npm run test:e2e         # Playwright e2e（需要 Chromium + playwright）</pre>
+<p>注意：<code>go.mod</code> 固定 <code>go 1.24.7</code> 與 <code>golang.org/x/text v0.28.0</code>（較新的 x/text 需要更新版 Go）；建置時設 <code>GOTOOLCHAIN=local</code>，不會自動下載工具鏈。</p>
+</section>
+
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-cli">CLI</h3>
+<ul>
+  <li><code>--debug</code>：每個事件（scan-start、每個 file 的編碼/問題/耗時、scan-end、exit）以 JSON 印到 stderr，並附加寫入 JSONL。</li>
+  <li>記錄位置：Windows 預設 <code>%ProgramData%\NewMiscCode\06-encoding-doctor-wasm\encdoc-YYYYMMDD.jsonl</code>；Linux / macOS 預設目前資料夾的 <code>./logs/</code>。<code>--log-dir DIR</code> 可指定（指定時即使沒有 <code>--debug</code> 也寫檔）。</li>
+  <li>stdout 只放結果（文字或 <code>--json</code>），所以 <code>encdoc --json --debug . &gt; out.json</code> 不會混入除錯訊息。</li>
+</ul>
+<h3 id="debug-web">瀏覽器</h3>
+<ul>
+  <li>右上「除錯」開啟除錯面板（JSON 事件：wasm-ready、analyze、preview、fix、download…）。</li>
+  <li>網址加 <code>?debug=1</code>：面板預設打開，且每個事件同時 <code>console.debug('[encdoc]', ...)</code>（DevTools 需勾選 Verbose 等級）。</li>
+  <li>DevTools 物件：<code>window.encdocApp</code>（<code>state</code>、<code>files</code>、<code>log</code>、<code>render()</code>）與 <code>window.encdoc</code>（wasm API，可直接呼叫 <code>encdoc.analyze('a.txt', new TextEncoder().encode('測試'))</code>）。</li>
+</ul>
+<h3 id="debug-server">伺服器</h3>
+<p><code>server.js</code> 把每個請求寫成 JSONL：Windows <code>%ProgramData%\NewMiscCode\06-encoding-doctor-wasm\requests-YYYY-MM-DD.jsonl</code>，其他系統 <code>./logs/</code>。參數 <code>--port 8706 --host 127.0.0.1 --log-dir DIR --open --quiet</code>，環境變數 <code>PORT</code>、<code>HOST</code>、<code>LOG_DIR</code>。</p>
+</section>
+
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limits-known">已知限制</h3>
+<ul>
+  <li><b>偵測是啟發式</b>：短檔案（幾個中文字）或罕用字很多的文字，Big5 / GBK 的判斷可能錯；信心度低於 60% 會出 <code>low-confidence</code> 提示，請用預覽比對。已是有效 UTF-8 的檔案一律視為 UTF-8。</li>
+  <li><b>Big5 類亂碼還原是有損的</b>：UTF-8 被 CP950 解碼時，無效的位元組對會直接變成 &#xFFFD;（兩個位元組遺失）。工具會用常用字頻率推測遺失的位元組，但結果常有錯字，所以標示為有損、預設不自動套用，需人工校對。遺失超過 400 處時不做推測（避免大檔案耗時）。Windows-1252 類亂碼可完整還原。</li>
+  <li><b>不支援</b>：UTF-32、EUC-KR、ISO-2022、EBCDIC；只掃描前 1 MiB 做編碼評分（之後用勝出的編碼解碼全檔）。</li>
+  <li><b>wasm 大小</b>：標準 Go 編譯約 4 MB（gzip 約 1.3 MB）。沒有 TinyGo 可用；TinyGo 可縮小到約數百 KB，但 <code>x/text</code> 與反射相容性需另外驗證。</li>
+  <li>瀏覽器單檔上限 20 MB；資料夾拖放依賴 <code>webkitGetAsEntry</code>（Chrome / Edge / Firefox 皆可）。</li>
+  <li><code>.bat</code> 的非 ASCII 內容沒有無損的自動修法，<code>--force-ascii</code> 只是換成 <code>?</code>。</li>
+</ul>
+<h3 id="limits-trouble">疑難排解</h3>
+<div class="tw"><table>
+<tr><th>症狀</th><th>原因 / 處理</th></tr>
+<tr><td>UI 顯示「WebAssembly 載入失敗：HTTP 404」</td><td><code>web/encdoc.wasm</code> 不存在：執行 <code>npm run build</code>（需要 Go）。</td></tr>
+<tr><td>直接雙擊 <code>web/index.html</code> 打不開</td><td><code>file://</code> 無法 fetch wasm，請用 <code>start-windows.bat</code> / <code>node server.js</code>。</td></tr>
+<tr><td>瀏覽器警告 MIME type 不是 application/wasm</td><td>使用其他伺服器時請設定 <code>.wasm → application/wasm</code>；app.js 會自動退回非串流載入。</td></tr>
+<tr><td><code>go: go.mod requires go &gt;= ...</code></td><td>Go 版本過舊，請安裝 1.24 以上。</td></tr>
+<tr><td>Windows 執行 .ps1 被擋</td><td>.bat 已用 <code>-ExecutionPolicy Bypass</code> 呼叫；若從檔案總管下載的 zip 解壓，請先「內容 → 解除封鎖」。</td></tr>
+<tr><td>主控台中文亂碼</td><td>.ps1 已設定 UTF-8 輸出；舊版主控台請改用 Windows Terminal，或 <code>encdoc --lang en</code>。</td></tr>
+<tr><td>修完重掃仍有 <code>replacement-char</code></td><td>正常：U+FFFD 代表資料早已遺失，工具不會猜。</td></tr>
+</table></div>
+<p class="note"><code>testdata/</code> 內的檔案<b>故意</b>違反編碼規則（Big5、BOM、中文 .bat 等），repo 的文字稽核應排除這個資料夾。</p>
+</section>
+
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><b>Encoding Doctor (encdoc)</b> diagnoses and repairs text-encoding problems typical for Traditional-Chinese Windows: Big5/CP950 vs UTF-8, BOMs, CRLF vs LF, U+FFFD, NUL bytes and mojibake. One Go core package (<code>encdoc/</code>) is compiled to WebAssembly for a drag-and-drop browser UI (<code>web/</code>, zh-TW/en, light/dark, mobile) and to a native CLI (<code>cmd/encdoc</code>, cross-compiled to Windows).</p>
+<ul>
+  <li>Detection: BOM, UTF-8 validity, BOM-less UTF-16, and Big5 / GBK / Shift_JIS / Windows-1252 scored by character-frequency readability with confidence and candidates.</li>
+  <li>Policy: <code>.bat/.cmd</code> ASCII + CRLF, no BOM; <code>.ps1</code> UTF-8 with BOM when non-ASCII; <code>.md/.json/.js/.html</code> UTF-8 without BOM; <code>.sh</code> LF. Violations carry a suggested fix and most are auto-fixable.</li>
+  <li>Mojibake repair: reverses "UTF-8 decoded as X and saved again" (X = Windows-1252, Big5, GBK, Shift_JIS). Windows-1252 cases are lossless; Big5 cases are lossy best-effort and need <code>--allow-lossy</code>.</li>
+  <li>CLI: <code>encdoc [--json] [--fix [--apply]] [--force-ascii] [--allow-lossy] [--debug] path...</code>; <code>--fix</code> is a dry run unless <code>--apply</code> (keeps <code>.bak</code>). Exit code 1 when errors remain.</li>
+  <li>Run: <code>start-windows.bat</code> or <code>./start.sh</code> (UI at <code>http://127.0.0.1:8706/</code>, <code>?debug=1</code>); build with <code>build-windows.bat</code> / <code>./build.sh</code>; test with <code>npm test</code> (go test + CLI checks + Playwright e2e).</li>
+  <li>Logs: CLI <code>--debug</code> JSONL and server request JSONL go to <code>%ProgramData%\NewMiscCode\06-encoding-doctor-wasm</code> on Windows, <code>./logs</code> elsewhere. Browser: debug panel, <code>?debug=1</code> → <code>console.debug</code>, <code>window.encdocApp</code>.</li>
+  <li>Limits: heuristic detection (short texts may be ambiguous), ~4 MB wasm (standard Go), no UTF-32/EUC-KR. <code>testdata/</code> intentionally contains broken files and must be excluded from text audits.</li>
+</ul>
+</section>
+
+</main>
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  function show() {
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
+    var el = id && document.getElementById(id);
+    var anchor = null;
+    if (el && !el.classList.contains('tab')) {
+      var sec = el.closest('section.tab');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    } else if (!el) {
+      id = 'overview';
+    }
+    tabs.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    if (anchor) anchor.scrollIntoView();
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

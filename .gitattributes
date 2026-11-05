@@ -6,3 +6,6 @@
 *.jpg binary
 *.wasm binary
 *.zip binary
+# Intentionally broken encoding fixtures: never normalize line endings or encodings.
+**/testdata/** -text
+**/encoding-bad/** -text

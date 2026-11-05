@@ -1,0 +1,22 @@
+{
+  "name": "encoding-doctor-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "編碼醫生 Encoding Doctor - Go core compiled to WebAssembly + native CLI",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:windows": "node scripts/build.mjs --windows",
+    "gen-testdata": "node scripts/go.mjs run ./cmd/gentestdata",
+    "start": "node server.js",
+    "dev": "node scripts/build.mjs && node server.js --open",
+    "test:go": "node scripts/go.mjs test ./...",
+    "test:cli": "node test/cli.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "test": "node scripts/build.mjs && node scripts/go.mjs test ./... && node test/cli.mjs && node test/e2e.mjs",
+    "audit:text": "node ../tools/audit-text.mjs ."
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

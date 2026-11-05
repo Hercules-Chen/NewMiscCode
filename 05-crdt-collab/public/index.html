@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>協作筆記與任務板 / Collaborative Notes</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+<script>
+  // apply theme before first paint
+  try {
+    var th = localStorage.getItem('collab.theme');
+    if (!th) th = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = th;
+  } catch (e) { document.documentElement.dataset.theme = 'light'; }
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1 data-i18n="appTitle">協作筆記與任務板</h1>
+    <span class="room"><span data-i18n="room">房間</span>: <code id="roomName">demo</code></span>
+  </div>
+  <div class="status-wrap">
+    <span id="status" class="status" data-state="connecting">…</span>
+    <span id="pending" class="pending" hidden></span>
+  </div>
+  <div class="actions">
+    <button id="btnConn" type="button" class="btn" data-i18n="btnDisconnect">模擬離線</button>
+    <button id="btnHistory" type="button" class="btn" data-i18n="btnHistory">版本歷史</button>
+    <button id="btnLang" type="button" class="btn" data-i18n="btnLang">English</button>
+    <button id="btnTheme" type="button" class="btn icon" data-i18n-title="btnTheme" title="切換深色/淺色">☾</button>
+    <button id="btnDebug" type="button" class="btn icon" data-i18n-title="btnDebug" title="除錯面板">⚙</button>
+  </div>
+</header>
+
+<section class="presence-bar">
+  <label class="me"><span data-i18n="you">你的名稱</span>
+    <input id="userName" maxlength="24" autocomplete="off">
+    <span id="userColor" class="dot"></span>
+  </label>
+  <div class="online"><span data-i18n="online">在線</span>: <ul id="presence" class="presence"></ul></div>
+</section>
+
+<main class="grid">
+  <section class="panel notes">
+    <div class="panel-head">
+      <h2 data-i18n="notes">共享筆記（Markdown）</h2>
+      <div class="tools">
+        <button id="btnUndo" type="button" class="btn small" data-i18n="undo">復原</button>
+        <button id="btnRedo" type="button" class="btn small" data-i18n="redo">重做</button>
+        <button id="btnPreview" type="button" class="btn small" data-i18n="preview">預覽</button>
+      </div>
+    </div>
+    <div class="editor" id="editorWrap">
+      <textarea id="notes" spellcheck="false" data-i18n-placeholder="notesPlaceholder"></textarea>
+      <div id="cursorLayer" class="cursor-layer" aria-hidden="true"></div>
+    </div>
+    <article id="mdPreview" class="md-preview" hidden></article>
+  </section>
+
+  <section class="panel tasks">
+    <div class="panel-head">
+      <h2 data-i18n="tasks">共享任務板</h2>
+      <span id="taskStats" class="muted"></span>
+    </div>
+    <form id="taskForm" class="task-form">
+      <input id="taskInput" maxlength="200" autocomplete="off" data-i18n-placeholder="taskPlaceholder">
+      <button type="submit" class="btn primary" data-i18n="add">新增</button>
+    </form>
+    <ul id="taskList" class="task-list"></ul>
+    <p id="noTasks" class="muted" data-i18n="noTasks">尚無任務。</p>
+    <button id="btnClearDone" type="button" class="btn small" data-i18n="clearDone">清除已完成</button>
+  </section>
+</main>
+
+<aside id="debugPanel" class="panel debug" hidden>
+  <h2 data-i18n="debugTitle">除錯資訊</h2>
+  <pre id="debugInfo"></pre>
+  <pre id="debugLog" class="debug-log"></pre>
+</aside>
+
+<dialog id="historyDlg" class="history">
+  <div class="dlg-head">
+    <h2 data-i18n="historyTitle">版本歷史</h2>
+    <button id="btnCloseHistory" type="button" class="btn small" data-i18n="close">關閉</button>
+  </div>
+  <form id="versionForm" class="task-form">
+    <input id="versionLabel" maxlength="80" autocomplete="off" data-i18n-placeholder="versionLabel">
+    <button type="submit" class="btn primary" data-i18n="saveVersion">儲存目前版本</button>
+  </form>
+  <p id="historyMsg" class="muted" role="status"></p>
+  <ul id="versionList" class="version-list"></ul>
+  <div id="versionView" class="version-view" hidden>
+    <pre id="versionNotes"></pre>
+    <ul id="versionTasks"></ul>
+    <button id="btnRestore" type="button" class="btn primary" data-i18n="restoreVersion">還原成此版本</button>
+  </div>
+</dialog>
+
+<script type="module" src="dist/app.js"></script>
+</body>
+</html>

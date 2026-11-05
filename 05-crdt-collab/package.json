@@ -1,0 +1,34 @@
+{
+  "name": "crdt-collab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first real-time collaboration (shared Markdown notes + task board) built on Yjs CRDTs, with a self-hosted WebSocket sync server and disk persistence (zh-TW / en).",
+  "type": "module",
+  "main": "src/server/index.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node src/server/index.js",
+    "dev": "node src/server/index.js --debug",
+    "test": "node scripts/build.mjs && node --test --test-concurrency=1 test/unit.test.mjs test/e2e.test.mjs",
+    "test:unit": "node --test test/unit.test.mjs",
+    "test:e2e": "node scripts/build.mjs && node --test test/e2e.test.mjs",
+    "screenshots": "node scripts/build.mjs && node scripts/screenshots.mjs",
+    "audit-text": "node ../tools/audit-text.mjs ."
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "lib0": "0.2.118",
+    "ws": "8.22.0",
+    "y-indexeddb": "9.0.12",
+    "y-protocols": "1.0.7",
+    "y-websocket": "3.1.0",
+    "yjs": "13.6.33"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0"
+  }
+}

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>crdt-collab 使用說明</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#5d6675;--card:#fff;--line:#dfe3ea;--accent:#2457c5;--codebg:#f0f2f6;--warn:#8a5a00;--warnbg:#fff4d6;--ok:#147a3d;--okbg:#e3f5ea}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2128;--line:#323844;--accent:#7aa2ff;--codebg:#262b34;--warn:#f0c75e;--warnbg:#3a3415;--ok:#4fd08a;--okbg:#173524}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Segoe UI",sans-serif}
+header{max-width:1100px;margin:auto;padding:24px 16px 0}
+header h1{margin:0;font-size:26px;line-height:1.35}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);max-width:1100px;margin:14px auto 0;padding:8px 16px 0;display:flex;flex-wrap:wrap;gap:4px}
+nav.tabs a{padding:6px 10px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--card);color:var(--fg);text-decoration:none;font-size:14px;opacity:.75}
+nav.tabs a.active{opacity:1;font-weight:bold;border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+main{max-width:1100px;margin:auto;padding:12px 16px 60px}
+section.tab{display:none}
+section.tab.active{display:block}
+.no-js section.tab{display:block;border-top:2px solid var(--line);margin-top:24px}
+h2{font-size:22px;margin:18px 0 8px}
+h3{font-size:18px;margin:22px 0 6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:14px;background:var(--codebg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font:14px/1.5 Consolas,"Cascadia Mono",monospace;max-width:100%}
+pre code{background:none;padding:0}
+.tbl{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+th{background:rgba(127,127,127,.08)}
+.note{background:var(--warnbg);color:var(--fg);border-left:4px solid var(--warn);padding:8px 14px;border-radius:6px;margin:12px 0}
+.ok{background:var(--okbg);border-left:4px solid var(--ok);padding:8px 14px;border-radius:6px;margin:12px 0}
+ol.steps>li{margin:12px 0}
+.expect{display:block;margin-top:4px;color:var(--ok)}
+.expect::before{content:"預期結果："; font-weight:bold}
+a{color:var(--accent)}
+figure{margin:12px 0}
+figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block}
+figcaption{color:var(--muted);font-size:14px}
+footer{max-width:1100px;margin:auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body class="no-js">
+<header>
+  <h1>crdt-collab：以 CRDT（Yjs）打造的離線優先即時協作</h1>
+  <p>共享 Markdown 筆記 + 共享任務板 · 自架 WebSocket 同步伺服器 · 磁碟持久化 · IndexedDB 離線 · 繁體中文 / English</p>
+</header>
+<nav class="tabs" role="tablist">
+  <a href="#overview" data-tab="overview">概覽</a>
+  <a href="#quickstart" data-tab="quickstart">快速開始</a>
+  <a href="#usage" data-tab="usage">使用說明</a>
+  <a href="#verify" data-tab="verify">逐步驗證指南</a>
+  <a href="#dev" data-tab="dev">開發者指南</a>
+  <a href="#debug" data-tab="debug">除錯與日誌</a>
+  <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<!-- ============================== 概覽 ============================== -->
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>這是一個「本機優先（local-first）」的協作 Web 應用：多人同時編輯同一份 <strong>Markdown 筆記</strong> 與 <strong>任務清單</strong>，即時看到彼此的游標與在線狀態；離線時照常編輯，重新連線後自動合併，不會遺失任何一方的修改。</p>
+<ul>
+  <li><strong>CRDT 資料模型（Yjs 13.6）</strong>：筆記為 <code>Y.Text</code>，任務板為 <code>Y.Array&lt;Y.Map&gt;</code>；合併不需要中央仲裁、與到達順序無關。</li>
+  <li><strong>在線狀態（awareness）</strong>：使用者名稱、顏色、遠端游標／選取範圍（以 <code>Y.RelativePosition</code> 傳遞，並發編輯時位置仍正確）。</li>
+  <li><strong>復原／重做（<code>Y.UndoManager</code>）</strong>：只復原「自己」的修改，不會撤銷別人的。</li>
+  <li><strong>自架同步伺服器（Node + <code>ws</code> + <code>y-protocols</code>）</strong>：同一個行程同時提供靜態網頁、JSON API 與 <code>/ws/&lt;房間&gt;</code> WebSocket。</li>
+  <li><strong>伺服器持久化</strong>：每筆更新附加寫入 append log，定期壓縮成快照（不需資料庫）；伺服器被強制終止後重啟，資料仍在。</li>
+  <li><strong>瀏覽器離線</strong>：<code>y-indexeddb</code> 保存文件；Service Worker 快取 App 外殼，斷網時重新整理頁面仍可開啟與編輯。介面提供「模擬離線」按鈕方便展示。</li>
+  <li><strong>版本歷史</strong>：把伺服器上的目前狀態存成具名版本，可檢視並一鍵還原（還原本身也可復原）。</li>
+  <li><strong>中文輸入法</strong>：<code>&lt;textarea&gt;</code> 綁定在選字（composition）期間不寫入 CRDT、也不覆蓋輸入框；期間收到的遠端修改會排隊，選字完成後再轉換位置套用。</li>
+  <li>繁體中文（預設）／English 切換、淺色／深色主題、手機寬度（390px）可用。</li>
+</ul>
+<figure>
+  <img src="examples/two-users.png" alt="兩位使用者同時編輯：左邊看到 Bob 的游標與選取範圍，右邊看到小明的游標" width="1296" height="616">
+  <figcaption>兩個獨立瀏覽器（左：小明，右：Bob）編輯同一房間；可看到對方的彩色游標、名稱標籤、選取範圍與在線清單。</figcaption>
+</figure>
+<h3>技術與版本（皆鎖定確切版本）</h3>
+<div class="tbl"><table>
+<tr><th>套件</th><th>版本</th><th>用途</th></tr>
+<tr><td>yjs</td><td>13.6.33</td><td>CRDT 核心（Y.Doc / Y.Text / Y.Array / Y.Map / UndoManager / RelativePosition）</td></tr>
+<tr><td>y-protocols</td><td>1.0.7</td><td>同步協定（sync step 1/2、update）與 awareness 協定</td></tr>
+<tr><td>y-websocket</td><td>3.1.0</td><td>僅使用其「瀏覽器端」<code>WebsocketProvider</code>；伺服器端為本專案自寫</td></tr>
+<tr><td>y-indexeddb</td><td>9.0.12</td><td>瀏覽器端離線持久化</td></tr>
+<tr><td>lib0</td><td>0.2.118</td><td>Yjs 的二進位編碼工具</td></tr>
+<tr><td>ws</td><td>8.22.0</td><td>Node WebSocket 伺服器</td></tr>
+<tr><td>esbuild（dev）</td><td>0.28.2</td><td>打包前端為 <code>public/dist/app.js</code>（不使用 CDN）</td></tr>
+<tr><td>playwright（dev）</td><td>1.63.0</td><td>端對端測試與截圖</td></tr>
+</table></div>
+<h3>資料夾結構</h3>
+<pre><code>05-crdt-collab/
+├─ README.html / README.md      本文件 / 簡短指引
+├─ package.json / package-lock.json
+├─ run-server.bat  run-debug.bat  run-tests.bat   Windows 啟動器（ASCII + CRLF）
+├─ collab.ps1                   PowerShell 主腳本（UTF-8 BOM）
+├─ src/server/                  index.js（HTTP+WS）、rooms.js（同步協定）、store.js（磁碟）、logger.js、config.js
+├─ src/client/                  main.js（組裝）、binding.js（textarea↔Y.Text）、cursors.js、markdown.js、i18n.js
+├─ src/shared/textdiff.js       文字差異與索引轉換（前端與單元測試共用）
+├─ public/                      index.html、app.css、sw.js、favicon.svg、dist/（建置產物，不納入版控）
+├─ scripts/                     build.mjs（esbuild）、screenshots.mjs（重產 examples/*.png）
+├─ test/                        unit.test.mjs（Node）、e2e.test.mjs（Playwright）
+└─ examples/                    截圖</code></pre>
+</section>
+
+<!-- ============================== 快速開始 ============================== -->
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<p>需求：Node.js 20 以上（建議 22 LTS）。不需要資料庫、不需要網際網路（安裝套件時除外）。</p>
+<h3 id="qs-windows">Windows</h3>
+<ol class="steps">
+  <li>在檔案總管開啟 <code>05-crdt-collab</code> 資料夾，雙擊 <code>run-server.bat</code>。
+    <span class="expect">視窗顯示目前資料夾、Node 版本；第一次會自動執行 <code>npm ci</code> 與 <code>npm run build</code>，接著出現 <code>server.listening url=http://127.0.0.1:8705/</code>，並自動開啟瀏覽器。</span></li>
+  <li>要看詳細日誌改用 <code>run-debug.bat</code>（等同加上 <code>--debug</code>）。</li>
+  <li>要跑完整測試用 <code>run-tests.bat</code>（第一次會下載 Playwright 的 Chromium，約 150 MB）。</li>
+  <li>停止伺服器：在視窗按 <kbd>Ctrl</kbd>+<kbd>C</kbd>（會先把文件壓縮存檔），再按任意鍵關閉。</li>
+</ol>
+<p>資料與日誌預設在 <code>%ProgramData%\NewMiscCode\05-crdt-collab</code>（<code>rooms\</code> 與 <code>logs\</code> 子資料夾）。也可在 PowerShell 直接呼叫：</p>
+<pre><code>powershell -ExecutionPolicy Bypass -File collab.ps1 start --port 9000 --data-dir D:\collab-data</code></pre>
+<h3 id="qs-linux">Linux / macOS</h3>
+<pre><code>cd 05-crdt-collab
+npm ci
+npm run build
+npm start            # = node src/server/index.js，開啟 http://127.0.0.1:8705/
+npm run dev          # 同上但 --debug
+npm test             # 建置 + Node 單元測試 + Playwright 端對端測試</code></pre>
+<p>Linux 預設資料位置為專案內的 <code>./data</code>（已列入 .gitignore）。</p>
+<h3 id="qs-options">伺服器參數</h3>
+<div class="tbl"><table>
+<tr><th>參數</th><th>環境變數</th><th>預設</th><th>說明</th></tr>
+<tr><td><code>--port &lt;n&gt;</code></td><td><code>COLLAB_PORT</code></td><td>8705</td><td>HTTP 與 WebSocket 共用埠；0 = 隨機</td></tr>
+<tr><td><code>--host &lt;addr&gt;</code></td><td><code>COLLAB_HOST</code></td><td>127.0.0.1</td><td>區網協作請用 <code>0.0.0.0</code>（見「限制」關於 Service Worker）</td></tr>
+<tr><td><code>--data-dir &lt;dir&gt;</code></td><td><code>COLLAB_DATA_DIR</code></td><td>Windows：<code>%ProgramData%\NewMiscCode\05-crdt-collab</code>；其他：<code>./data</code></td><td>文件儲存位置</td></tr>
+<tr><td><code>--log-dir &lt;dir&gt;</code></td><td><code>COLLAB_LOG_DIR</code></td><td><code>&lt;data-dir&gt;/logs</code></td><td>JSONL 日誌</td></tr>
+<tr><td><code>--compact-every &lt;n&gt;</code></td><td>—</td><td>200</td><td>append log 累積 n 筆更新後壓縮成快照</td></tr>
+<tr><td><code>--debug</code></td><td><code>COLLAB_DEBUG=1</code></td><td>關</td><td>記錄每筆更新、awareness、同步訊息</td></tr>
+<tr><td><code>--open</code></td><td>—</td><td>關</td><td>啟動後開啟瀏覽器（Windows 啟動器預設開啟）</td></tr>
+<tr><td><code>--help</code></td><td>—</td><td></td><td>顯示說明</td></tr>
+</table></div>
+</section>
+
+<!-- ============================== 使用說明 ============================== -->
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<h3>網址參數</h3>
+<div class="tbl"><table>
+<tr><th>參數</th><th>範例</th><th>說明</th></tr>
+<tr><td><code>room</code></td><td><code>?room=weekly</code></td><td>房間名稱（英數、<code>_</code>、<code>-</code>，最多 64 字）；預設 <code>demo</code>。同房間的人共用同一份文件。</td></tr>
+<tr><td><code>name</code> / <code>color</code></td><td><code>?name=小明&amp;color=%23d9480f</code></td><td>指定顯示名稱與顏色（否則隨機，並記在 localStorage）</td></tr>
+<tr><td><code>lang</code></td><td><code>?lang=en</code></td><td>介面語言 <code>zh-TW</code>／<code>en</code></td></tr>
+<tr><td><code>debug</code></td><td><code>?debug=1</code></td><td>開啟除錯面板，並把事件以 <code>console.debug</code> 輸出</td></tr>
+<tr><td><code>sw</code></td><td><code>?sw=0</code></td><td>不註冊 Service Worker</td></tr>
+<tr><td><code>ws</code></td><td><code>?ws=ws://host:8705/ws</code></td><td>改用其他同步伺服器</td></tr>
+</table></div>
+<h3>畫面</h3>
+<ul>
+  <li><strong>頂列</strong>：房間名稱、連線狀態（綠＝已連線・已同步、黃＝連線中、紅＝離線／模擬離線）、待同步的本機變更數、按鈕：模擬離線／重新連線、版本歷史、English／繁體中文、☾／☀ 主題、⚙ 除錯面板。</li>
+  <li><strong>你的名稱</strong>：可直接修改，其他人的在線清單與游標標籤即時更新。</li>
+  <li><strong>共享筆記</strong>：純文字 Markdown。<kbd>Ctrl</kbd>+<kbd>Z</kbd> 復原、<kbd>Ctrl</kbd>+<kbd>Y</kbd>（或 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>）重做，也可按按鈕；「預覽」切換成渲染後的 Markdown（標題、清單、勾選框、粗體、斜體、程式碼、連結）。</li>
+  <li><strong>共享任務板</strong>：輸入後按 Enter 新增；勾選完成、✕ 刪除、「清除已完成」。任務的新增／勾選／刪除也在復原範圍內。</li>
+  <li><strong>版本歷史</strong>：「儲存目前版本」把<em>伺服器上</em>的狀態存成具名版本；「檢視」顯示當時的筆記與任務；「還原成此版本」以一次可復原的修改把內容換回去（其他人即時看到）。</li>
+</ul>
+<figure>
+  <img src="examples/offline-pending.png" alt="右側 Bob 處於模擬離線，顯示 2 筆本機變更待同步；左側小明尚未看到 Bob 的修改" width="1296" height="616">
+  <figcaption>右側 Bob 按下「模擬離線」後繼續編輯：狀態轉紅、顯示「2 筆本機變更待同步」；左側看不到這些修改，直到 Bob 按「重新連線」。</figcaption>
+</figure>
+<figure>
+  <img src="examples/history.png" alt="版本歷史對話框：已儲存的版本清單與內容預覽、還原按鈕" width="900" height="640">
+  <figcaption>版本歷史：儲存、檢視、還原。</figcaption>
+</figure>
+<figure>
+  <img src="examples/mobile-dark-en.png" alt="390px 手機寬度、深色主題、英文介面" width="390" height="780" style="max-width:300px">
+  <figcaption>手機寬度 390px、深色主題、English 介面。</figcaption>
+</figure>
+</section>
+
+<!-- ============================== 逐步驗證指南 ============================== -->
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下步驟讓同事在自己電腦上重現所有功能。「兩位使用者」可用：一般視窗 + InPrivate／無痕視窗，或 Edge + Chrome（兩者的 IndexedDB 互相獨立，等同兩台電腦）。</p>
+<h3 id="verify-auto">A. 自動化測試（約 20 秒）</h3>
+<ol class="steps">
+  <li>Windows 雙擊 <code>run-tests.bat</code>；Linux 執行 <code>npm test</code>。
+  <span class="expect">最後顯示 <code># tests 19</code>、<code># pass 19</code>、<code># fail 0</code>，結束碼 0。</span></li>
+</ol>
+<div class="tbl"><table>
+<tr><th>測試</th><th>驗證內容</th></tr>
+<tr><td>unit：three replicas converge…</td><td>3 份 Y.Doc 各做 150 次隨機修改（中文、emoji、任務增刪改），以隨機順序、隨機分批交換更新，20 個亂數種子全部收斂成相同內容與相同 state vector</td></tr>
+<tr><td>unit：offline edits on both sides…</td><td>兩邊離線在同一位置插入，再以 state vector 交換差異：兩邊內容相同且兩份修改都在</td></tr>
+<tr><td>unit：diffText / mapIndexThroughDelta</td><td>文字差異不切斷 surrogate pair；選字期間的遠端 delta 位置轉換正確</td></tr>
+<tr><td>unit：RoomStore</td><td>append log 重新載入、壓縮成快照、模擬寫到一半斷電（殘缺尾端）仍可正確載入</td></tr>
+<tr><td>unit：WebSocket server</td><td>兩個 Node 端 <code>WebsocketProvider</code> 經伺服器同步、awareness 傳遞；關閉並重啟伺服器後新客戶端取得相同內容；日誌含必要事件</td></tr>
+<tr><td>e2e：presence</td><td>兩個獨立瀏覽器 context：在線清單互相看到；遠端游標 <code>.remote-caret[data-user="Bob"]</code> 出現</td></tr>
+<tr><td>e2e：concurrent typing</td><td>兩人同時打字（一個在開頭、一個在結尾）＋同時新增任務 → 兩邊 Y.Text、textarea、任務完全一致</td></tr>
+<tr><td>e2e：Chinese / IME</td><td><code>insertText</code> 中文；以 Chrome DevTools Protocol 產生真實 IME 選字（ㄓㄨㄥ→中），選字中另一人在開頭插入：選字文字不被打斷、未確認的注音不寫入 CRDT、確認後兩邊一致；另測「取消選字（Esc）」時遠端修改照常顯示、游標不跳回開頭</td></tr>
+<tr><td>e2e：undo/redo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> 只撤銷自己的修改，<kbd>Ctrl</kbd>+<kbd>Y</kbd> 重做</td></tr>
+<tr><td>e2e：offline via UI toggle</td><td>兩人都「模擬離線」各自編輯文字與任務（含刪除），重新連線後全部合併、無遺失，待同步計數歸零</td></tr>
+<tr><td>e2e：browser offline</td><td>瀏覽器整個離線後重新整理：頁面由 Service Worker 快取載入、內容由 IndexedDB 還原，可繼續編輯，恢復網路後同步</td></tr>
+<tr><td>e2e：server SIGKILL</td><td>強制終止伺服器（不經正常關閉），兩位使用者維持離線，重啟後一個全新使用者（空 IndexedDB）直接從伺服器磁碟取得完整內容</td></tr>
+<tr><td>e2e：version history</td><td>儲存版本 → 他人修改 → 檢視 → 還原，兩邊一致</td></tr>
+<tr><td>e2e：language / theme / 390px</td><td>中英切換（含 <code>&lt;html lang&gt;</code>）、主題切換、手機寬度無水平捲動</td></tr>
+<tr><td>e2e：debug mode</td><td><code>?debug=1</code> 顯示除錯面板、<code>console.debug</code> 輸出 <code>[collab] ws.sync</code> 等事件、<code>window.__collab.debugLines</code> 有內容</td></tr>
+<tr><td>e2e：console</td><td>所有頁面無非預期的 console error（伺服器停機／離線期間的 WebSocket 連線失敗訊息屬預期，已排除）</td></tr>
+</table></div>
+
+<h3 id="verify-manual">B. 手動驗證</h3>
+<ol class="steps">
+  <li>啟動伺服器（<code>run-server.bat</code> 或 <code>npm start</code>）。
+    <span class="expect">主控台出現 <code>server.listening url=http://127.0.0.1:8705/ dataDir=…</code>。</span></li>
+  <li>視窗 1 開 <code>http://127.0.0.1:8705/?room=demo&amp;name=小明</code>；視窗 2（InPrivate）開 <code>http://127.0.0.1:8705/?room=demo&amp;name=Bob</code>。
+    <span class="expect">兩邊頂列皆為綠色「已連線・已同步」；「在線」清單同時列出「小明（你）」與「Bob」。主控台出現兩筆 <code>ws.connect</code>。</span></li>
+  <li>在視窗 1 筆記區輸入英文與中文（用注音或倉頡選字）。
+    <span class="expect">視窗 2 幾乎同時出現相同文字；視窗 2 的筆記區有一條小明顏色的游標與名稱標籤。選字視窗出現期間，視窗 2 看不到注音符號，確認後才出現完整的中文字。</span></li>
+  <li>在視窗 1 選字（候選字視窗開著）時，請另一人在視窗 2 開頭打字。
+    <span class="expect">視窗 1 的候選字視窗不會被打斷；確認選字後，視窗 1 才同時看到 Bob 的文字與自己的字，兩邊內容一致。</span></li>
+  <li>在視窗 2 選取一段文字。
+    <span class="expect">視窗 1 中那段文字以 Bob 的顏色半透明標示。</span></li>
+  <li>兩邊各新增一個任務並勾選對方的任務。
+    <span class="expect">兩邊任務清單一致，右上角顯示「1/2 已完成」等統計。</span></li>
+  <li>在視窗 1 按 <kbd>Ctrl</kbd>+<kbd>Z</kbd>。
+    <span class="expect">只撤銷小明自己最近的修改，Bob 的文字不受影響；<kbd>Ctrl</kbd>+<kbd>Y</kbd> 可重做。</span></li>
+  <li>兩邊都按「模擬離線」，各自修改同一行與任務（例如一邊刪任務、一邊新增任務）。
+    <span class="expect">狀態變紅色「離線（模擬）」，並顯示「N 筆本機變更待同步」；兩邊內容暫時不同；在線清單只剩自己，對方的遠端游標也立即消失（伺服器在連線關閉時移除其 awareness）。</span></li>
+  <li>兩邊按「重新連線」。
+    <span class="expect">數秒內恢復綠色；兩邊內容完全一致，雙方離線期間的所有修改都在；待同步計數消失。</span></li>
+  <li>在伺服器視窗按 <kbd>Ctrl</kbd>+<kbd>C</kbd> 停止伺服器。
+    <span class="expect">主控台顯示 <code>SIGINT received, flushing documents...</code> 與 <code>persist.compact</code>；瀏覽器狀態轉為「連線中…」再變「離線」，仍可繼續編輯。</span></li>
+  <li>重新啟動伺服器，然後開第三個視窗（另一個瀏覽器或清除過網站資料的 InPrivate）進入同一房間。
+    <span class="expect">主控台 <code>persist.load room=demo snapshotBytes=…</code>；第三個視窗立刻看到完整內容（證明資料來自伺服器磁碟，而非瀏覽器）；視窗 1、2 自動重新連線並把停機期間的修改送上去。</span></li>
+  <li>（瀏覽器離線）在視窗 1 開 DevTools（F12）→ Network → 勾選 Offline，然後按 F5。
+    <span class="expect">頁面仍可開啟（Service Worker 快取），內容由 IndexedDB 還原；可編輯。取消 Offline 後數秒內自動同步。</span></li>
+  <li>按「版本歷史」→ 輸入名稱 →「儲存目前版本」；修改一些內容；再開「版本歷史」→「檢視」→「還原成此版本」。
+    <span class="expect">內容回到儲存時的樣子，所有人同步看到；按「復原」可取消這次還原。</span></li>
+  <li>按「English」與主題按鈕；把視窗縮到手機寬度。
+    <span class="expect">介面全部切換成英文（再按「繁體中文」切回）；深色主題正常；窄螢幕時筆記與任務改為上下排列、沒有水平捲軸。</span></li>
+  <li>網址加上 <code>?debug=1</code> 並開 DevTools Console（記得把等級設為包含 Verbose）。
+    <span class="expect">看到 <code>[collab] doc.update {bytes…, origin:"local"}</code>、<code>ws.status</code> 等訊息；頁面下方出現除錯面板（clientID、state vector、文件大小…）；Console 輸入 <code>__collab.text()</code> 會傳回筆記內容。</span></li>
+  <li>開啟日誌檔 <code>%ProgramData%\NewMiscCode\05-crdt-collab\logs\server-YYYY-MM-DD.jsonl</code>（Linux：<code>data/logs/</code>）。
+    <span class="expect">每行一個 JSON，含 <code>ws.connect</code>、<code>persist.load</code>、<code>persist.compact</code> 等事件；用 <code>--debug</code> 時另有 <code>doc.update</code>（含 bytes）、<code>persist.append</code>。</span></li>
+</ol>
+</section>
+
+<!-- ============================== 開發者指南 ============================== -->
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<h3 id="dev-arch">架構與資料流</h3>
+<pre><code>瀏覽器 A                                   Node 伺服器 (src/server)                       瀏覽器 B
+┌──────────────────────────┐              ┌───────────────────────────────┐             ┌──────────────────────┐
+│ textarea ─(input/IME)─┐  │              │ index.js  HTTP 靜態/API + upgrade │             │                      │
+│  binding.js diff      ▼  │  WebSocket   │ rooms.js  Room = Y.Doc+Awareness │  WebSocket  │  WebsocketProvider   │
+│ Y.Doc (Y.Text/Y.Array)───┼── /ws/room ──▶ readSyncMessage → doc.on(update)─┼──broadcast──▶  applyUpdate         │
+│  │ y-indexeddb (離線)    │  sync+aware  │        │ store.js append log     │             │  → observer → 畫面   │
+│  │ UndoManager           │              │        ▼ 定期壓縮 snapshot.bin   │             │                      │
+│  └ awareness(游標/名稱)──┼──────────────▶ 轉送 awareness（不落地）        ─┼─────────────▶ 在線清單 / 遠端游標   │
+└──────────────────────────┘              └───────────────────────────────┘             └──────────────────────┘</code></pre>
+<ol>
+  <li>使用者在 textarea 輸入 → <code>binding.js</code> 比對「上次同步的字串」與目前內容，得到一段 <em>刪除＋插入</em>，以 <code>doc.transact(…, TYPING)</code> 寫入 <code>Y.Text</code>。</li>
+  <li><code>Y.Doc</code> 發出 <code>update</code>（二進位差異）：<code>y-indexeddb</code> 寫入本機；<code>WebsocketProvider</code> 送出 sync update；<code>UndoManager</code> 記錄（只追蹤 TYPING／LOCAL 來源）。</li>
+  <li>伺服器 <code>Room.handleMessage</code> 用 <code>y-protocols/sync</code> 套用到伺服器端的 Y.Doc，觸發 <code>onUpdate</code>：轉送給同房間其他連線、附加寫入 <code>updates.log</code>、累積 N 筆後壓縮。</li>
+  <li>其他瀏覽器套用 update → <code>Y.Text.observe</code> → binding 依 delta 平移本機游標並更新 textarea；<code>RemoteCursors</code> 重畫游標。</li>
+  <li>重新連線時 provider 先送 <em>sync step 1</em>（自己的 state vector），對方回 <em>sync step 2</em>（對方有、自己缺的所有更新），雙向各一次即完成合併。</li>
+</ol>
+<h3 id="dev-crdt">CRDT 概念速覽</h3>
+<ul>
+  <li><strong>CRDT（Conflict-free Replicated Data Type）</strong>：每個副本可以獨立修改，只要最終收到同一組更新（不論順序、重複幾次），就保證得到相同結果。不需要鎖、不需要伺服器裁決。</li>
+  <li><strong>Item 與 ID</strong>：Yjs 把每個插入的字元（連續插入會合併成一個 item）標上唯一 ID <code>(clientID, clock)</code>，並記住插入當時左右鄰居的 ID（origin）。兩人在同一位置插入時，用 ID 決定穩定的先後順序，所以每個副本排出來都一樣。</li>
+  <li><strong>刪除</strong>：刪除不是真的移除，而是標記成 tombstone（delete set）；開啟 GC 時內容會被丟棄、只留下極小的佔位結構。</li>
+  <li><strong>State vector</strong>：<code>{clientID: 已看過的最大 clock}</code>。同步時交換 state vector，就能精準算出對方缺少的更新（<code>Y.encodeStateAsUpdate(doc, remoteSV)</code>）。</li>
+  <li><strong>Update 冪等且可交換</strong>：重複套用或亂序套用都沒問題 —— 這也是伺服器 append log 可以「重播兩次」、IndexedDB 與伺服器可以各自持有完整副本的原因。</li>
+  <li><strong>Awareness</strong>：與文件分開的「暫態」狀態（名稱、顏色、游標），不寫入文件、不落地；每個 client 定期更新，30 秒沒更新視為離開。</li>
+  <li><strong>RelativePosition</strong>：以 item ID 表示的位置（「某個字的左邊」），遠端插入／刪除後仍指向同一個字，用來傳遞游標。</li>
+  <li><strong>UndoManager</strong>：只把 <code>trackedOrigins</code> 中來源的交易放進復原堆疊，因此只會撤銷自己的修改，且撤銷本身也是普通的 CRDT 修改，會同步給其他人。</li>
+</ul>
+<h3 id="dev-modules">模組職責</h3>
+<div class="tbl"><table>
+<tr><th>檔案</th><th>職責</th></tr>
+<tr><td><code>src/server/index.js</code></td><td>解析參數、建立 HTTP 伺服器（靜態檔、<code>/api/health</code>、<code>/api/rooms/:room</code>、<code>/api/rooms/:room/versions[/:id]</code>）、WebSocket upgrade（只接受 <code>/ws/&lt;合法房名&gt;</code>）、優雅關閉（SIGINT/SIGTERM 先壓縮存檔）。匯出 <code>startServer(cfg)</code> 供測試使用。</td></tr>
+<tr><td><code>src/server/rooms.js</code></td><td><code>RoomManager</code>／<code>Room</code>：房間的 Y.Doc 與 Awareness、y-protocols 訊息（0 = sync、1 = awareness、3 = query awareness）、廣播、心跳 ping（30 秒）、最後一人離開時壓縮並在 30 秒後卸載。</td></tr>
+<tr><td><code>src/server/store.js</code></td><td><code>RoomStore</code>：<code>snapshot.bin</code> + <code>updates.log</code>（每筆為 4-byte little-endian 長度 + update），所有寫入以 promise 佇列序列化；壓縮採「寫暫存檔 → rename」原子替換；載入時忽略殘缺尾端並重寫乾淨快照；具名版本存於 <code>versions/</code>。</td></tr>
+<tr><td><code>src/server/logger.js</code></td><td>JSONL 日誌（依日期分檔）+ 主控台精簡輸出。</td></tr>
+<tr><td><code>src/server/config.js</code></td><td>參數／環境變數與 OS 相關預設路徑。</td></tr>
+<tr><td><code>src/client/main.js</code></td><td>組裝：Y.Doc、IndexeddbPersistence、WebsocketProvider、UndoManager、任務板、在線清單、版本歷史、語言／主題、除錯面板、Service Worker 註冊、<code>window.__collab</code>。</td></tr>
+<tr><td><code>src/client/binding.js</code></td><td>textarea ↔ Y.Text 雙向綁定與 IME 處理（composition 期間延後、delta 位置轉換）。</td></tr>
+<tr><td><code>src/client/cursors.js</code></td><td>遠端游標／選取：在 textarea 上疊一層字型完全相同的透明「鏡像」元素，於對應位置插入彩色游標與標籤。</td></tr>
+<tr><td><code>src/client/markdown.js</code></td><td>安全的 Markdown 子集渲染（先跳脫 HTML 再格式化，連結只允許 http/https）。</td></tr>
+<tr><td><code>src/client/i18n.js</code></td><td>zh-TW／en 字串與 <code>data-i18n*</code> 套用。</td></tr>
+<tr><td><code>src/shared/textdiff.js</code></td><td>單區段文字差異、依 Yjs delta 轉換索引（純函式，單元測試覆蓋）。</td></tr>
+<tr><td><code>public/sw.js</code></td><td>App 外殼「網路優先、離線用快取」；不攔截 <code>/api/</code> 與 <code>/ws/</code>。</td></tr>
+</table></div>
+<h3 id="dev-disk">磁碟格式</h3>
+<pre><code>&lt;data-dir&gt;/
+├─ rooms/&lt;room&gt;/snapshot.bin          Y.encodeStateAsUpdate(doc)
+├─ rooms/&lt;room&gt;/updates.log           [len u32 LE][update]...（壓縮後清空）
+├─ rooms/&lt;room&gt;/versions/index.json   [{id,label,author,createdAt,bytes}]
+├─ rooms/&lt;room&gt;/versions/&lt;id&gt;.bin
+└─ logs/server-YYYY-MM-DD.jsonl</code></pre>
+<p>要在其他程式讀取文件：<code>const d = new Y.Doc(); Y.applyUpdate(d, snapshot); 再依序套用 log 中每筆 update</code>，然後 <code>d.getText('notes').toString()</code>。</p>
+<h3 id="dev-extend">如何擴充</h3>
+<ul>
+  <li><strong>新增共享欄位</strong>（例如文件標題）：在 <code>main.js</code> 取 <code>doc.getMap('meta')</code>，修改時用 <code>doc.transact(() =&gt; meta.set('title', v), LOCAL)</code>（使其可復原），並以 <code>meta.observe</code> 更新畫面；若要納入復原，把它加進 <code>new Y.UndoManager([...])</code> 的型別陣列。伺服器不需要任何修改 —— 它不解讀內容。</li>
+  <li><strong>新增語言</strong>：在 <code>i18n.js</code> 的 <code>STRINGS</code> 加一組鍵值，並讓語言按鈕循環。</li>
+  <li><strong>換成資料庫儲存</strong>：實作與 <code>RoomStore</code> 相同介面（<code>load(doc)</code>、<code>append(update)</code>、<code>compact(doc)</code>、<code>stats()</code>、版本相關方法）即可，例如 SQLite 一張 <code>updates(room, seq, blob)</code> 表。</li>
+  <li><strong>驗證／權限</strong>：在 <code>index.js</code> 的 <code>server.on('upgrade')</code> 檢查 cookie 或 token（WebsocketProvider 可用 <code>params</code> 帶參數），拒絕時回 401 並 <code>socket.destroy()</code>。</li>
+  <li><strong>富文字編輯器</strong>：把 textarea 換成 ProseMirror／Tiptap／CodeMirror 6，並使用對應的 Yjs 綁定（y-prosemirror、y-codemirror.next），同步與伺服器不需改動。</li>
+  <li><strong>重新建置前端</strong>：修改 <code>src/client</code> 後執行 <code>npm run build</code>；重產截圖執行 <code>npm run screenshots</code>（使用暫存資料夾，不會動到正式資料）。</li>
+</ul>
+</section>
+
+<!-- ============================== 除錯與日誌 ============================== -->
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-server">伺服器 JSONL 日誌</h3>
+<p>位置：<code>&lt;log-dir&gt;/server-YYYY-MM-DD.jsonl</code>（Windows 預設 <code>%ProgramData%\NewMiscCode\05-crdt-collab\logs</code>，Linux 預設 <code>./data/logs</code>）。<code>GET /api/health</code> 會回傳目前的日誌檔路徑。</p>
+<pre><code>{"ts":"2026-11-05T04:38:02.733Z","level":"info","event":"persist.load","room":"demo","snapshotBytes":0,"logFrames":0,"tornTail":false}
+{"ts":"2026-11-05T04:38:02.741Z","level":"info","event":"ws.connect","room":"demo","conn":"c1","remote":"127.0.0.1"}
+{"ts":"2026-11-05T04:38:03.120Z","level":"debug","event":"doc.update","room":"demo","bytes":27,"from":"c1","docBytes":412}
+{"ts":"2026-11-05T04:38:03.121Z","level":"debug","event":"persist.append","room":"demo","bytes":27,"logFrames":5}</code></pre>
+<div class="tbl"><table>
+<tr><th>事件</th><th>等級</th><th>說明</th></tr>
+<tr><td><code>server.listening</code> / <code>server.shutdown</code></td><td>info</td><td>啟動網址、資料／日誌目錄；關閉</td></tr>
+<tr><td><code>ws.connect</code> / <code>ws.close</code> / <code>ws.timeout</code> / <code>ws.rejected</code></td><td>info / warn</td><td>連線生命週期（含連線編號 <code>conn</code>、關閉碼）</td></tr>
+<tr><td><code>doc.update</code></td><td>debug</td><td>每筆文件更新的位元組數、來源連線、整份文件大小</td></tr>
+<tr><td><code>ws.sync</code> / <code>awareness.update</code></td><td>debug</td><td>同步訊息步驟與大小；在線狀態變化</td></tr>
+<tr><td><code>persist.load</code> / <code>persist.append</code> / <code>persist.compact</code></td><td>info / debug / info</td><td>載入（快照大小、log 筆數、是否有殘缺尾端）、附加、壓縮</td></tr>
+<tr><td><code>version.save</code></td><td>info</td><td>儲存具名版本</td></tr>
+<tr><td><code>persist.error</code> / <code>http.error</code> / <code>ws.message_error</code></td><td>error</td><td>含 stack</td></tr>
+</table></div>
+<p>快速篩選（PowerShell）：<code>Get-Content server-2026-11-05.jsonl | ConvertFrom-Json | Where-Object level -eq 'error'</code>；Linux：<code>grep '"level":"error"' data/logs/*.jsonl</code>。</p>
+<h3 id="debug-client">瀏覽器端</h3>
+<ul>
+  <li><code>?debug=1</code>（或在 Console 執行 <code>__collab.setDebug(true)</code>，會記住）：事件以 <code>console.debug('[collab]', …)</code> 輸出（Chrome/Edge 需把 Console 等級設為含 Verbose），並開啟除錯面板。</li>
+  <li>⚙ 按鈕：除錯面板每秒更新 clientID、連線／同步狀態、IndexedDB 是否載入、文字長度、任務數、文件位元組數、更新次數、待同步數、在線人數、復原堆疊深度、state vector，以及最近 40 筆事件。</li>
+  <li><code>window.__collab</code>：<code>doc</code>、<code>ytext</code>、<code>ytasks</code>、<code>provider</code>、<code>awareness</code>、<code>undoManager</code>、<code>idb</code>、<code>binding</code>、<code>Y</code>、<code>text()</code>、<code>tasks()</code>、<code>addTask(text)</code>、<code>status()</code>、<code>debugLines</code>。例如：
+<pre><code>__collab.text()                                   // 目前筆記
+__collab.Y.encodeStateAsUpdate(__collab.doc).length // 文件大小
+__collab.awareness.getStates()                    // 所有在線者
+__collab.provider.disconnect(); __collab.provider.connect()</code></pre></li>
+  <li>DevTools → Application → IndexedDB → <code>crdt-collab:&lt;room&gt;</code> 可看到本機保存的更新；Network → WS 可看到二進位同步訊息。</li>
+</ul>
+</section>
+
+<!-- ============================== 限制與疑難排解 ============================== -->
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3>已知限制</h3>
+<ul>
+  <li>筆記是純文字 textarea（Markdown 原文），不是所見即所得編輯器。遠端游標以「鏡像元素」計算位置，在極少數字型回退（fallback）或捲軸出現／消失的瞬間可能偏移一兩個字。</li>
+  <li>沒有帳號、驗證與權限：知道網址與房間名稱的人都能編輯。請只在信任的網路使用（預設只綁 127.0.0.1）。</li>
+  <li>版本歷史保存的是<em>伺服器</em>當下的狀態；離線中尚未同步的本機修改不包含在內。伺服器以 GC 模式運作，因此沒有使用 <code>Y.snapshot</code> 做逐筆時光回溯，而是以完整狀態存版本。</li>
+  <li>Service Worker 只在安全環境（<code>localhost</code>／<code>127.0.0.1</code>／HTTPS）啟用。用 <code>--host 0.0.0.0</code> 讓區網同事以 <code>http://192.168.x.x</code> 連線時，即時協作與 IndexedDB 正常，但「離線時重新整理頁面」不可用。</li>
+  <li>IndexedDB 依「來源（origin）」區分：<code>http://localhost:8705</code> 與 <code>http://127.0.0.1:8705</code> 是兩個不同的本機副本。</li>
+  <li>伺服器在單一行程記憶體中保存使用中的房間；未設計多節點水平擴充。</li>
+  <li><code>.ps1</code>／<code>.bat</code> 啟動器的語法依慣例撰寫，但本次自動化驗證在 Linux 進行（未在實體 Windows 執行）。</li>
+</ul>
+<h3>疑難排解</h3>
+<div class="tbl"><table>
+<tr><th>症狀</th><th>原因與處理</th></tr>
+<tr><td><code>EADDRINUSE</code></td><td>埠被占用：改用 <code>--port 9000</code>，或關閉另一個伺服器視窗。</td></tr>
+<tr><td>頁面顯示 <code>client bundle missing</code></td><td>尚未建置：執行 <code>npm run build</code>（Windows 啟動器會自動處理）。</td></tr>
+<tr><td>PowerShell 顯示「已停用指令碼執行」</td><td>請使用 <code>.bat</code>（已帶 <code>-ExecutionPolicy Bypass</code>），或 <code>powershell -ExecutionPolicy Bypass -File collab.ps1 start</code>。</td></tr>
+<tr><td>狀態一直是「連線中…」／「離線」</td><td>伺服器沒在執行、埠不同或防火牆阻擋；檢查主控台與 <code>/api/health</code>。修改仍保存在 IndexedDB，恢復後自動同步。</td></tr>
+<tr><td>刪掉伺服器資料後，舊內容又「復活」</td><td>這是 CRDT 的正常行為：瀏覽器 IndexedDB 仍有完整副本，連線後會補送給伺服器。要真正重置：停止伺服器、刪除 <code>&lt;data-dir&gt;/rooms/&lt;room&gt;</code>，<strong>並</strong>清除每個瀏覽器的網站資料（或改用新的房間名稱）。</td></tr>
+<tr><td>在線清單中有已關閉的人</td><td>awareness 逾時約 30 秒；正常關閉分頁會立即移除。</td></tr>
+<tr><td>測試時 <code>Executable doesn't exist</code></td><td>Playwright 瀏覽器未安裝：<code>npx playwright install chromium</code>（<code>run-tests.bat</code> 會自動執行）。</td></tr>
+<tr><td>中文輸入出現重複字</td><td>請回報瀏覽器與輸入法版本並附 <code>?debug=1</code> 的 Console 輸出（含 <code>ime.compositionstart/end</code>、<code>binding.local</code>）。</td></tr>
+</table></div>
+</section>
+
+<!-- ============================== English ============================== -->
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><strong>crdt-collab</strong> is a local-first, real-time collaborative web app: a shared Markdown note (<code>Y.Text</code>) and a shared task board (<code>Y.Array</code> of <code>Y.Map</code>), built on Yjs 13.6.33. It shows presence (name, color, remote carets and selections via awareness + relative positions), supports per-user undo/redo (<code>Y.UndoManager</code>), and keeps working offline (<code>y-indexeddb</code> + a service worker for the app shell; a "Simulate offline" button for demos). Edits from both sides merge on reconnect without loss.</p>
+<ul>
+  <li><strong>Server</strong>: own Node implementation of the y-protocols sync/awareness wire format on top of <code>ws</code> (<code>/ws/&lt;room&gt;</code>), serving the static client and a small JSON API. Persistence without a database: an append-only update log per room, compacted into an atomically replaced snapshot; survives SIGKILL (torn tail frames are ignored). Named versions (server snapshots) can be viewed and restored.</li>
+  <li><strong>IME-safe textarea binding</strong>: nothing is written while composing; remote deltas received during composition are queued and the local diff is transformed through them on <code>compositionend</code>.</li>
+  <li><strong>Run</strong>: Windows <code>run-server.bat</code> / <code>run-debug.bat</code> / <code>run-tests.bat</code> (ASCII .bat → UTF-8-BOM <code>collab.ps1</code> → node). Linux: <code>npm ci &amp;&amp; npm run build &amp;&amp; npm start</code> → http://127.0.0.1:8705/.</li>
+  <li><strong>Options</strong>: <code>--port</code>, <code>--host</code>, <code>--data-dir</code> (default <code>%ProgramData%\NewMiscCode\05-crdt-collab</code> on Windows, <code>./data</code> elsewhere), <code>--log-dir</code>, <code>--compact-every</code>, <code>--debug</code>, <code>--open</code>.</li>
+  <li><strong>Debugging</strong>: JSONL server logs (<code>ws.connect</code>, <code>doc.update</code> with byte sizes, <code>persist.*</code>); client <code>?debug=1</code> → <code>console.debug</code> + debug panel; <code>window.__collab</code> exposes the doc, provider, awareness and helpers.</li>
+  <li><strong>Tests</strong>: <code>npm test</code> = 7 Node tests (random 3-replica convergence, offline merge, diff helpers, disk store incl. torn tail, real WebSocket server restart) + 12 Playwright tests with two isolated browser contexts (presence, concurrent typing, Chinese input incl. real CDP IME composition with a concurrent remote edit, undo, offline toggle merge, browser-offline reload from cache, server SIGKILL restart with a fresh client, version restore, language/theme, 390px layout, <code>?debug=1</code> mode, no console errors).</li>
+  <li><strong>Limitations</strong>: plain textarea (no rich text), no authentication, version history stores server state only, service worker requires localhost/HTTPS, launchers were not executed on a real Windows machine here.</li>
+</ul>
+</section>
+</main>
+<footer>crdt-collab · NewMiscCode 05 · 文件以 UTF-8 編碼</footer>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-tab]');
+    if (a) show(a.dataset.tab);
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

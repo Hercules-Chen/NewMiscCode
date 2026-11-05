@@ -6,6 +6,9 @@ import { join, extname, relative } from 'node:path';
 const root = process.argv[2] || process.cwd();
 const TEXT_EXT = new Set(['.md', '.html', '.htm', '.js', '.mjs', '.cjs', '.json', '.css', '.txt', '.bat', '.cmd', '.ps1', '.jsonl', '.csv', '.yml', '.yaml', '.svg', '.gitignore', '.gitattributes']);
 const SKIP_DIR = new Set(['node_modules', '.git', 'output', 'logs', 'data', 'vendor']);
+// Folders that hold intentionally broken encoding samples (test fixtures). They are reported as skipped, never audited.
+const FIXTURE_DIR = new Set(['testdata', 'encoding-bad']);
+const skipped = [];
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const problems = [];
 let count = 0;
@@ -13,7 +16,7 @@ let count = 0;
 async function walk(dir) {
   for (const ent of await readdir(dir, { withFileTypes: true })) {
     const p = join(dir, ent.name);
-    if (ent.isDirectory()) { if (!SKIP_DIR.has(ent.name)) await walk(p); continue; }
+    if (ent.isDirectory()) { if (FIXTURE_DIR.has(ent.name)) { skipped.push(relative(root, p)); continue; } if (!SKIP_DIR.has(ent.name)) await walk(p); continue; }
     const ext = extname(ent.name).toLowerCase() || ent.name;
     if (!TEXT_EXT.has(ext)) continue;
     count++;
@@ -35,5 +38,6 @@ async function walk(dir) {
 
 await walk(root);
 console.log(`[audit] root=${root} files=${count} problems=${problems.length}`);
+for (const d of skipped) console.log(`  (skipped fixture folder: ${d})`);
 for (const p of problems) console.log('  - ' + p);
 process.exit(problems.length ? 1 : 0);
