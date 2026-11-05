@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>示範商店 Demo Shop</title>
+<style>
+  body { font: 16px/1.6 "Microsoft JhengHei", "Noto Sans CJK TC", sans-serif; margin: 0; background: #f4f6fb; color: #222; }
+  header { background: #2457c5; color: #fff; padding: 16px 32px; }
+  header h1 { margin: 0; font-size: 22px; }
+  main { max-width: 900px; margin: 24px auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; padding: 18px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  label { display: block; margin: 8px 0 4px; }
+  input { width: 100%; padding: 8px; font-size: 15px; border: 1px solid #bbb; border-radius: 6px; box-sizing: border-box; }
+  button { margin-top: 12px; padding: 8px 18px; font-size: 15px; border: 0; border-radius: 6px; background: #2457c5; color: #fff; cursor: pointer; }
+  button.danger { background: #d9822b; }
+  .msg { margin-top: 12px; min-height: 1.6em; font-weight: bold; color: #147a3d; }
+  .price { font-size: 28px; font-weight: bold; color: #c40000; }
+  footer { text-align: center; color: #777; padding: 24px; }
+</style>
+</head>
+<body>
+<header><h1 id="title">示範商店 Demo Shop</h1></header>
+<main>
+  <section class="card" id="login-card">
+    <h2>登入 Login</h2>
+    <form id="login-form" onsubmit="return false">
+      <label for="username">帳號 Username</label>
+      <input id="username" name="username" autocomplete="off">
+      <label for="password">密碼 Password</label>
+      <input id="password" name="password" type="password">
+      <button id="login-btn" type="submit">登入 Sign in</button>
+    </form>
+    <div class="msg" id="login-msg"></div>
+  </section>
+
+  <section class="card" id="product-card">
+    <h2>筆記本 Notebook NB-01</h2>
+    <!-- BUG 1: the API returns 1280 but the page renders a hard-coded wrong price. -->
+    <div class="price" id="price">NT$ 1,200</div>
+    <!-- BUG 2: clicking this button throws a TypeError (console error). -->
+    <button id="add-to-cart" class="danger">加入購物車 Add to cart</button>
+    <div class="msg" id="cart-msg"></div>
+  </section>
+</main>
+<!-- BUG 3: the scenario expects a #contact-link in the footer, but it was forgotten. -->
+<footer>© 2026 Demo Shop</footer>
+<script>
+  document.getElementById('login-btn').addEventListener('click', function () {
+    var name = document.getElementById('username').value.trim();
+    var msg = document.getElementById('login-msg');
+    msg.textContent = name ? '歡迎，' + name + '！ Welcome, ' + name + '!' : '請輸入帳號 Please enter a username';
+  });
+  document.getElementById('add-to-cart').addEventListener('click', function () {
+    var cart = null;
+    // Deliberate bug: cart is null -> TypeError: Cannot read properties of null (reading 'items')
+    cart.items.push({ sku: 'NB-01' });
+    document.getElementById('cart-msg').textContent = '已加入購物車 Added to cart';
+  });
+</script>
+</body>
+</html>

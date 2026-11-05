@@ -1,0 +1,22 @@
+{
+  "name": "demo-shop",
+  "description": "示範情境：驗證示範商店的登入、價格、加入購物車與頁尾連結。刻意包含 3 個錯誤。 Demo scenario with 3 deliberate bugs.",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "stopOnFailure": false,
+  "steps": [
+    { "action": "open", "url": "/" },
+    { "action": "assert_visible", "selector": "#title" },
+    { "action": "assert_text", "selector": "#title", "expected": "示範商店" },
+    { "action": "fill", "selector": "#username", "text": "小明" },
+    { "action": "fill", "selector": "#password", "text": "secret123", "secret": true },
+    { "action": "click", "selector": "#login-btn" },
+    { "action": "assert_text", "selector": "#login-msg", "expected": "歡迎，小明" },
+    { "action": "check_console_errors" },
+    { "action": "assert_text", "selector": "#price", "expected": "NT$ 1,280", "timeout": 1500 },
+    { "action": "click", "selector": "#add-to-cart" },
+    { "action": "check_console_errors" },
+    { "action": "assert_text", "selector": "#cart-msg", "expected": "已加入購物車", "timeout": 1500 },
+    { "action": "assert_visible", "selector": "footer #contact-link", "timeout": 1500 },
+    { "action": "screenshot_annotate", "selectors": ["#price", "#add-to-cart", "footer #contact-link"], "labels": ["價格錯誤 wrong price", "按下會丟出錯誤 throws", "缺少聯絡連結 missing link"], "label": "總覽：問題元素 Overview of problem elements" }
+  ]
+}

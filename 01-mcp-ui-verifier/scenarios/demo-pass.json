@@ -1,0 +1,15 @@
+{
+  "name": "demo-shop-pass",
+  "description": "會全部通過的示範情境（只驗證正常的功能）。 A demo scenario that passes.",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "steps": [
+    { "action": "open", "url": "/" },
+    { "action": "assert_visible", "selector": "#login-form" },
+    { "action": "fill", "selector": "#username", "text": "Alice" },
+    { "action": "press", "selector": "#username", "key": "Enter" },
+    { "action": "assert_text", "selector": "#login-msg", "expected": "Welcome, Alice" },
+    { "action": "assert_hidden", "selector": "#contact-link", "timeout": 500 },
+    { "action": "check_console_errors" },
+    { "action": "screenshot_annotate", "selectors": ["#login-msg"], "label": "登入成功 Login OK" }
+  ]
+}

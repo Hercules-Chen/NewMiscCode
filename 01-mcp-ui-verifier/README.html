@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp-ui-verifier 使用說明</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#5d6675;--card:#fff;--line:#dfe3ea;--accent:#2457c5;--codebg:#f0f2f6;--warn:#8a5a00;--warnbg:#fff4d6;--ok:#147a3d;--okbg:#e3f5ea}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2128;--line:#323844;--accent:#7aa2ff;--codebg:#262b34;--warn:#f0c75e;--warnbg:#3a3415;--ok:#4fd08a;--okbg:#163524}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Segoe UI",sans-serif}
+header{max-width:1100px;margin:auto;padding:24px 24px 0}
+header h1{margin:0;font-size:26px}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);max-width:1100px;margin:14px auto 0;padding:8px 24px 0;display:flex;flex-wrap:wrap;gap:4px}
+nav.tabs a{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--card);color:var(--fg);text-decoration:none;font-size:14px;opacity:.75}
+nav.tabs a.active{opacity:1;font-weight:bold;border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+main{max-width:1100px;margin:auto;padding:12px 24px 60px}
+section.tab{display:none}
+section.tab.active{display:block}
+.no-js section.tab{display:block;border-top:2px solid var(--line);margin-top:24px}
+h2{font-size:22px;margin:18px 0 8px}
+h3{font-size:18px;margin:22px 0 6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:14px;background:var(--codebg);padding:1px 5px;border-radius:4px;word-break:break-word}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font:14px/1.5 Consolas,"Cascadia Mono",monospace}
+pre code{background:none;padding:0}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:rgba(127,127,127,.08);white-space:nowrap}
+.note{background:var(--warnbg);color:var(--fg);border-left:4px solid var(--warn);padding:8px 14px;border-radius:6px;margin:12px 0}
+.ok{background:var(--okbg);border-left:4px solid var(--ok);padding:8px 14px;border-radius:6px;margin:12px 0}
+ol.steps>li{margin:10px 0}
+a{color:var(--accent)}
+.toc a{display:inline-block;margin-right:12px}
+footer{max-width:1100px;margin:auto;padding:0 24px 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body class="no-js">
+<header>
+  <h1>mcp-ui-verifier：用真實瀏覽器驗證網頁 UI 的 MCP 伺服器</h1>
+  <p>Playwright + Model Context Protocol（stdio）· 紅框標註截圖 · 自帶 HTML 報告 · 繁體中文 / English</p>
+</header>
+<nav class="tabs" role="tablist">
+  <a href="#overview" data-tab="overview">概覽</a>
+  <a href="#install" data-tab="install">安裝</a>
+  <a href="#verify" data-tab="verify">逐步驗證指南</a>
+  <a href="#claude" data-tab="claude">註冊到 Claude Code</a>
+  <a href="#tools" data-tab="tools">MCP 工具</a>
+  <a href="#scenario" data-tab="scenario">情境 JSON</a>
+  <a href="#cli" data-tab="cli">CLI 與選項</a>
+  <a href="#debug" data-tab="debug">除錯與日誌</a>
+  <a href="#windows" data-tab="windows">Windows 啟動器</a>
+  <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<!-- ============================== 概覽 ============================== -->
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>這個工具讓 AI 代理（例如 Claude Code）透過 MCP 協定操作一個<strong>真實的 Chromium 瀏覽器</strong>，執行點擊、輸入、斷言等動作來驗證網頁 UI，並自動留下證據：</p>
+<ul>
+  <li><strong>紅框標註截圖</strong>：把有問題的元素用紅色方框加編號標籤框起來；找不到的元素、主控台錯誤會列在右上角的紅色橫幅中。</li>
+  <li><strong>自帶 HTML 報告</strong>（單一檔案，截圖以 base64 內嵌）：分頁顯示「摘要 / 步驟 / 截圖 / 主控台訊息 / 環境與計時」，支援錨點連結（例如 <code>report.html#step-9</code>）。</li>
+  <li><strong>主控台錯誤收集</strong>：<code>console.error</code>、未捕捉例外（pageerror）、失敗的請求、HTTP 4xx/5xx 回應。</li>
+  <li><strong>結構化日誌</strong>（JSONL，含等級）以及可選的 Playwright <code>trace.zip</code>。</li>
+  <li>同一套引擎也提供<strong>純 CLI</strong>（<code>node src/cli.js run scenario.json</code>），不需要 MCP 也能讓人直接使用。</li>
+</ul>
+<h3>資料夾結構</h3>
+<pre><code>01-mcp-ui-verifier/
+├─ src/
+│  ├─ server.js      MCP 伺服器（stdio）
+│  ├─ cli.js         命令列介面（run / demo / serve-demo）
+│  ├─ session.js     瀏覽器工作階段：步驟執行、主控台收集、紅框標註截圖
+│  ├─ scenario.js    情境 JSON 載入、驗證、執行
+│  ├─ report.js      HTML 報告產生器
+│  ├─ i18n.js        zh-TW / en 字串表
+│  ├─ logger.js      JSONL 結構化日誌
+│  └─ config.js      參數解析與作業系統預設值
+├─ demo/             示範網站（刻意埋了 3 個錯誤）與迷你 HTTP 伺服器
+├─ scenarios/        demo.json（含錯誤）、demo-pass.json（全部通過）
+├─ test/             npm test：MCP stdio 端對端測試、CLI 測試、文字檔稽核
+├─ scripts/audit-text.js   文字檔稽核（UTF-8、BOM、U+FFFD、.bat 純 ASCII）
+├─ examples/         一份實際產生的報告與截圖範例
+├─ *.bat + uiv.ps1   Windows 啟動器（.bat → uiv.ps1 → node）
+├─ README.html       本文件
+└─ README.md         指向本文件的簡短說明</code></pre>
+<h3>範例</h3>
+<p>直接用瀏覽器開啟 <a href="examples/report.html">examples/report.html</a> 可看到實際執行示範情境的報告；<a href="examples/screenshots/">examples/screenshots/</a> 是對應的紅框截圖。</p>
+</section>
+
+<!-- ============================== 安裝 ============================== -->
+<section class="tab" id="install">
+<h2>安裝</h2>
+<h3>需求</h3>
+<ul>
+  <li>Node.js 20 以上（開發與測試使用 Node 22）。</li>
+  <li>Playwright 用的 Chromium（第一次安裝時下載，約 150 MB）。</li>
+</ul>
+<h3>Windows（繁體中文環境）</h3>
+<ol class="steps">
+  <li>把整個 <code>01-mcp-ui-verifier</code> 資料夾放到本機，例如 <code>C:\Tools\newmisccode\01-mcp-ui-verifier</code>。</li>
+  <li>雙擊 <code>setup.bat</code>。它會執行 <code>npm install</code> 與 <code>npx playwright install chromium</code>，最後顯示結束代碼（0 表示成功）。</li>
+</ol>
+<p>或在 PowerShell / 命令提示字元手動執行：</p>
+<pre><code>cd C:\Tools\newmisccode\01-mcp-ui-verifier
+npm install
+npx playwright install chromium</code></pre>
+<h3>Linux / macOS</h3>
+<pre><code>cd 01-mcp-ui-verifier
+npm install
+npx playwright install chromium   # 若系統已預先安裝瀏覽器可略過</code></pre>
+<div class="note">
+<p><strong>關於瀏覽器位置：</strong>本專案把 <code>playwright@1.63.0</code> 列為本地相依套件，並使用 Playwright 的預設瀏覽器位置（Windows 為 <code>%LOCALAPPDATA%\ms-playwright</code>，Linux 為 <code>~/.cache/ms-playwright</code>，或環境變數 <code>PLAYWRIGHT_BROWSERS_PATH</code> 指定的位置）。
+本專案的開發環境（Linux 容器）已預先設定 <code>PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers</code>，因此沒有執行 <code>playwright install</code>。</p>
+<p>如果不想下載瀏覽器，也可以用 <code>--browser-path</code>（或環境變數 <code>UIV_BROWSER_PATH</code>）指向已安裝的 Chrome，例如 <code>--browser-path "C:\Program Files\Google\Chrome\Application\chrome.exe"</code>。</p>
+</div>
+</section>
+
+<!-- ============================== 逐步驗證 ============================== -->
+<section class="tab" id="verify">
+<h2>逐步驗證指南（給同事重現用）</h2>
+<p>以下步驟依序執行，每一步都有預期結果，照著做就能確認工具正常運作。</p>
+<ol class="steps">
+  <li><strong>安裝相依套件</strong>：<code>npm install</code>，接著 <code>npx playwright install chromium</code>（Windows 可直接雙擊 <code>setup.bat</code>）。<br>預期：沒有錯誤，結束代碼 0。</li>
+  <li><strong>執行自動測試</strong>：<code>npm test</code>（或 <code>run-tests.bat</code>）。<br>
+    預期：8 個測試全部 <code>ok</code>，包含：
+    <ul>
+      <li><code>test/mcp.test.js</code>：用 MCP SDK 的 <code>Client</code> + <code>StdioClientTransport</code> 啟動 <code>src/server.js</code>，列出工具並實際呼叫 open_page / fill / click / assert_text / check_console_errors / screenshot_annotate / generate_report / run_scenario。</li>
+      <li><code>test/cli.test.js</code>：執行 CLI 示範，用 Chromium 開啟產生的報告，逐一點選分頁並檢查內容與內嵌圖片。</li>
+      <li><code>test/audit.test.js</code>：文字檔稽核。</li>
+    </ul>
+  </li>
+  <li><strong>執行 CLI 示範</strong>：<code>node src/cli.js demo</code>（或雙擊 <code>run-demo.bat</code>）。<br>
+    它會在隨機埠啟動示範網站，執行 <code>scenarios/demo.json</code>，預期輸出類似：
+<pre><code>示範網站已啟動：http://127.0.0.1:41275/
+示範情境刻意包含錯誤（主控台錯誤、缺少元素、文字不符），因此出現失敗是預期的結果。
+開始執行情境：demo-shop
+[通過] #1 open / (101 ms) 已開啟 http://127.0.0.1:41275/（HTTP 200），標題：「示範商店 Demo Shop」
+...
+[失敗] #9 assert_text #price (1570 ms) #price 的文字不符。預期包含「NT$ 1,280」，實際為「NT$ 1,200」
+[通過] #10 click #add-to-cart (141 ms) 已點擊 #add-to-cart
+[失敗] #11 check_console_errors  (202 ms) 發現 1 則主控台錯誤：TypeError: Cannot read properties of null (reading 'items')
+[失敗] #12 assert_text #cart-msg ...
+[失敗] #13 assert_visible footer #contact-link ...
+[通過] #14 screenshot_annotate ...
+完成：10 通過 / 4 失敗 / 0 略過，共 14 步，耗時 6068 ms
+報告：...\run-20261105-040717-589-demo-shop\report.html
+日誌：...\run-20261105-040717-589-demo-shop\log.jsonl</code></pre>
+    預期：<strong>10 通過 / 4 失敗</strong>（4 個失敗正是示範網站刻意埋的錯誤），<code>demo</code> 指令本身結束代碼為 0。
+  </li>
+  <li><strong>打開報告</strong>：用瀏覽器開啟上一步印出的 <code>report.html</code>。<br>預期：摘要頁顯示「有失敗項目」；「截圖」分頁中，價格與「加入購物車」按鈕被紅框標出，找不到的 <code>footer #contact-link</code> 列在紅色橫幅中。</li>
+  <li><strong>驗證通過的情境與結束代碼</strong>：先在另一個視窗執行 <code>node src/cli.js serve-demo</code>（或 <code>serve-demo.bat</code>，預設 <code>http://127.0.0.1:4173/</code>），再執行：
+<pre><code>node src/cli.js run scenarios/demo-pass.json
+node src/cli.js run scenarios/demo.json --lang en</code></pre>
+    預期：第一個全部通過、結束代碼 0；第二個以英文輸出、結束代碼 1。</li>
+  <li><strong>以 MCP 方式驗證</strong>：依「<a href="#claude" data-tab="claude">註冊到 Claude Code</a>」分頁註冊後，在 Claude Code 輸入 <code>/mcp</code> 確認 <code>ui-verifier</code> 為 connected，再請 Claude 執行驗證（範例提示詞見該分頁）。</li>
+  <li><strong>文字檔稽核</strong>：<code>npm run audit-text</code>。<br>預期：<code>Text audit OK: N text files checked ...</code></li>
+</ol>
+</section>
+
+<!-- ============================== Claude Code ============================== -->
+<section class="tab" id="claude">
+<h2>註冊到 Claude Code</h2>
+<h3>方法一：<code>claude mcp add</code></h3>
+<p>Windows（請改成實際路徑）：</p>
+<pre><code>claude mcp add ui-verifier -- node C:\Tools\newmisccode\01-mcp-ui-verifier\src\server.js --lang zh-TW</code></pre>
+<p>Linux / macOS：</p>
+<pre><code>claude mcp add ui-verifier -- node /path/to/01-mcp-ui-verifier/src/server.js --lang zh-TW</code></pre>
+<p>加上 <code>--scope user</code> 可讓所有專案都能使用；加上 <code>-e UIV_HEADED=1</code> 之類可傳環境變數。<code>--</code> 之後的參數會原封不動傳給伺服器（可用的伺服器參數與 CLI 相同，例如 <code>--headed</code>、<code>--trace</code>、<code>--base-url</code>、<code>--out</code>）。</p>
+<h3>方法二：JSON 設定（專案根目錄的 <code>.mcp.json</code>）</h3>
+<pre><code>{
+  "mcpServers": {
+    "ui-verifier": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "C:\\Tools\\newmisccode\\01-mcp-ui-verifier\\src\\server.js",
+        "--lang", "zh-TW",
+        "--base-url", "http://127.0.0.1:4173/"
+      ],
+      "env": {
+        "UIV_TRACE": "1"
+      }
+    }
+  }
+}</code></pre>
+<p>也可以用一行指令加入同樣的設定（命令提示字元；路徑用正斜線 <code>/</code> 可避免跳脫問題，Node.js 在 Windows 上可正常解析）：</p>
+<pre><code>claude mcp add-json ui-verifier "{\"type\":\"stdio\",\"command\":\"node\",\"args\":[\"C:/Tools/newmisccode/01-mcp-ui-verifier/src/server.js\",\"--lang\",\"zh-TW\"]}"</code></pre>
+<h3>確認連線</h3>
+<ol>
+  <li><code>claude mcp list</code> 應列出 <code>ui-verifier</code>。</li>
+  <li>在 Claude Code 中輸入 <code>/mcp</code>，狀態應為 connected，並可看到 14 個工具。</li>
+</ol>
+<h3>範例提示詞</h3>
+<pre><code>請用 ui-verifier 驗證 http://127.0.0.1:4173/：
+1. 開啟頁面，在 #username 輸入「小明」並點擊 #login-btn，確認 #login-msg 包含「歡迎，小明」。
+2. 確認 #price 顯示「NT$ 1,280」。
+3. 點擊 #add-to-cart 後檢查主控台錯誤。
+4. 把所有有問題的元素用紅框截圖標註，最後產生報告並告訴我報告路徑。</code></pre>
+<div class="note">如果在 MCP 模式下出現「Executable doesn't exist」（找不到瀏覽器），代表伺服器行程拿不到瀏覽器路徑：請先執行 <code>npx playwright install chromium</code>，或在設定的 <code>env</code> 中加入 <code>"PLAYWRIGHT_BROWSERS_PATH"</code>，或用 <code>--browser-path</code> 指定 Chrome。</div>
+<h3>其他 MCP 用戶端</h3>
+<p>任何支援 stdio 的 MCP 用戶端都可使用：命令為 <code>node</code>，參數為 <code>src/server.js</code> 的完整路徑。<code>test/mcp.test.js</code> 就是一個最小的 SDK 用戶端範例。</p>
+</section>
+
+<!-- ============================== Tools ============================== -->
+<section class="tab" id="tools">
+<h2>MCP 工具一覽</h2>
+<p>瀏覽器在第一次呼叫時才啟動；同一個工作階段的所有步驟都會被記錄，供 <code>generate_report</code> 使用。斷言失敗時工具結果以「失敗 / FAIL」開頭，並附上紅框截圖（image/png）。選擇器支援 Playwright 語法（CSS、<code>text=登入</code>、<code>role=button[name="登入"]</code> 等）。</p>
+<table>
+<thead><tr><th>工具</th><th>參數</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td><code>open_page</code></td><td><code>url</code>, <code>waitUntil?</code></td><td>開啟網址（相對路徑會以 <code>--base-url</code> 解析），回傳 HTTP 狀態、標題、載入計時。</td></tr>
+<tr><td><code>click</code></td><td><code>selector</code>, <code>timeout?</code></td><td>點擊第一個符合的元素。</td></tr>
+<tr><td><code>fill</code></td><td><code>selector</code>, <code>text</code>, <code>secret?</code></td><td>輸入文字；<code>secret: true</code> 會在報告與日誌中遮蔽內容。</td></tr>
+<tr><td><code>press</code></td><td><code>selector</code>, <code>key</code></td><td>按鍵，例如 <code>Enter</code>、<code>Control+A</code>。</td></tr>
+<tr><td><code>assert_visible</code></td><td><code>selector</code>, <code>timeout?</code></td><td>確認元素在逾時內出現且可見。</td></tr>
+<tr><td><code>assert_hidden</code></td><td><code>selector</code>, <code>timeout?</code></td><td>確認元素不可見或不存在。</td></tr>
+<tr><td><code>assert_text</code></td><td><code>selector</code>, <code>expected</code>, <code>mode?</code></td><td>比對可見文字；<code>mode</code> 為 <code>contains</code>（預設）、<code>equals</code>、<code>regex</code>，空白會正規化。</td></tr>
+<tr><td><code>check_console_errors</code></td><td><code>expectNone?</code>, <code>all?</code>, <code>ignore?</code></td><td>檢查自上次檢查以來的主控台錯誤、未捕捉例外、請求失敗、HTTP ≥ 400。失敗截圖會框出「最後互動的元素」。</td></tr>
+<tr><td><code>screenshot_annotate</code></td><td><code>selectors[]</code>, <code>label?</code>, <code>labels?</code>, <code>fullPage?</code></td><td>在元素周圍畫紅框與編號標籤後截圖（預設整頁），找不到的元素列在紅色橫幅。回傳 PNG。</td></tr>
+<tr><td><code>wait</code></td><td><code>ms</code></td><td>等待指定毫秒。</td></tr>
+<tr><td><code>get_page_info</code></td><td><code>maxChars?</code></td><td>回傳目前網址、標題、可見文字前 N 字，協助代理決定要驗證的選擇器。</td></tr>
+<tr><td><code>generate_report</code></td><td>—</td><td>為目前工作階段產生 HTML 報告，回傳路徑與摘要。</td></tr>
+<tr><td><code>close_browser</code></td><td>—</td><td>產生報告、儲存 trace.zip（若啟用）、關閉瀏覽器；下次呼叫會開新的執行資料夾。</td></tr>
+<tr><td><code>run_scenario</code></td><td><code>file?</code>, <code>scenario?</code>, <code>baseUrl?</code></td><td>以全新瀏覽器執行情境 JSON（檔案路徑或內嵌物件），並產生報告。</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============================== Scenario ============================== -->
+<section class="tab" id="scenario">
+<h2>情境 JSON 格式</h2>
+<pre><code>{
+  "name": "demo-shop",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "stopOnFailure": false,
+  "timeout": 5000,
+  "viewport": { "width": 1280, "height": 800 },
+  "steps": [
+    { "action": "open", "url": "/" },
+    { "action": "fill", "selector": "#username", "text": "小明" },
+    { "action": "fill", "selector": "#password", "text": "secret123", "secret": true },
+    { "action": "click", "selector": "#login-btn" },
+    { "action": "assert_text", "selector": "#login-msg", "expected": "歡迎，小明" },
+    { "action": "assert_text", "selector": "#price", "expected": "NT$ 1,280", "timeout": 1500 },
+    { "action": "click", "selector": "#add-to-cart" },
+    { "action": "check_console_errors", "ignore": ["favicon"] },
+    { "action": "assert_visible", "selector": "footer #contact-link" },
+    { "action": "screenshot_annotate", "selectors": ["#price", "#add-to-cart"],
+      "labels": ["價格錯誤", "會丟出錯誤"], "label": "問題元素總覽" }
+  ]
+}</code></pre>
+<table>
+<thead><tr><th>欄位</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td><code>name</code></td><td>情境名稱（用於執行資料夾名稱與報告標題），省略時使用檔名。</td></tr>
+<tr><td><code>baseUrl</code></td><td>相對網址的基底；可被 CLI <code>--base-url</code> 覆寫。</td></tr>
+<tr><td><code>stopOnFailure</code></td><td><code>true</code> 時第一個失敗後其餘步驟標為「略過」。預設 <code>false</code>，盡量收集證據。</td></tr>
+<tr><td><code>timeout</code> / <code>viewport</code></td><td>情境層級的逾時與視窗大小（CLI <code>--timeout</code> 優先）。</td></tr>
+<tr><td>步驟共用欄位</td><td><code>action</code>（必填）、<code>timeout</code>、<code>screenshotOnFail</code>（預設 true）。</td></tr>
+<tr><td>動作</td><td><code>open</code>、<code>click</code>（<code>waitAfter</code>）、<code>fill</code>、<code>press</code>、<code>wait</code>（<code>ms</code>）、<code>wait_for</code>、<code>assert_visible</code>、<code>assert_hidden</code>、<code>assert_text</code>（<code>mode</code>/<code>exact</code>）、<code>check_console_errors</code>（<code>expectNone</code>、<code>all</code>、<code>ignore</code>、<code>settleMs</code>）、<code>screenshot_annotate</code>（<code>selectors</code>、<code>labels</code>、<code>label</code>、<code>fullPage</code>、<code>failOnMissing</code>）。</td></tr>
+</tbody>
+</table>
+<p>情境檔可為 UTF-8（有無 BOM 皆可，以相容 Windows 記事本）。</p>
+</section>
+
+<!-- ============================== CLI ============================== -->
+<section class="tab" id="cli">
+<h2>CLI 與選項</h2>
+<pre><code>node src/cli.js run &lt;scenario.json&gt; [選項]   執行情境並產生報告
+node src/cli.js demo [選項]                  啟動內建示範網站並執行示範情境
+node src/cli.js serve-demo [--port 4173]     只啟動示範網站（Ctrl+C 結束）
+node src/server.js [選項]                    啟動 MCP 伺服器（stdio，通常由 MCP 用戶端啟動）</code></pre>
+<table>
+<thead><tr><th>選項</th><th>環境變數</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td><code>--lang zh-TW|en</code></td><td><code>UIV_LANG</code></td><td>報告、CLI 訊息與 MCP 工具結果的語言（預設 zh-TW）。</td></tr>
+<tr><td><code>--out &lt;dir&gt;</code></td><td><code>UIV_OUTPUT_DIR</code></td><td>輸出資料夾。預設：Windows 為 <code>%ProgramData%\NewMiscCode\01-mcp-ui-verifier</code>，其他作業系統為專案下的 <code>./output</code>。</td></tr>
+<tr><td><code>--base-url &lt;url&gt;</code></td><td><code>UIV_BASE_URL</code></td><td>覆寫情境的 <code>baseUrl</code>。</td></tr>
+<tr><td><code>--headed</code></td><td><code>UIV_HEADED=1</code></td><td>顯示瀏覽器視窗。</td></tr>
+<tr><td><code>--devtools</code></td><td><code>UIV_DEVTOOLS=1</code></td><td>顯示瀏覽器並自動開啟 Chrome DevTools。</td></tr>
+<tr><td><code>--debug</code></td><td><code>UIV_DEBUG=1</code></td><td>除錯模式：headed + slowMo 250 ms + 日誌等級 debug（同時輸出到 stderr）+ trace。</td></tr>
+<tr><td><code>--cdp-port &lt;port&gt;</code></td><td><code>UIV_CDP_PORT</code></td><td>開啟 Chrome 遠端除錯埠，可用 Chrome 的 <code>chrome://inspect</code> 連線檢查頁面。</td></tr>
+<tr><td><code>--slowmo &lt;ms&gt;</code></td><td><code>UIV_SLOWMO</code></td><td>每個瀏覽器動作的延遲。</td></tr>
+<tr><td><code>--trace</code></td><td><code>UIV_TRACE=1</code></td><td>產生 Playwright <code>trace.zip</code>。</td></tr>
+<tr><td><code>--timeout &lt;ms&gt;</code></td><td><code>UIV_TIMEOUT</code></td><td>每個步驟的逾時（預設 5000）。</td></tr>
+<tr><td><code>--log-level &lt;lvl&gt;</code></td><td><code>UIV_LOG_LEVEL</code></td><td><code>debug</code> / <code>info</code> / <code>warn</code> / <code>error</code>（預設 info）。</td></tr>
+<tr><td><code>--browser-path &lt;path&gt;</code></td><td><code>UIV_BROWSER_PATH</code></td><td>指定 Chromium / Chrome 執行檔。</td></tr>
+</tbody>
+</table>
+<h3>結束代碼</h3>
+<table>
+<tbody>
+<tr><th>0</th><td><code>run</code>：全部通過；<code>demo</code>：報告已產生（示範情境的失敗是預期的）。</td></tr>
+<tr><th>1</th><td><code>run</code>：有步驟失敗。</td></tr>
+<tr><th>2</th><td>用法錯誤或執行時發生例外（例如情境檔格式錯誤、找不到瀏覽器）。</td></tr>
+</tbody>
+</table>
+<h3>每次執行的輸出</h3>
+<pre><code>&lt;輸出資料夾&gt;/
+├─ mcp-server.jsonl                       MCP 伺服器層級日誌（每次工具呼叫）
+└─ run-20261105-040717-589-demo-shop/
+   ├─ report.html                         自帶報告（截圖內嵌）
+   ├─ log.jsonl                           本次執行的結構化日誌
+   ├─ trace.zip                           Playwright 追蹤檔（--trace / --debug）
+   └─ screenshots/09-assert_text-1.png    紅框標註截圖</code></pre>
+</section>
+
+<!-- ============================== Debug ============================== -->
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3>JSONL 結構化日誌</h3>
+<p>每一行都是一個 JSON 物件，包含 <code>ts</code>（ISO 時間）、<code>level</code>、<code>msg</code> 與相關欄位，例如：</p>
+<pre><code>{"ts":"2026-11-05T04:07:19.731Z","level":"warn","msg":"step.end","session":"demo-shop","no":9,"action":"assert_text","status":"fail","durationMs":1570,"message":"#price 的文字不符..."}</code></pre>
+<p>常見事件：<code>browser.launch</code>、<code>step.start</code>、<code>step.end</code>、<code>page.console</code>、<code>screenshot</code>、<code>trace.saved</code>、<code>report.written</code>、<code>tool.call</code>、<code>tool.result</code>。在 PowerShell 可用以下方式篩選：</p>
+<pre><code>Get-Content .\log.jsonl -Encoding UTF8 | ConvertFrom-Json | Where-Object level -eq 'warn' | Format-Table ts,msg,action,message</code></pre>
+<div class="note">MCP 伺服器的 stdout 是通訊通道，所以伺服器<strong>絕不</strong>寫入 stdout；診斷訊息只寫到 JSONL 檔，<code>--debug</code> 時另外輸出到 stderr。</div>
+<h3>Playwright Trace</h3>
+<pre><code>node src/cli.js demo --trace
+npx playwright show-trace "&lt;執行資料夾&gt;\trace.zip"</code></pre>
+<p>Trace 檢視器可逐步查看每個動作前後的 DOM 快照、網路請求與主控台訊息。</p>
+<h3>Chrome DevTools</h3>
+<ul>
+  <li><code>--devtools</code>：開啟有畫面的瀏覽器並自動打開 DevTools。</li>
+  <li><code>--debug</code>：有畫面 + 放慢動作 + debug 日誌 + trace，適合觀察腳本實際在做什麼。</li>
+  <li><code>--cdp-port 9222</code>：可在另一個 Chrome 開啟 <code>chrome://inspect</code>，按「Configure…」加入 <code>localhost:9222</code> 後檢查（無畫面模式也可用）。</li>
+  <li>MCP 模式下同樣適用：把選項加在 <code>claude mcp add ... -- node src/server.js --devtools</code>。</li>
+</ul>
+</section>
+
+<!-- ============================== Windows ============================== -->
+<section class="tab" id="windows">
+<h2>Windows 啟動器</h2>
+<p>模式為 <code>.bat → uiv.ps1 → node</code>。<code>.bat</code> 檔為純 ASCII，會切換到自己所在的資料夾（<code>pushd "%~dp0"</code>）、顯示目前路徑、執行後顯示結束代碼並 <code>pause</code>。<code>uiv.ps1</code> 為含 BOM 的 UTF-8（Windows PowerShell 5.1 需要 BOM 才能正確讀中文），並把主控台編碼設為 UTF-8。</p>
+<table>
+<thead><tr><th>檔案</th><th>動作</th></tr></thead>
+<tbody>
+<tr><td><code>setup.bat</code></td><td><code>npm install</code> + <code>npx playwright install chromium</code></td></tr>
+<tr><td><code>run-demo.bat [選項]</code></td><td>執行示範（例如 <code>run-demo.bat --lang en --devtools</code>）</td></tr>
+<tr><td><code>run-scenario.bat &lt;scenario.json&gt; [選項]</code></td><td>執行指定情境；相對路徑以專案資料夾為準</td></tr>
+<tr><td><code>serve-demo.bat</code></td><td>只啟動示範網站於 <code>http://127.0.0.1:4173/</code></td></tr>
+<tr><td><code>run-tests.bat</code></td><td><code>node --test</code>（等同 <code>npm test</code>）</td></tr>
+</tbody>
+</table>
+<p>報告預設寫到 <code>C:\ProgramData\NewMiscCode\01-mcp-ui-verifier\run-…\report.html</code>。若該位置沒有寫入權限，請加 <code>--out</code> 指定其他資料夾，例如 <code>run-demo.bat --out "%USERPROFILE%\Documents\ui-verifier"</code>。</p>
+</section>
+
+<!-- ============================== Limits ============================== -->
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3>已知限制</h3>
+<ul>
+  <li>只支援 Chromium（未測試 Firefox / WebKit）。</li>
+  <li>每個 MCP 伺服器同時只有一個頁面（不支援多分頁 / 多視窗、iframe 內元素的紅框位置以主框架座標計算，可能不準）。</li>
+  <li>紅框以注入覆蓋層 <code>div</code> 的方式繪製，截圖後立即移除；若網頁有極高 <code>z-index</code> 或 Shadow DOM 特殊排版，框線位置可能有偏差。</li>
+  <li>報告把截圖以 base64 內嵌，截圖很多時檔案會變大（每張約 50–100 KB）。</li>
+  <li>Windows 啟動器（.bat / .ps1）在 Linux 開發環境中無法實際執行，只做了編碼與內容檢查；請在 Windows 上先以 <code>run-demo.bat</code> 試跑一次。</li>
+</ul>
+<h3>疑難排解</h3>
+<table>
+<thead><tr><th>症狀</th><th>處理方式</th></tr></thead>
+<tbody>
+<tr><td><code>Executable doesn't exist at ...ms-playwright...</code></td><td>執行 <code>npx playwright install chromium</code>，或用 <code>--browser-path</code> 指定 Chrome。MCP 模式下可在設定的 <code>env</code> 加入 <code>PLAYWRIGHT_BROWSERS_PATH</code>。</td></tr>
+<tr><td>寫入 <code>C:\ProgramData\...</code> 失敗（EPERM）</td><td>用 <code>--out</code> 或 <code>UIV_OUTPUT_DIR</code> 改到有權限的資料夾。</td></tr>
+<tr><td>PowerShell 顯示「無法載入，因為這個系統上已停用指令碼執行」</td><td>請透過 .bat 啟動（已帶 <code>-ExecutionPolicy Bypass</code>）。</td></tr>
+<tr><td>主控台中文變成亂碼</td><td><code>uiv.ps1</code> 已設定 UTF-8；直接使用 cmd 時可先執行 <code>chcp 65001</code>。</td></tr>
+<tr><td>Claude Code 中 <code>/mcp</code> 顯示 failed</td><td>確認 <code>node</code> 在 PATH 中、路徑使用絕對路徑，並查看輸出資料夾中的 <code>mcp-server.jsonl</code>。</td></tr>
+<tr><td>斷言太早失敗</td><td>提高 <code>--timeout</code> 或在步驟上設定 <code>timeout</code>；<code>assert_visible</code> / <code>assert_text</code> 會在逾時內持續重試。</td></tr>
+</tbody>
+</table>
+</section>
+
+<!-- ============================== English ============================== -->
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><strong>mcp-ui-verifier</strong> is an MCP server (Node.js ESM, <code>@modelcontextprotocol/sdk</code>, stdio) that lets an AI agent drive a real Chromium through Playwright to verify web UIs. It produces evidence: full-page screenshots with <strong>red boxes</strong> and numbered labels around problem elements (missing elements and console errors are listed in a red banner), and a self-contained, tabbed HTML report (summary / steps / screenshots / console / environment and timings) in zh-TW or English.</p>
+<h3>Quick start</h3>
+<pre><code>npm install
+npx playwright install chromium     # skip if browsers are already provisioned
+npm test                            # MCP stdio client test + CLI test + text audit
+node src/cli.js demo --lang en      # runs the demo site with 3 deliberate bugs -> 10 passed / 4 failed
+node src/cli.js run scenarios/demo-pass.json --base-url http://127.0.0.1:4173/   # needs: node src/cli.js serve-demo</code></pre>
+<h3>Register with Claude Code</h3>
+<pre><code>claude mcp add ui-verifier -- node /abs/path/01-mcp-ui-verifier/src/server.js --lang en</code></pre>
+<p>Tools: <code>open_page</code>, <code>click</code>, <code>fill</code>, <code>press</code>, <code>assert_visible</code>, <code>assert_hidden</code>, <code>assert_text</code>, <code>check_console_errors</code>, <code>screenshot_annotate</code>, <code>wait</code>, <code>get_page_info</code>, <code>generate_report</code>, <code>close_browser</code>, <code>run_scenario</code>.</p>
+<p>Debugging: <code>--debug</code> (headed, slowMo, debug log, trace), <code>--devtools</code>, <code>--cdp-port 9222</code>, <code>--trace</code>. Logs are JSONL; output defaults to <code>%ProgramData%\NewMiscCode\01-mcp-ui-verifier</code> on Windows and <code>./output</code> elsewhere (<code>--out</code> / <code>UIV_OUTPUT_DIR</code> to override). Exit codes: 0 pass, 1 failures, 2 error.</p>
+</section>
+
+</main>
+<footer>mcp-ui-verifier 0.1.0 · 文件編碼 UTF-8（無 BOM）</footer>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-tab]');
+    if (a) show(a.dataset.tab);
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

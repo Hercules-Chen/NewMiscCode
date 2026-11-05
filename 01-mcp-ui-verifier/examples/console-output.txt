@@ -1,0 +1,20 @@
+示範網站已啟動：http://127.0.0.1:36429/
+示範情境刻意包含錯誤（主控台錯誤、缺少元素、文字不符），因此出現失敗是預期的結果。
+開始執行情境：demo-shop
+[通過] #1 open / (62 ms) 已開啟 http://127.0.0.1:36429/（HTTP 200），標題：「示範商店 Demo Shop」
+[通過] #2 assert_visible #title (36 ms) #title 可見
+[通過] #3 assert_text #title (7 ms) #title 的文字符合：「示範商店 Demo Shop」
+[通過] #4 fill #username (12 ms) 已在 #username 輸入 2 個字元
+[通過] #5 fill #password (12 ms) 已在 #password 輸入 9 個字元
+[通過] #6 click #login-btn (159 ms) 已點擊 #login-btn
+[通過] #7 assert_text #login-msg (6 ms) #login-msg 的文字符合：「歡迎，小明！ Welcome, 小明!」
+[通過] #8 check_console_errors  (202 ms) 沒有主控台錯誤
+[失敗] #9 assert_text #price (1576 ms) #price 的文字不符。預期包含「NT$ 1,280」，實際為「NT$ 1,200」
+[通過] #10 click #add-to-cart (142 ms) 已點擊 #add-to-cart
+[失敗] #11 check_console_errors  (202 ms) 發現 1 則主控台錯誤：TypeError: Cannot read properties of null (reading 'items')
+[失敗] #12 assert_text #cart-msg (1572 ms) #cart-msg 的文字不符。預期包含「已加入購物車」，實際為「」
+[失敗] #13 assert_visible footer #contact-link (1502 ms) footer #contact-link 在 1500 ms 內未出現或不可見
+[通過] #14 screenshot_annotate #price, #add-to-cart, footer #contact-link (67 ms) 已截圖並標註 2 個元素，1 個找不到：footer #contact-link
+完成：10 通過 / 4 失敗 / 0 略過，共 14 步，耗時 5944 ms
+報告：/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/report.html
+日誌：/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/log.jsonl

@@ -1,0 +1,39 @@
+{"ts":"2026-11-05T04:14:48.628Z","level":"info","msg":"scenario.start","session":"demo-shop","name":"demo-shop","steps":14,"baseUrl":"http://127.0.0.1:36429/"}
+{"ts":"2026-11-05T04:14:48.629Z","level":"info","msg":"browser.launch","session":"demo-shop","launchOpts":{"headless":true,"slowMo":0,"args":[]},"runDir":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop","platform":"linux"}
+{"ts":"2026-11-05T04:14:48.741Z","level":"info","msg":"step.start","session":"demo-shop","no":1,"action":"open","target":"/"}
+{"ts":"2026-11-05T04:14:48.804Z","level":"info","msg":"step.end","session":"demo-shop","no":1,"action":"open","status":"pass","durationMs":62,"message":"已開啟 http://127.0.0.1:36429/（HTTP 200），標題：「示範商店 Demo Shop」"}
+{"ts":"2026-11-05T04:14:48.805Z","level":"info","msg":"step.start","session":"demo-shop","no":2,"action":"assert_visible","target":"#title"}
+{"ts":"2026-11-05T04:14:48.840Z","level":"info","msg":"step.end","session":"demo-shop","no":2,"action":"assert_visible","status":"pass","durationMs":36,"message":"#title 可見"}
+{"ts":"2026-11-05T04:14:48.841Z","level":"info","msg":"step.start","session":"demo-shop","no":3,"action":"assert_text","target":"#title"}
+{"ts":"2026-11-05T04:14:48.848Z","level":"info","msg":"step.end","session":"demo-shop","no":3,"action":"assert_text","status":"pass","durationMs":7,"message":"#title 的文字符合：「示範商店 Demo Shop」"}
+{"ts":"2026-11-05T04:14:48.848Z","level":"info","msg":"step.start","session":"demo-shop","no":4,"action":"fill","target":"#username"}
+{"ts":"2026-11-05T04:14:48.860Z","level":"info","msg":"step.end","session":"demo-shop","no":4,"action":"fill","status":"pass","durationMs":12,"message":"已在 #username 輸入 2 個字元"}
+{"ts":"2026-11-05T04:14:48.860Z","level":"info","msg":"step.start","session":"demo-shop","no":5,"action":"fill","target":"#password"}
+{"ts":"2026-11-05T04:14:48.872Z","level":"info","msg":"step.end","session":"demo-shop","no":5,"action":"fill","status":"pass","durationMs":12,"message":"已在 #password 輸入 9 個字元"}
+{"ts":"2026-11-05T04:14:48.872Z","level":"info","msg":"step.start","session":"demo-shop","no":6,"action":"click","target":"#login-btn"}
+{"ts":"2026-11-05T04:14:49.031Z","level":"info","msg":"step.end","session":"demo-shop","no":6,"action":"click","status":"pass","durationMs":159,"message":"已點擊 #login-btn"}
+{"ts":"2026-11-05T04:14:49.032Z","level":"info","msg":"step.start","session":"demo-shop","no":7,"action":"assert_text","target":"#login-msg"}
+{"ts":"2026-11-05T04:14:49.038Z","level":"info","msg":"step.end","session":"demo-shop","no":7,"action":"assert_text","status":"pass","durationMs":6,"message":"#login-msg 的文字符合：「歡迎，小明！ Welcome, 小明!」"}
+{"ts":"2026-11-05T04:14:49.038Z","level":"info","msg":"step.start","session":"demo-shop","no":8,"action":"check_console_errors","target":""}
+{"ts":"2026-11-05T04:14:49.240Z","level":"info","msg":"step.end","session":"demo-shop","no":8,"action":"check_console_errors","status":"pass","durationMs":202,"message":"沒有主控台錯誤"}
+{"ts":"2026-11-05T04:14:49.240Z","level":"info","msg":"step.start","session":"demo-shop","no":9,"action":"assert_text","target":"#price"}
+{"ts":"2026-11-05T04:14:50.908Z","level":"info","msg":"screenshot","session":"demo-shop","file":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/screenshots/09-assert_text-1.png","found":["#price"],"missing":[]}
+{"ts":"2026-11-05T04:14:50.908Z","level":"warn","msg":"step.end","session":"demo-shop","no":9,"action":"assert_text","status":"fail","durationMs":1576,"message":"#price 的文字不符。預期包含「NT$ 1,280」，實際為「NT$ 1,200」"}
+{"ts":"2026-11-05T04:14:50.909Z","level":"info","msg":"step.start","session":"demo-shop","no":10,"action":"click","target":"#add-to-cart"}
+{"ts":"2026-11-05T04:14:50.949Z","level":"warn","msg":"page.console","session":"demo-shop","at":"2026-11-05T04:14:50.949Z","url":"http://127.0.0.1:36429/","type":"pageerror","severity":"error","text":"TypeError: Cannot read properties of null (reading 'items')","location":"at HTMLButtonElement.<anonymous> (http://127.0.0.1:36429/:57:10)"}
+{"ts":"2026-11-05T04:14:51.051Z","level":"info","msg":"step.end","session":"demo-shop","no":10,"action":"click","status":"pass","durationMs":142,"message":"已點擊 #add-to-cart"}
+{"ts":"2026-11-05T04:14:51.052Z","level":"info","msg":"step.start","session":"demo-shop","no":11,"action":"check_console_errors","target":""}
+{"ts":"2026-11-05T04:14:51.325Z","level":"info","msg":"screenshot","session":"demo-shop","file":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/screenshots/11-check_console_errors-2.png","found":["#add-to-cart"],"missing":[]}
+{"ts":"2026-11-05T04:14:51.325Z","level":"warn","msg":"step.end","session":"demo-shop","no":11,"action":"check_console_errors","status":"fail","durationMs":202,"message":"發現 1 則主控台錯誤：TypeError: Cannot read properties of null (reading 'items')"}
+{"ts":"2026-11-05T04:14:51.325Z","level":"info","msg":"step.start","session":"demo-shop","no":12,"action":"assert_text","target":"#cart-msg"}
+{"ts":"2026-11-05T04:14:52.954Z","level":"info","msg":"screenshot","session":"demo-shop","file":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/screenshots/12-assert_text-3.png","found":["#cart-msg"],"missing":[]}
+{"ts":"2026-11-05T04:14:52.955Z","level":"warn","msg":"step.end","session":"demo-shop","no":12,"action":"assert_text","status":"fail","durationMs":1572,"message":"#cart-msg 的文字不符。預期包含「已加入購物車」，實際為「」"}
+{"ts":"2026-11-05T04:14:52.955Z","level":"info","msg":"step.start","session":"demo-shop","no":13,"action":"assert_visible","target":"footer #contact-link"}
+{"ts":"2026-11-05T04:14:54.505Z","level":"info","msg":"screenshot","session":"demo-shop","file":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/screenshots/13-assert_visible-4.png","found":[],"missing":["footer #contact-link"]}
+{"ts":"2026-11-05T04:14:54.505Z","level":"warn","msg":"step.end","session":"demo-shop","no":13,"action":"assert_visible","status":"fail","durationMs":1502,"message":"footer #contact-link 在 1500 ms 內未出現或不可見"}
+{"ts":"2026-11-05T04:14:54.505Z","level":"info","msg":"step.start","session":"demo-shop","no":14,"action":"screenshot_annotate","target":"#price, #add-to-cart, footer #contact-link"}
+{"ts":"2026-11-05T04:14:54.571Z","level":"info","msg":"screenshot","session":"demo-shop","file":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/screenshots/14-annotate-5.png","found":["#price","#add-to-cart"],"missing":["footer #contact-link"]}
+{"ts":"2026-11-05T04:14:54.571Z","level":"info","msg":"step.end","session":"demo-shop","no":14,"action":"screenshot_annotate","status":"pass","durationMs":67,"message":"已截圖並標註 2 個元素，1 個找不到：footer #contact-link"}
+{"ts":"2026-11-05T04:14:54.577Z","level":"info","msg":"report.written","session":"demo-shop","path":"/home/user/newmisccode/01-mcp-ui-verifier/output/run-20261105-041448-627-demo-shop/report.html"}
+{"ts":"2026-11-05T04:14:54.620Z","level":"info","msg":"browser.closed","session":"demo-shop"}
+{"ts":"2026-11-05T04:14:54.620Z","level":"info","msg":"scenario.end","session":"demo-shop","total":14,"passed":10,"failed":4,"skipped":0,"ok":false,"consoleErrors":1,"durationMs":5944}
