@@ -1,0 +1,32 @@
+{
+  "name": "otel-trace-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local OpenTelemetry distributed tracing demo: instrumented Node services, a tiny OTLP/HTTP JSON collector (SQLite) and a trace viewer UI (zh-TW / en).",
+  "type": "module",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/start-all.mjs",
+    "collector": "node --disable-warning=ExperimentalWarning src/collector/server.mjs",
+    "loadgen": "node src/loadgen.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 test/e2e.test.mjs",
+    "audit-text": "node ../tools/audit-text.mjs ."
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/core": "2.12.0",
+    "@opentelemetry/exporter-trace-otlp-http": "0.223.0",
+    "@opentelemetry/instrumentation-http": "0.223.0",
+    "@opentelemetry/instrumentation-undici": "0.33.0",
+    "@opentelemetry/resources": "2.12.0",
+    "@opentelemetry/sdk-node": "0.223.0",
+    "@opentelemetry/sdk-trace-base": "2.12.0",
+    "@opentelemetry/semantic-conventions": "1.43.0"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

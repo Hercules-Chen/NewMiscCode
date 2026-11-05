@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Passkeys 無密碼登入示範</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css">
+<script src="/build/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo" aria-hidden="true">🔑</span> <span data-i18n="app.title">Passkeys 無密碼登入</span></div>
+  <nav class="tabs" id="nav">
+    <a href="/" data-view="auth" data-i18n="nav.auth">登入 / 註冊</a>
+    <a href="/account" data-view="account" data-i18n="nav.account" hidden>我的帳號</a>
+    <a href="/debug" data-view="debug" data-i18n="nav.debug" hidden>除錯</a>
+  </nav>
+  <div class="tools">
+    <button type="button" id="langBtn" class="ghost" aria-label="Language">EN</button>
+    <button type="button" id="themeBtn" class="ghost" aria-label="Theme">☾</button>
+  </div>
+</header>
+
+<main>
+  <div id="msg" class="msg" role="alert" hidden></div>
+  <p id="envWarn" class="msg warn" hidden></p>
+
+  <section id="view-auth" class="view">
+    <div class="grid">
+      <form class="card" id="loginForm" autocomplete="on">
+        <h2 data-i18n="login.title">使用 Passkey 登入</h2>
+        <label for="loginUser" data-i18n="login.username">使用者名稱（可留空）</label>
+        <input id="loginUser" name="username" autocomplete="username webauthn" spellcheck="false" autocapitalize="off">
+        <p class="hint" data-i18n="login.hint">留空即可「免帳號登入」：瀏覽器會列出此網站的 passkey 供你選擇。支援自動填入（conditional UI）的瀏覽器點輸入框即可看到建議。</p>
+        <div class="row">
+          <button type="submit" id="loginBtn" data-i18n="login.button">以 Passkey 登入</button>
+        </div>
+      </form>
+
+      <form class="card" id="registerForm">
+        <h2 data-i18n="reg.title">建立新帳號</h2>
+        <label for="regUser" data-i18n="reg.username">使用者名稱</label>
+        <input id="regUser" name="new-username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9._@\-]{3,32}" autocomplete="off" spellcheck="false" autocapitalize="off">
+        <label for="regName" data-i18n="reg.displayName">顯示名稱（選填）</label>
+        <input id="regName" name="display-name" maxlength="64" autocomplete="name">
+        <p class="hint" data-i18n="reg.hint">不需要密碼。按下後裝置會要求 Windows Hello / Touch ID / 手機 / 安全金鑰 建立 passkey。</p>
+        <div class="row"><button type="submit" id="registerBtn" data-i18n="reg.button">建立 Passkey 並註冊</button></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="view-account" class="view" hidden>
+    <div class="card">
+      <h2><span data-i18n="acct.hello">你好，</span><span id="who"></span></h2>
+      <p class="hint" id="whoMeta"></p>
+      <div class="row wrap">
+        <input id="newPkName" maxlength="60" data-i18n-placeholder="acct.newName" placeholder="新 passkey 名稱（選填）" aria-label="passkey name">
+        <button type="button" id="addPkBtn" data-i18n="acct.add">新增 Passkey</button>
+        <button type="button" id="logoutBtn" class="ghost" data-i18n="acct.logout">登出</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-i18n="acct.passkeys">我的 Passkeys</h2>
+      <ul id="pkList" class="pklist"></ul>
+    </div>
+    <div class="card">
+      <h2 data-i18n="acct.audit">稽核紀錄</h2>
+      <div class="tablewrap"><table id="auditTable"><thead><tr>
+        <th data-i18n="audit.time">時間</th><th data-i18n="audit.event">事件</th><th data-i18n="audit.result">結果</th><th data-i18n="audit.detail">細節</th>
+      </tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="view-debug" class="view" hidden>
+    <div class="card">
+      <h2 data-i18n="debug.title">WebAuthn 原始資料（--debug）</h2>
+      <p class="hint" data-i18n="debug.hint">顯示最近 20 次儀式的 options / response，並解碼 clientDataJSON、authenticatorData 旗標（UP/UV/BE/BS）與 COSE 公鑰。僅供學習，正式環境請勿啟用 --debug。</p>
+      <div class="row"><button type="button" id="debugRefresh" class="ghost" data-i18n="debug.refresh">重新整理</button></div>
+      <div id="debugList"></div>
+    </div>
+  </section>
+</main>
+<footer class="foot"><span id="rpInfo"></span></footer>
+</body>
+</html>

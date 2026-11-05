@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OTel 追蹤檢視器</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='2' width='9' height='3' rx='1' fill='%232f6fdf'/%3E%3Crect x='4' y='7' width='10' height='3' rx='1' fill='%2321a179'/%3E%3Crect x='7' y='12' width='6' height='3' rx='1' fill='%23e0663f'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/" data-testid="home-link"><span class="logo" aria-hidden="true"></span><span data-i18n="appTitle">OTel 追蹤檢視器</span></a>
+  <span class="stats" id="stats" data-testid="stats"></span>
+  <div class="actions">
+    <button type="button" id="refreshBtn" data-i18n="refresh">重新整理</button>
+    <button type="button" id="langBtn" data-testid="lang-toggle" aria-label="Language">EN</button>
+    <button type="button" id="themeBtn" data-testid="theme-toggle" data-i18n-title="toggleTheme" title="切換深色/淺色"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section id="listView" data-testid="list-view">
+    <form id="filters" class="card filters" autocomplete="off">
+      <label><span data-i18n="fService">服務</span>
+        <select name="service" id="fService" data-testid="filter-service"><option value="" data-i18n="all">全部</option></select></label>
+      <label><span data-i18n="fStatus">狀態</span>
+        <select name="status" id="fStatus" data-testid="filter-status">
+          <option value="" data-i18n="all">全部</option>
+          <option value="ok" data-i18n="statusOk">正常</option>
+          <option value="error" data-i18n="statusError">錯誤</option>
+        </select></label>
+      <label><span data-i18n="fMinDur">最短耗時 (ms)</span>
+        <input type="number" name="minDurationMs" id="fMinDur" min="0" step="10" placeholder="0" data-testid="filter-min-duration"></label>
+      <label><span data-i18n="fSince">時間範圍</span>
+        <select name="sinceMinutes" id="fSince" data-testid="filter-since">
+          <option value="0" data-i18n="sinceAll">全部</option>
+          <option value="5" data-i18n="since5">最近 5 分鐘</option>
+          <option value="15" data-i18n="since15">最近 15 分鐘</option>
+          <option value="60" data-i18n="since60">最近 1 小時</option>
+          <option value="1440" data-i18n="since1440">最近 24 小時</option>
+        </select></label>
+      <label class="grow"><span data-i18n="fSearch">搜尋（根 span 名稱或 trace id）</span>
+        <input type="search" name="q" id="fSearch" data-testid="filter-search"></label>
+      <label class="check"><input type="checkbox" id="autoRefresh"> <span data-i18n="autoRefresh">每 5 秒自動更新</span></label>
+    </form>
+
+    <div class="grid2">
+      <div class="card">
+        <h2 data-i18n="traces">追蹤清單</h2>
+        <p class="muted small" id="traceCount"></p>
+        <div class="tablewrap">
+          <table class="traces" data-testid="trace-table">
+            <thead><tr>
+              <th class="hide-sm" data-i18n="colTime">時間</th><th data-i18n="colRoot">根 span</th><th data-i18n="colDuration">耗時</th>
+              <th class="hide-sm" data-i18n="colSpans">Span 數</th><th class="hide-sm" data-i18n="colServices">服務</th><th data-i18n="colStatus">狀態</th>
+            </tr></thead>
+            <tbody id="traceRows"></tbody>
+          </table>
+        </div>
+        <p class="empty muted" id="emptyMsg" hidden data-i18n="empty">尚無追蹤資料。請執行負載產生器（npm run loadgen）或呼叫 gateway。</p>
+      </div>
+      <div class="card">
+        <h2 data-i18n="depGraph">服務相依圖</h2>
+        <p class="muted small" data-i18n="depHint">箭頭 = 呼叫方向；數字 = 呼叫次數（紅色為錯誤數）。</p>
+        <div id="depGraph" class="depgraph" data-testid="dep-graph"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="traceView" hidden data-testid="trace-view">
+    <div class="card">
+      <a href="#/" class="back" data-i18n="back">← 返回清單</a>
+      <h2 id="traceTitle" data-testid="trace-title"></h2>
+      <div class="meta" id="traceMeta"></div>
+    </div>
+    <div class="tracelayout">
+      <div class="card waterfall-card">
+        <div class="wf-head">
+          <h3 data-i18n="waterfall">時間軸（瀑布圖）</h3>
+          <div class="wf-tools">
+            <button type="button" id="expandAll" data-i18n="expandAll">全部展開</button>
+            <button type="button" id="collapseAll" data-i18n="collapseAll">全部收合</button>
+          </div>
+        </div>
+        <div class="ruler" id="ruler" aria-hidden="true"></div>
+        <div id="waterfall" class="waterfall" data-testid="waterfall" role="tree"></div>
+      </div>
+      <aside class="card detail" id="detail" data-testid="span-detail">
+        <p class="muted" data-i18n="pickSpan">點選左側任一列以檢視 span 詳細資訊。</p>
+      </aside>
+    </div>
+  </section>
+</main>
+<footer class="foot muted small"><span data-i18n="footer">本機 OTLP/HTTP JSON 收集器 · 資料存於 SQLite</span> · <a href="/api/stats" target="_blank" rel="noopener">/api/stats</a></footer>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

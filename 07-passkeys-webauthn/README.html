@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 Passkeys (WebAuthn) 無密碼登入 - 說明文件</title>
+<style>
+  :root { --fg:#1d2330; --muted:#5f6b7d; --bg:#f6f7f9; --card:#fff; --accent:#2557d6; --border:#dde1e7; --code:#f2f4f7; --ok:#12b76a; --warn:#f79009; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; }
+  body { font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif; color:var(--fg); background:var(--bg); line-height:1.65; overflow-x:hidden; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:12px 20px; position:sticky; top:0; z-index:2; }
+  header h1 { margin:0 0 8px; font-size:20px; }
+  nav { display:flex; flex-wrap:wrap; gap:4px; }
+  nav a { text-decoration:none; color:var(--fg); padding:4px 10px; border:1px solid var(--border); border-radius:16px; font-size:13.5px; background:#fafbfc; }
+  nav a.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:1020px; margin:0 auto; padding:8px 20px 40px; }
+  section { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:4px 20px 16px; margin:18px 0; min-width:0; }
+  body.tabs section { display:none; }
+  body.tabs section.active { display:block; }
+  h2 { border-bottom:2px solid var(--accent); padding-bottom:4px; font-size:19px; }
+  h3 { font-size:16px; margin-top:22px; }
+  p, li, td { overflow-wrap:anywhere; }
+  code, pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; }
+  code { background:var(--code); padding:1px 5px; border-radius:3px; }
+  pre { background:#101828; color:#e4e7ec; padding:12px; border-radius:6px; overflow-x:auto; max-width:100%; }
+  pre code { background:none; padding:0; color:inherit; }
+  .tw { overflow-x:auto; max-width:100%; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; margin:8px 0; }
+  th, td { border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#f2f4f7; }
+  .note { border-left:4px solid var(--warn); background:#fffaeb; padding:8px 12px; margin:10px 0; }
+  .ok { border-left:4px solid var(--ok); background:#ecfdf3; padding:8px 12px; margin:10px 0; }
+  .unv { display:inline-block; font-size:12px; background:#fef0c7; color:#93370d; border-radius:10px; padding:0 7px; margin-left:4px; }
+  img { max-width:100%; height:auto; border:1px solid var(--border); border-radius:6px; }
+  figure { margin:12px 0; }
+  figcaption { color:var(--muted); font-size:13px; }
+  .shots { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; align-items:start; }
+  svg.seq { width:100%; height:auto; max-width:900px; display:block; margin:8px 0 16px; background:#fff; border:1px solid var(--border); border-radius:6px; }
+  svg.seq text { font-family:"Segoe UI","Microsoft JhengHei","Noto Sans TC",sans-serif; font-size:13px; fill:#1d2330; }
+  svg.seq .hd { font-weight:700; font-size:14px; }
+  svg.seq .life { stroke:#98a2b3; stroke-dasharray:4 4; }
+  svg.seq .msg { stroke:#2557d6; stroke-width:1.6; fill:none; marker-end:url(#arr); }
+  svg.seq .ret { stroke:#12b76a; stroke-width:1.6; fill:none; stroke-dasharray:6 3; marker-end:url(#arr2); }
+  svg.seq .box { fill:#eef4ff; stroke:#2557d6; }
+  svg.seq .note2 { fill:#fffaeb; stroke:#f79009; }
+  svg.seq .small { font-size:11.5px; fill:#5f6b7d; }
+  .muted { color:var(--muted); font-size:13px; }
+  ol li, ul li { margin:3px 0; }
+  @media (max-width:600px) { header { padding:10px 12px; position:static; } main { padding:6px 10px 30px; } section { padding:4px 12px 14px; } header h1 { font-size:17px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>07 · Passkeys（WebAuthn）無密碼登入</h1>
+  <nav id="nav">
+    <a href="#overview">概覽</a>
+    <a href="#flow">WebAuthn 流程圖解</a>
+    <a href="#quickstart">快速開始</a>
+    <a href="#usage">使用說明</a>
+    <a href="#verify">逐步驗證指南</a>
+    <a href="#dev">開發者指南</a>
+    <a href="#aspnet">ASP.NET Core 對照</a>
+    <a href="#debug">除錯與日誌</a>
+    <a href="#limits">限制與疑難排解</a>
+    <a href="#english">English summary</a>
+    <a href="#all">全部顯示</a>
+  </nav>
+</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2557d6"/></marker>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#12b76a"/></marker>
+  </defs>
+</svg>
+<main>
+
+<section id="overview">
+<h2>概覽</h2>
+<p>本專案是一個<strong>完整可執行</strong>的 Passkeys（WebAuthn / FIDO2）無密碼登入範例：Node 22 伺服器 + SQLite 儲存 + 原生 HTML/JS 前端（以 esbuild 在本機打包 <code>@simplewebauthn/browser</code>，執行時不依賴任何 CDN），並附有使用 Chrome DevTools Protocol「虛擬驗證器」的自動化端對端測試。</p>
+<h3>功能</h3>
+<ul>
+  <li>註冊（attestation <code>none</code>、要求可探索憑證 <code>residentKey: required</code>）與登入。</li>
+  <li><strong>免帳號登入</strong>（usernameless，discoverable credential）與<strong>自動填入</strong>（conditional UI，<code>autocomplete="username webauthn"</code>）。</li>
+  <li>每位使用者可有<strong>多把 passkey</strong>：列出、重新命名、刪除（禁止刪除最後一把），顯示 AAGUID / 驗證器名稱、BE/BS 備份旗標、傳輸方式、簽章計數器、最後使用時間。</li>
+  <li><strong>簽章計數器檢查</strong>：計數器沒有遞增（且非 0/0）即拒絕，並寫入稽核紀錄。</li>
+  <li>挑戰值（challenge）存在 SQLite，<strong>5 分鐘到期、一次性使用</strong>，以 HttpOnly + SameSite=Strict 的 <code>pk_flow</code> Cookie 綁定瀏覽器。</li>
+  <li>工作階段 Cookie <code>pk_sid</code>：HttpOnly、SameSite=Lax、https 時自動加 Secure；資料庫只存 token 的 SHA-256。</li>
+  <li>稽核紀錄（註冊、登入成功/失敗、登出、新增/改名/刪除 passkey）與帳號頁檢視。</li>
+  <li><code>--debug</code> 才開啟的「除錯」頁：原始 options / response、解碼後的 clientDataJSON、authenticatorData 旗標（UP/UV/BE/BS/AT/ED）與 COSE 公鑰。</li>
+  <li>介面 zh-TW（預設）/ English 切換、亮/暗色主題、手機寬度（390px）可用；常見錯誤（NotAllowedError、InvalidStateError、SecurityError、來源不符等）都有清楚說明。</li>
+</ul>
+<h3>版本（package.json 已固定 exact 版本）</h3>
+<div class="tw"><table>
+<tr><th>元件</th><th>版本</th><th>用途</th></tr>
+<tr><td>Node.js</td><td>22.x（Volta 固定 22.23.4）</td><td>執行環境</td></tr>
+<tr><td>@simplewebauthn/server</td><td>14.0.3</td><td>產生 options、驗證 attestation / assertion</td></tr>
+<tr><td>@simplewebauthn/browser</td><td>14.0.0（devDependency，打包進 <code>public/build/app.js</code>）</td><td>呼叫 <code>navigator.credentials.create/get</code></td></tr>
+<tr><td>better-sqlite3</td><td>13.0.3</td><td>SQLite（<code>node:sqlite</code> 在 Node 22 仍標示為 experimental，會印出警告，因此未採用）</td></tr>
+<tr><td>esbuild</td><td>0.28.2（devDependency）</td><td>前端打包</td></tr>
+<tr><td>Playwright</td><td>使用全域安裝版本（測試時以 <code>require('playwright')</code> 解析）</td><td>e2e + CDP 虛擬驗證器</td></tr>
+</table></div>
+<h3>資料夾結構</h3>
+<pre><code>07-passkeys-webauthn/
+  src/cli.js            進入點（參數解析、啟動、關閉）
+  src/config.js         設定：CLI 參數 &gt; 環境變數 &gt; 預設；rpID/origin 檢查；OS 感知資料夾
+  src/server.js         node:http 路由、Cookie、CSP、來源檢查、靜態檔
+  src/passkeys.js       WebAuthn 核心（options、驗證、計數器、passkey 管理、除錯解碼）
+  src/db.js             SQLite schema 與 async 存取介面
+  src/logger.js         JSONL 分級日誌
+  src/aaguid.js         常見 AAGUID → 驗證器名稱（盡力而為）
+  client/main.js        前端程式（打包到 public/build/app.js）
+  client/i18n.js        zh-TW / en 字典
+  public/               index.html、app.css、favicon.svg、build/app.js
+  scripts/build-client.js  esbuild 打包
+  test/unit.test.js     單元測試（含軟體驗證器 test/soft-authenticator.js）
+  test/e2e.test.js      Playwright + CDP 虛擬驗證器端對端測試
+  examples/*.png        e2e 自動產生的截圖
+  start.bat / start-debug.bat / run-tests.bat → passkeys.ps1 → node</code></pre>
+</section>
+
+<section id="flow">
+<h2>WebAuthn 流程圖解</h2>
+<p>Passkey 的核心：<strong>私鑰永遠留在驗證器</strong>（Windows Hello、iCloud 鑰匙圈、Google 密碼管理工具、手機、安全金鑰），伺服器只保存公鑰。每次登入伺服器給一個隨機挑戰值，驗證器用私鑰簽章，伺服器用公鑰驗證。瀏覽器會把目前網址的 origin 寫進 <code>clientDataJSON</code>，並只允許 rpID 與網域相符的請求，所以釣魚網站拿不到可用的簽章。</p>
+<h3>1. 註冊（attestation ceremony）</h3>
+<svg class="seq" viewBox="0 0 900 520" role="img" aria-label="註冊流程循序圖">
+  <rect class="box" x="20" y="14" width="150" height="34" rx="6"/><text class="hd" x="95" y="36" text-anchor="middle">驗證器 Authenticator</text>
+  <rect class="box" x="250" y="14" width="150" height="34" rx="6"/><text class="hd" x="325" y="36" text-anchor="middle">瀏覽器 + app.js</text>
+  <rect class="box" x="490" y="14" width="150" height="34" rx="6"/><text class="hd" x="565" y="36" text-anchor="middle">Node 伺服器</text>
+  <rect class="box" x="720" y="14" width="150" height="34" rx="6"/><text class="hd" x="795" y="36" text-anchor="middle">SQLite</text>
+  <line class="life" x1="95" y1="48" x2="95" y2="505"/><line class="life" x1="325" y1="48" x2="325" y2="505"/><line class="life" x1="565" y1="48" x2="565" y2="505"/><line class="life" x1="795" y1="48" x2="795" y2="505"/>
+  <path class="msg" d="M325,80 H560"/><text x="335" y="74">① POST /api/register/options {username}</text>
+  <path class="msg" d="M565,108 H790"/><text x="575" y="102">② 存 challenge（5 分鐘、一次性）</text>
+  <path class="ret" d="M565,140 H330"/><text x="335" y="134">③ options：challenge、rp.id、user.id(隨機)、</text><text class="small" x="335" y="156">excludeCredentials、residentKey=required、attestation=none</text>
+  <path class="msg" d="M325,185 H100"/><text x="105" y="179">④ navigator.credentials.create()</text>
+  <rect class="note2" x="20" y="200" width="300" height="52" rx="4"/><text x="30" y="220">⑤ 使用者驗證（Windows Hello / 指紋 / PIN）</text><text class="small" x="30" y="240">產生新金鑰對，私鑰留在驗證器</text>
+  <path class="ret" d="M95,280 H320"/><text x="105" y="274">⑥ attestationObject + clientDataJSON</text>
+  <path class="msg" d="M325,320 H560"/><text x="335" y="314">⑦ POST /api/register/verify {response}</text>
+  <rect class="note2" x="410" y="335" width="300" height="72" rx="4"/><text x="420" y="355">⑧ 驗證：challenge、origin、rpIdHash、</text><text x="420" y="375">UP/UV 旗標、公鑰格式（COSE）</text><text class="small" x="420" y="395">verifyRegistrationResponse()</text>
+  <path class="msg" d="M565,432 H790"/><text x="575" y="426">⑨ 存 user + credential（公鑰、counter、BE/BS）</text>
+  <path class="ret" d="M565,470 H330"/><text x="335" y="464">⑩ 200 OK + Set-Cookie pk_sid（HttpOnly）</text>
+</svg>
+<h3>2. 登入（assertion ceremony，含免帳號 / 自動填入）</h3>
+<svg class="seq" viewBox="0 0 900 520" role="img" aria-label="登入流程循序圖">
+  <rect class="box" x="20" y="14" width="150" height="34" rx="6"/><text class="hd" x="95" y="36" text-anchor="middle">驗證器 Authenticator</text>
+  <rect class="box" x="250" y="14" width="150" height="34" rx="6"/><text class="hd" x="325" y="36" text-anchor="middle">瀏覽器 + app.js</text>
+  <rect class="box" x="490" y="14" width="150" height="34" rx="6"/><text class="hd" x="565" y="36" text-anchor="middle">Node 伺服器</text>
+  <rect class="box" x="720" y="14" width="150" height="34" rx="6"/><text class="hd" x="795" y="36" text-anchor="middle">SQLite</text>
+  <line class="life" x1="95" y1="48" x2="95" y2="505"/><line class="life" x1="325" y1="48" x2="325" y2="505"/><line class="life" x1="565" y1="48" x2="565" y2="505"/><line class="life" x1="795" y1="48" x2="795" y2="505"/>
+  <path class="msg" d="M325,80 H560"/><text x="335" y="74">① POST /api/login/options {username?}</text>
+  <path class="msg" d="M565,108 H790"/><text x="575" y="102">② 存 challenge</text>
+  <path class="ret" d="M565,140 H330"/><text x="335" y="134">③ options：challenge、rpId、</text><text class="small" x="335" y="156">allowCredentials（免帳號時為空 → 驗證器列出可探索憑證）</text>
+  <path class="msg" d="M325,185 H100"/><text x="105" y="179">④ credentials.get()</text>
+  <text class="small" x="105" y="200">（自動填入：mediation="conditional"）</text>
+  <rect class="note2" x="20" y="212" width="320" height="52" rx="4"/><text x="30" y="232">⑤ 使用者選 passkey 並驗證</text><text class="small" x="30" y="252">signCount + 1，以私鑰簽 authData‖SHA256(clientData)</text>
+  <path class="ret" d="M95,290 H320"/><text x="105" y="284">⑥ authenticatorData、signature、userHandle</text>
+  <path class="msg" d="M325,325 H560"/><text x="335" y="319">⑦ POST /api/login/verify {response}</text>
+  <path class="msg" d="M565,352 H790"/><text x="575" y="346">⑧ 依 credential.id 取公鑰與 counter</text>
+  <rect class="note2" x="410" y="368" width="300" height="62" rx="4"/><text x="420" y="388">⑨ 驗章 + challenge/origin/rpId</text><text x="420" y="408">counter 必須遞增；userHandle 必須相符</text><text class="small" x="420" y="424">verifyAuthenticationResponse()</text>
+  <path class="msg" d="M565,452 H790"/><text x="575" y="446">⑩ 更新 counter、BS、last_used；寫稽核</text>
+  <path class="ret" d="M565,488 H330"/><text x="335" y="482">⑪ 200 OK + Set-Cookie pk_sid</text>
+</svg>
+<div class="note"><strong>rpID 與 origin：</strong>rpID 是網域（例如 <code>localhost</code>、<code>example.com</code>），origin 是完整來源（例如 <code>https://login.example.com</code>）。rpID 必須等於 origin 的主機名稱或其上層可註冊網域。<strong>passkey 會綁定 rpID，之後更改 rpID 會讓所有既有 passkey 失效。</strong></div>
+</section>
+
+<section id="quickstart">
+<h2>快速開始（Windows / Linux）</h2>
+<h3>Windows</h3>
+<ol>
+  <li>安裝 Node 22（建議 <code>volta install node@22</code>）。</li>
+  <li>雙擊 <code>start.bat</code>（第一次會自動 <code>npm ci</code>）。視窗會印出資料夾、Node 版本、資料路徑與結束碼。</li>
+  <li>用 Chrome / Edge 開啟 <strong><code>http://localhost:3007</code></strong>（不要用 <code>127.0.0.1</code>，因為 rpID 是 <code>localhost</code>）。</li>
+  <li>想看原始 WebAuthn 資料：改用 <code>start-debug.bat</code>，再開 <code>http://localhost:3007/debug</code>。</li>
+  <li>執行測試：<code>run-tests.bat</code>（e2e 需要 Playwright 與 Chromium，見下方）。</li>
+</ol>
+<p>Windows 預設資料夾：<code>%ProgramData%\NewMiscCode\07-passkeys-webauthn</code>（SQLite：<code>passkeys.sqlite</code>，日誌：<code>logs\app-YYYY-MM-DD.jsonl</code>）。可用 <code>--data-dir</code> / <code>--log-dir</code> 或環境變數 <code>PK_DATA_DIR</code> / <code>PK_LOG_DIR</code> 變更。</p>
+<pre><code>REM 命令列（cmd）
+start.bat --port 3010 --origin http://localhost:3010
+start-debug.bat
+
+REM PowerShell 直接執行
+.\passkeys.ps1 --debug
+.\passkeys.ps1 -Test</code></pre>
+<h3>Linux / macOS</h3>
+<pre><code>cd 07-passkeys-webauthn
+npm ci
+npm start                 # http://localhost:3007，資料在 ./data
+npm run dev               # 等同 --debug
+node src/cli.js --help    # 所有參數
+npm test                  # 先 build 前端，再跑單元 + e2e 測試</code></pre>
+<h3>參數一覽</h3>
+<div class="tw"><table>
+<tr><th>參數</th><th>環境變數</th><th>預設</th><th>說明</th></tr>
+<tr><td><code>--port</code></td><td>PORT</td><td>3007</td><td>HTTP 埠</td></tr>
+<tr><td><code>--host</code></td><td>HOST</td><td>127.0.0.1</td><td>綁定位址（只給本機）</td></tr>
+<tr><td><code>--rp-id</code></td><td>RP_ID</td><td>localhost</td><td>WebAuthn RP ID（網域）</td></tr>
+<tr><td><code>--origin</code></td><td>ORIGIN</td><td>http://&lt;rp-id&gt;:&lt;port&gt;</td><td>允許的 origin，可逗號分隔多個</td></tr>
+<tr><td><code>--rp-name</code></td><td>RP_NAME</td><td>NewMiscCode Passkeys Demo</td><td>顯示在驗證器提示中的名稱</td></tr>
+<tr><td><code>--data-dir</code></td><td>PK_DATA_DIR</td><td>Windows：%ProgramData%\NewMiscCode\07-passkeys-webauthn；其他：./data</td><td>SQLite 位置</td></tr>
+<tr><td><code>--log-dir</code></td><td>PK_LOG_DIR</td><td>&lt;data-dir&gt;/logs</td><td>JSONL 日誌</td></tr>
+<tr><td><code>--debug</code></td><td>PK_DEBUG=1</td><td>關</td><td>debug 日誌等級 + /debug 頁 + /api/debug/ceremonies</td></tr>
+<tr><td><code>--require-uv</code></td><td>PK_REQUIRE_UV=1</td><td>關（preferred）</td><td>強制使用者驗證（UV 旗標）</td></tr>
+</table></div>
+<h3>正式網域設定（真實網域）</h3>
+<pre><code>node src/cli.js --rp-id example.com --origin https://login.example.com --host 127.0.0.1 --port 3007</code></pre>
+<ul>
+  <li>在前面放反向代理（IIS ARR、nginx、Caddy）終結 TLS，轉發到 <code>127.0.0.1:3007</code>，並保留原始 <code>Origin</code> 標頭。</li>
+  <li>所有 origin 都是 https 時，Cookie 會自動加 <code>Secure</code>。</li>
+  <li>rpID 用上層網域（<code>example.com</code>）時，同網域下的子網域（<code>app.example.com</code>）也能共用 passkey；需要時用逗號列出多個 origin。</li>
+  <li>非 localhost 的 http origin 會被拒絕啟動（瀏覽器只在 https 或 localhost 提供 WebAuthn）。</li>
+</ul>
+<h3>e2e 測試需求</h3>
+<p>單元測試只需 <code>npm ci</code>。e2e 需要可被 <code>require('playwright')</code> 解析的 Playwright 與 Chromium，例如：<code>npm i -g playwright@1.63.0</code> 並執行 <code>npx playwright install chromium</code>（並設定 <code>NODE_PATH</code> 指向全域 node_modules），或在本資料夾 <code>npm i --no-save playwright</code>。找不到時 e2e 會顯示 skipped，不會失敗。</p>
+</section>
+
+<section id="usage">
+<h2>使用說明</h2>
+<h3>註冊</h3>
+<ol>
+  <li>在「建立新帳號」輸入使用者名稱（3–32 字元，英數字與 <code>. _ @ -</code>）與選填的顯示名稱。</li>
+  <li>按「建立 Passkey 並註冊」，依作業系統提示（Windows Hello PIN / 指紋 / 臉部、手機 QR code、安全金鑰）完成。</li>
+  <li>成功後自動登入並進入「我的帳號」。</li>
+</ol>
+<h3>登入</h3>
+<ul>
+  <li><strong>指定帳號</strong>：輸入使用者名稱後按「以 Passkey 登入」，伺服器在 <code>allowCredentials</code> 列出該帳號的 passkey。</li>
+  <li><strong>免帳號</strong>：使用者名稱留空直接按按鈕，瀏覽器列出此網站所有可探索 passkey。</li>
+  <li><strong>自動填入</strong>：支援 conditional UI 的瀏覽器（Chrome 108+、Safari 16+、Edge）點一下使用者名稱欄位就會出現 passkey 建議。加 <code>?autofill=0</code> 可停用（測試用）。</li>
+</ul>
+<h3>管理 passkey（我的帳號）</h3>
+<ul>
+  <li><strong>新增 Passkey</strong>：可以先填名稱（例如「公司筆電」）。同一個驗證器重複新增會得到 InvalidStateError（伺服器以 <code>excludeCredentials</code> 阻止重複）。</li>
+  <li><strong>重新命名 / 刪除</strong>：刪除只移除伺服器端紀錄；裝置上的 passkey 仍在，之後用它登入會顯示「伺服器找不到這個 passkey」。不能刪除最後一把。</li>
+  <li>標籤說明：<em>單一裝置 / 多裝置</em>（BE 旗標）、<em>已同步備份</em>（BS 旗標）、<em>本次登入使用</em>。</li>
+  <li><strong>稽核紀錄</strong>：最近 30 筆事件，包含失敗原因（錯誤代碼）。</li>
+</ul>
+<h3>語言與主題</h3>
+<p>右上角 <code>EN</code> / <code>中文</code> 切換語言，<code>☾</code> / <code>☀</code> 切換暗色 / 亮色，選擇存在 localStorage。</p>
+<h3>常見錯誤訊息對照</h3>
+<div class="tw"><table>
+<tr><th>錯誤</th><th>常見原因</th><th>畫面提示 / 處理</th></tr>
+<tr><td>NotAllowedError</td><td>使用者取消、逾時（60 秒）、沒有可用的 passkey、Windows Hello 未設定</td><td>重試；確認裝置已設定 PIN / 生物辨識</td></tr>
+<tr><td>InvalidStateError</td><td>此驗證器已經有這個帳號的 passkey（excludeCredentials）</td><td>改用其他裝置，或直接登入</td></tr>
+<tr><td>SecurityError</td><td>網址網域與 rpID 不符，或非 https / localhost</td><td>改用設定的 origin 開啟</td></tr>
+<tr><td>ORIGIN_MISMATCH（伺服器）</td><td>以 <code>127.0.0.1</code> 或其他網址開啟；或 clientDataJSON 的 origin 不符</td><td>畫面上方也會顯示黃色警告；改用設定的 origin 或以 <code>--origin</code> 啟動</td></tr>
+<tr><td>CREDENTIAL_NOT_FOUND</td><td>passkey 已在帳號頁刪除</td><td>刪除裝置上的 passkey 或換一把</td></tr>
+<tr><td>COUNTER_REGRESSION</td><td>簽章計數器沒有遞增（疑似複製的驗證器）</td><td>拒絕登入並寫入稽核</td></tr>
+<tr><td>CHALLENGE_EXPIRED / MISSING</td><td>超過 5 分鐘、已用過、Cookie 被阻擋</td><td>重試</td></tr>
+</table></div>
+</section>
+
+<section id="verify">
+<h2>逐步驗證指南</h2>
+<h3>A. 自動化測試（建議先跑）</h3>
+<pre><code>npm test
+node ../tools/audit-text.mjs .</code></pre>
+<div class="ok">預期：單元測試 12 項 + e2e 1 項（內含 14 個步驟）全部 <code>pass</code>；audit 顯示 <code>problems=0</code>。e2e 會更新 <code>examples/</code> 下的 3 張截圖。</div>
+<p>e2e 以 CDP <code>WebAuthn.enable</code> + <code>WebAuthn.addVirtualAuthenticator</code>（ctap2、internal、hasResidentKey、hasUserVerification、isUserVerified）驗證：</p>
+<ol>
+  <li>預設中文、切換英文再切回（檢查 <code>&lt;html lang&gt;</code>）。</li>
+  <li>註冊 alice → 進入帳號頁，1 把 passkey，AAGUID 為虛擬驗證器的 <code>01020304-0506-0708-0102-030405060708</code>。</li>
+  <li>登出 → 輸入帳號登入 → 計數器遞增。</li>
+  <li>登出 → 免帳號登入 → 計數器遞增。</li>
+  <li>登出 → 只開啟首頁，conditional UI 自動完成登入 → 計數器遞增（截圖 <code>account-zh.png</code>）。</li>
+  <li>同一驗證器再新增 → InvalidStateError 訊息。</li>
+  <li>匯出驗證器 A 的憑證，換成驗證器 B → 新增第二把「Phone B」。</li>
+  <li>刪除 Phone B 成功；刪除最後一把被拒絕（LAST_PASSKEY）。</li>
+  <li>用仍持有已刪除憑證的驗證器 B 免帳號登入 → 「伺服器找不到這個 passkey」，並留在登入頁。</li>
+  <li>把 A 的憑證匯回 → 登入成功、計數器持續遞增；稽核紀錄含失敗登入（CREDENTIAL_NOT_FOUND）與刪除事件。</li>
+  <li>把 A 的 signCount 改回 0 → 登入被拒（COUNTER_REGRESSION）。</li>
+  <li>以 <code>http://127.0.0.1:&lt;port&gt;</code> 開啟 → 黃色警告 + 登入顯示來源不符錯誤。</li>
+  <li>英文 + 暗色的除錯頁顯示 UP/UV/BE/BS 旗標與 <code>webauthn.get</code>（截圖 <code>debug-en-dark.png</code>）。</li>
+  <li>390px 寬度下帳號頁與登入頁沒有水平捲軸（截圖 <code>login-mobile-390.png</code>）；全程沒有非預期的 console error。</li>
+</ol>
+<div class="shots">
+  <figure><img src="examples/account-zh.png" alt="帳號頁（中文）" width="1000" height="760" loading="lazy"><figcaption>帳號頁：passkey 清單、旗標、計數器、稽核紀錄</figcaption></figure>
+  <figure><img src="examples/debug-en-dark.png" alt="除錯頁（英文、暗色）" width="1000" height="760" loading="lazy"><figcaption>除錯頁（--debug）：解碼後的 clientDataJSON 與 authenticatorData 旗標</figcaption></figure>
+  <figure><img src="examples/login-mobile-390.png" alt="手機寬度登入頁" width="390" height="760" loading="lazy"><figcaption>390px 手機寬度的登入 / 註冊頁</figcaption></figure>
+</div>
+<p class="muted">截圖由 e2e 測試以 Chromium + CDP 虛擬驗證器產生（deviceScaleFactor 1）。DevTools 的 WebAuthn 面板使用的正是同一套虛擬驗證器機制。</p>
+
+<h3>B. 手動：Chrome DevTools 虛擬驗證器（不需要實體裝置）</h3>
+<ol>
+  <li>執行 <code>start-debug.bat</code>（或 <code>npm run dev</code>），用 Chrome 開 <code>http://localhost:3007</code>。</li>
+  <li>F12 開 DevTools → 右上角 <code>⋮</code> → <strong>More tools</strong> → <strong>WebAuthn</strong>。</li>
+  <li>勾選 <strong>Enable virtual authenticator environment</strong>。</li>
+  <li>新增驗證器：Protocol <code>ctap2</code>、Transport <code>internal</code>、勾選 <strong>Supports resident keys</strong> 與 <strong>Supports user verification</strong> → <strong>Add</strong>。</li>
+  <li>在頁面註冊一個帳號。<br><em>預期</em>：帳號頁出現 1 把 passkey（名稱含「Chrome virtual authenticator」），DevTools 的 Credentials 表格出現一筆 <code>localhost</code> 憑證，Sign Count 為 1。</li>
+  <li>登出後按「以 Passkey 登入」（不填帳號）。<br><em>預期</em>：直接登入；DevTools 的 Sign Count 與帳號頁的「簽章計數器」都 +1。</li>
+  <li>在帳號頁按「新增 Passkey」。<br><em>預期</em>：紅色訊息 InvalidStateError（同一驗證器已註冊）。</li>
+  <li>在 DevTools 再 Add 一個驗證器，並把第一個的 <strong>Active</strong> 取消（或移除），再按「新增 Passkey」。<br><em>預期</em>：清單變成 2 把。</li>
+  <li>刪除新的那把，登出，再用（仍持有該憑證的）第二個驗證器登入。<br><em>預期</em>：紅色訊息「伺服器找不到這個 passkey」，稽核紀錄出現失敗事件。</li>
+  <li>開 <code>http://localhost:3007/debug</code>。<br><em>預期</em>：看到每次 options 與 response，並有 <code>flags</code>（UP/UV/BE/BS）、<code>signCount</code>、<code>coseKey</code>（kty 2、alg -7、crv 1、x、y）。</li>
+  <li>在 DevTools 的 Network 分頁可看到 <code>/api/login/options</code> 等請求；Console 不應出現紅色錯誤（失敗情境下除了 4xx 的「Failed to load resource」）。</li>
+</ol>
+
+<h3>C. 手動：Windows Hello（實體驗證器）</h3>
+<ol>
+  <li>確認 Windows「設定 → 帳戶 → 登入選項」已設定 Windows Hello PIN（或指紋 / 臉部）。</li>
+  <li>關閉 DevTools 的虛擬驗證器環境（否則請求會送到虛擬驗證器）。</li>
+  <li>開 <code>http://localhost:3007</code> 註冊。<br><em>預期</em>：跳出 Windows 安全性視窗要求 PIN / 生物辨識；完成後帳號頁顯示驗證器名稱（若 AAGUID 為已知值，例如 Windows Hello），傳輸方式通常為 <code>internal</code>（或含 <code>hybrid</code>）。</li>
+  <li>登出後免帳號登入。<br><em>預期</em>：Windows 列出此網站的 passkey，選擇後完成登入。</li>
+  <li>在 Windows 11 可到「設定 → 帳戶 → 通行金鑰（Passkeys）」看到並刪除 <code>localhost</code> 的 passkey。</li>
+</ol>
+<div class="note">Windows Hello 的實機截圖無法在本次的 Linux 自動化環境產生，請自行截圖；此節的「預期」依 Windows 11 一般行為撰寫<span class="unv">未在本環境驗證</span>。Windows Hello 的 passkey 通常計數器會遞增、BE/BS 為 false（不同步）；iCloud 鑰匙圈 / Google 密碼管理工具則常見計數器固定為 0、BE/BS 為 true。</div>
+</section>
+
+<section id="dev">
+<h2>開發者指南</h2>
+<h3>架構</h3>
+<ul>
+  <li><strong>src/passkeys.js</strong>：與 HTTP 無關的服務層（方便單元測試），包裝 SimpleWebAuthn：產生 options、驗證回應、計數器檢查、userHandle 檢查、passkey 管理、除錯解碼（最近 20 筆，只在 <code>--debug</code> 保留於記憶體）。</li>
+  <li><strong>src/server.js</strong>：node:http 路由。所有非 GET 請求檢查 <code>Origin</code> 標頭（CSRF 與錯誤設定保護）、要求 <code>Content-Type: application/json</code>、body 上限 64 KB。</li>
+  <li><strong>src/db.js</strong>：better-sqlite3（同步驅動），對外提供 async 介面，日後可換成其他驅動。</li>
+  <li><strong>client/main.js</strong>：單頁應用（<code>/</code>、<code>/account</code>、<code>/debug</code> 三個路徑都回 index.html），由 esbuild 打包成 IIFE。</li>
+</ul>
+<h3>API 端點</h3>
+<div class="tw"><table>
+<tr><th>方法</th><th>路徑</th><th>需登入</th><th>說明</th></tr>
+<tr><td>GET</td><td><code>/api/config</code></td><td>否</td><td>rpID、rpName、origins、debug、requireUV</td></tr>
+<tr><td>GET</td><td><code>/api/me</code></td><td>否</td><td>目前使用者（未登入為 <code>{user:null}</code>）</td></tr>
+<tr><td>POST</td><td><code>/api/register/options</code></td><td>否 / 是</td><td>未登入：<code>{username, displayName}</code> 建新帳號；已登入：為目前帳號新增 passkey（含 excludeCredentials）</td></tr>
+<tr><td>POST</td><td><code>/api/register/verify</code></td><td>否 / 是</td><td><code>{response, name?}</code>；新帳號成功時設定 <code>pk_sid</code></td></tr>
+<tr><td>POST</td><td><code>/api/login/options</code></td><td>否</td><td><code>{username?}</code>；未知帳號回傳同樣格式（空 allowCredentials）以降低帳號列舉</td></tr>
+<tr><td>POST</td><td><code>/api/login/verify</code></td><td>否</td><td><code>{response}</code>；成功時設定 <code>pk_sid</code></td></tr>
+<tr><td>POST</td><td><code>/api/logout</code></td><td>否</td><td>刪除 session 並清除 Cookie</td></tr>
+<tr><td>GET</td><td><code>/api/passkeys</code></td><td>是</td><td>passkey 清單（不含公鑰位元組，只有指紋）</td></tr>
+<tr><td>PATCH</td><td><code>/api/passkeys/:id</code></td><td>是</td><td><code>{name}</code> 重新命名</td></tr>
+<tr><td>DELETE</td><td><code>/api/passkeys/:id</code></td><td>是</td><td>刪除（最後一把回 LAST_PASSKEY）</td></tr>
+<tr><td>GET</td><td><code>/api/audit?limit=50</code></td><td>是</td><td>自己的稽核紀錄</td></tr>
+<tr><td>GET</td><td><code>/api/debug/ceremonies</code></td><td>否（僅 <code>--debug</code>）</td><td>最近 20 次儀式原始資料；未開 debug 時 404</td></tr>
+<tr><td>GET</td><td><code>/healthz</code></td><td>否</td><td>健康檢查</td></tr>
+</table></div>
+<p>錯誤格式：<code>{"error":{"code":"CREDENTIAL_NOT_FOUND","message":"..."}}</code>；前端依 <code>code</code> 顯示在地化訊息。</p>
+<h3>資料庫結構（SQLite）</h3>
+<div class="tw"><table>
+<tr><th>資料表</th><th>主要欄位</th></tr>
+<tr><td>users</td><td>id、username（UNIQUE NOCASE）、display_name、webauthn_user_id（隨機 32 bytes base64url，不是帳號名稱）、created_at</td></tr>
+<tr><td>credentials</td><td>id（credentialID base64url，PK）、user_id、public_key（COSE BLOB）、counter、transports（JSON）、aaguid、fmt、device_type、backup_eligible（BE）、backed_up（BS）、uv_initialized、name、created_at、last_used_at</td></tr>
+<tr><td>challenges</td><td>(flow_id, purpose) PK、challenge、user_id、pending（新帳號資料 JSON）、expires_at</td></tr>
+<tr><td>sessions</td><td>token_hash（SHA-256）PK、user_id、credential_id、created_at、expires_at（8 小時）</td></tr>
+<tr><td>audit_log</td><td>id、ts、user_id、username、event、ok、credential_id、detail、ip、user_agent</td></tr>
+</table></div>
+<p>新帳號與第一把 passkey 在同一個交易內寫入，因此不會出現沒有 passkey 的帳號。</p>
+<h3>安全性說明</h3>
+<ul>
+  <li><strong>Challenge</strong>：32 bytes 隨機（SimpleWebAuthn 產生），存於伺服器、5 分鐘到期、讀取即刪除（防重放）。</li>
+  <li><strong>Origin / rpID</strong>：驗證時同時檢查 clientDataJSON 的 origin 與 authenticatorData 的 rpIdHash；另外所有狀態變更請求都檢查 HTTP <code>Origin</code> 標頭。</li>
+  <li><strong>Cookie</strong>：<code>pk_sid</code> HttpOnly + SameSite=Lax（https 時加 Secure），只在 DB 存雜湊；<code>pk_flow</code> SameSite=Strict。</li>
+  <li><strong>計數器</strong>：任一方非 0 時，新值必須大於舊值；0/0 視為驗證器不支援計數（同步型 passkey 常見）。</li>
+  <li><strong>userHandle</strong>：免帳號登入時必須等於該憑證擁有者的 user handle。</li>
+  <li><strong>帳號列舉</strong>：未知帳號的 login options 與「免帳號」相同格式。註冊時帳號已存在仍會回 USERNAME_TAKEN（示範用的取捨）。</li>
+  <li><strong>CSP</strong>：<code>script-src 'self'</code>、無 inline script；不影響 DevTools。</li>
+  <li><strong>Attestation none</strong>：不驗證驗證器型號，AAGUID 只是自述資訊，不可用於授權決策。</li>
+  <li><strong>未實作</strong>：速率限制、帳號復原（遺失所有 passkey）、Related Origin Requests（<code>/.well-known/webauthn</code>）、Signal API。</li>
+</ul>
+</section>
+
+<section id="aspnet">
+<h2>ASP.NET Core 對照</h2>
+<p>概念完全相同：伺服器產生 options（含 challenge）→ 瀏覽器呼叫 <code>navigator.credentials.create/get</code> → 伺服器驗證並儲存公鑰 / 更新計數器。以下是本專案與 .NET 兩種常見做法的對照。</p>
+<div class="note">以下 .NET API 名稱依撰寫者知識整理，<strong>未在本環境編譯或執行驗證</strong>；標示 <span class="unv">未驗證</span> 的項目請以官方文件與實際 NuGet 版本為準。</div>
+<div class="tw"><table>
+<tr><th>步驟</th><th>本專案（Node）</th><th>Fido2NetLib（NuGet <code>Fido2</code> / <code>Fido2.AspNet</code>）</th><th>ASP.NET Core Identity（.NET 10 內建 passkey）</th></tr>
+<tr><td>設定</td><td><code>--rp-id</code>、<code>--origin</code></td><td><code>services.AddFido2(o =&gt; { o.ServerDomain = "example.com"; o.ServerName = "..."; o.Origins = new HashSet&lt;string&gt; { "https://example.com" }; })</code></td><td><code>IdentityPasskeyOptions</code>（例如 <code>ServerDomain</code>）<span class="unv">未驗證</span></td></tr>
+<tr><td>註冊 options</td><td><code>generateRegistrationOptions()</code></td><td><code>_fido2.RequestNewCredential(...)</code> → <code>CredentialCreateOptions</code>（v4 改用參數物件 <code>RequestNewCredentialParams</code>）<span class="unv">未驗證</span></td><td><code>SignInManager.MakePasskeyCreationOptionsAsync(...)</code><span class="unv">未驗證</span></td></tr>
+<tr><td>驗證註冊</td><td><code>verifyRegistrationResponse()</code></td><td><code>await _fido2.MakeNewCredentialAsync(...)</code>（含 <code>IsCredentialIdUniqueToUserCallback</code>）</td><td><code>SignInManager.PerformPasskeyAttestationAsync(...)</code> + <code>UserManager.AddOrUpdatePasskeyAsync(...)</code><span class="unv">未驗證</span></td></tr>
+<tr><td>登入 options</td><td><code>generateAuthenticationOptions()</code></td><td><code>_fido2.GetAssertionOptions(...)</code></td><td><code>SignInManager.MakePasskeyRequestOptionsAsync(...)</code><span class="unv">未驗證</span></td></tr>
+<tr><td>驗證登入</td><td><code>verifyAuthenticationResponse()</code> + 自行檢查計數器</td><td><code>await _fido2.MakeAssertionAsync(...)</code>（傳入儲存的公鑰、計數器、<code>IsUserHandleOwnerOfCredentialIdCallback</code>）</td><td><code>SignInManager.PasskeySignInAsync(...)</code><span class="unv">未驗證</span></td></tr>
+<tr><td>challenge 儲存</td><td>SQLite <code>challenges</code> + <code>pk_flow</code> Cookie</td><td>官方範例把 options JSON 放在 <code>HttpContext.Session</code></td><td>由 Identity 內部處理（暫存於 cookie / 狀態）<span class="unv">未驗證</span></td></tr>
+<tr><td>憑證資料表</td><td><code>credentials</code></td><td>自行設計（範例的 <code>StoredCredential</code>）</td><td>Identity schema 新增 passkey 資料表（<code>IdentityUserPasskey&lt;TKey&gt;</code>）<span class="unv">未驗證</span></td></tr>
+<tr><td>登入狀態</td><td>自訂 <code>pk_sid</code> Cookie</td><td>一般搭配 <code>AddAuthentication().AddCookie()</code> 與 <code>HttpContext.SignInAsync</code></td><td>Identity application cookie</td></tr>
+<tr><td>前端</td><td><code>@simplewebauthn/browser</code>（本機打包）</td><td>任意 JS（可直接沿用 <code>@simplewebauthn/browser</code>，JSON 格式相容 WebAuthn L3）</td><td>.NET 10 Blazor Web App 範本（個別帳戶）內含 passkey UI 與 JS<span class="unv">未驗證</span></td></tr>
+</table></div>
+<h3>給 C# 開發者的重點</h3>
+<ul>
+  <li>WebAuthn 的二進位欄位在 JSON 中都是 <strong>base64url</strong>（不是一般 base64）：.NET 可用 <code>Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode/Decode</code> 或 .NET 9+ 的 <code>System.Buffers.Text.Base64Url</code>。</li>
+  <li>credentialID 建議存成 <code>byte[]</code> 並建立唯一索引；公鑰存 COSE 原始位元組。</li>
+  <li>計數器檢查、userHandle 與擁有者比對、challenge 一次性 / 到期，這些在 .NET 也一樣要做（Fido2NetLib 透過 callback 與傳入的舊計數器處理）。</li>
+  <li>Kestrel 開發時同樣用 <code>https://localhost:&lt;port&gt;</code>，rpID 設 <code>localhost</code>。</li>
+  <li>前端可以完全沿用本專案的 <code>client/main.js</code>，只要 .NET 端點回傳相同的 options JSON 並接收相同的 response JSON。</li>
+</ul>
+</section>
+
+<section id="debug">
+<h2>除錯與日誌</h2>
+<h3>JSONL 日誌</h3>
+<p>位置：<code>&lt;data-dir&gt;/logs/app-YYYY-MM-DD.jsonl</code>（Windows 預設 <code>%ProgramData%\NewMiscCode\07-passkeys-webauthn\logs</code>，Linux 預設 <code>./data/logs</code>）。每行一個 JSON：<code>ts</code>、<code>level</code>（debug / info / warn / error）、<code>msg</code> 與內容欄位。同時輸出到主控台。</p>
+<pre><code>{"ts":"2026-11-05T04:37:20.101Z","level":"info","msg":"register.ok","user":"alice","cred":"KoSmKFKiTy...","aaguid":"01020304-0506-0708-0102-030405060708","be":false,"bs":false}
+{"ts":"2026-11-05T04:37:22.480Z","level":"info","msg":"login.ok","user":"alice","cred":"KoSmKFKiTy...","counter":2,"uv":true}
+{"ts":"2026-11-05T04:37:22.900Z","level":"warn","msg":"request.error","method":"POST","path":"/api/login/verify","code":"CREDENTIAL_NOT_FOUND","message":"This passkey is not registered here ..."}
+{"ts":"2026-11-05T04:37:00.875Z","level":"debug","msg":"register.options","user":"alice","exclude":0}</code></pre>
+<ul>
+  <li><strong>不記錄機密</strong>：session token 只存 SHA-256、從不寫入日誌；credentialID 截短；公鑰在 info 層級完全不出現，debug 層級也只有 16 字元指紋（<code>pkFingerprint</code>）。</li>
+  <li><code>--debug</code>：日誌等級降到 debug（含每個 HTTP 請求的狀態與耗時），並開啟 <code>/debug</code> 頁面與 <code>/api/debug/ceremonies</code>。除錯頁會顯示完整 COSE 公鑰（公開資料，僅供學習）。</li>
+  <li>Linux 快速查看：<code>tail -f data/logs/*.jsonl | grep -v '"level":"debug"'</code>；PowerShell：<code>Get-Content $env:ProgramData\NewMiscCode\07-passkeys-webauthn\logs\*.jsonl -Wait</code>。</li>
+</ul>
+<h3>瀏覽器端</h3>
+<ul>
+  <li>沒有任何阻擋 DevTools 的機制；前端打包含 source map（<code>public/build/app.js.map</code>），可在 Sources 分頁直接對 <code>client/main.js</code> 下中斷點。</li>
+  <li>WebAuthn 失敗時 Console 會出現 <code>[passkeys]</code> 開頭的 warning（錯誤名稱與訊息）。</li>
+  <li>Node 端除錯：<code>node --inspect src/cli.js --debug</code>，再於 <code>chrome://inspect</code> 連線。</li>
+</ul>
+</section>
+
+<section id="limits">
+<h2>限制與疑難排解</h2>
+<h3>限制</h3>
+<ul>
+  <li>示範專案：沒有速率限制、帳號復原流程、Email 驗證、管理者後台。</li>
+  <li>Attestation 固定為 <code>none</code>，不使用 FIDO MDS；AAGUID 名稱表是少量常見值（盡力而為，非即時更新）。</li>
+  <li>除錯紀錄只在記憶體保留最近 20 筆，重啟即消失。</li>
+  <li>e2e 測試使用虛擬驗證器，無法涵蓋真實 Windows Hello / 手機（hybrid）/ 安全金鑰的 UI；這些需依「逐步驗證指南」手動確認。</li>
+  <li>better-sqlite3 為原生模組：切換 Node 主版本後需 <code>npm rebuild better-sqlite3</code>。</li>
+</ul>
+<h3>疑難排解</h3>
+<div class="tw"><table>
+<tr><th>症狀</th><th>原因 / 解法</th></tr>
+<tr><td>按下按鈕沒有任何提示，最後出現 NotAllowedError</td><td>Windows Hello 未設定、DevTools 虛擬驗證器環境開著但沒有新增驗證器、或此網站沒有 passkey（免帳號登入時）。</td></tr>
+<tr><td>黃色警告「目前網址與伺服器設定的來源不同」</td><td>用了 <code>127.0.0.1</code> 或別的主機名稱。改開 <code>http://localhost:3007</code>，或以 <code>--rp-id</code> / <code>--origin</code> 重新設定。</td></tr>
+<tr><td>SecurityError</td><td>網域與 rpID 不符，或用 http 開非 localhost 網址。正式環境請用 https。</td></tr>
+<tr><td>伺服器啟動失敗：<code>rpID ... must equal or be a registrable suffix</code></td><td><code>--origin</code> 的主機不屬於 <code>--rp-id</code>。</td></tr>
+<tr><td>伺服器啟動失敗：<code>EADDRINUSE</code></td><td>埠被占用，改用 <code>--port</code>（記得一併改 <code>--origin</code> 或讓它用預設推導）。</td></tr>
+<tr><td><code>NODE_MODULE_VERSION</code> 錯誤</td><td>better-sqlite3 與 Node 版本不符：<code>npm rebuild better-sqlite3</code> 或改用 Node 22。</td></tr>
+<tr><td>更換 rpID 之後所有人都登不進去</td><td>passkey 綁定 rpID，這是規格行為；需要重新註冊。</td></tr>
+<tr><td>e2e 顯示 skipped</td><td>找不到 Playwright；依「快速開始」安裝。</td></tr>
+<tr><td>同步型 passkey 的計數器一直是 0</td><td>正常（iCloud / Google 常見），伺服器將 0/0 視為不支援計數。</td></tr>
+</table></div>
+</section>
+
+<section id="english">
+<h2>English summary</h2>
+<p><strong>What it is:</strong> a runnable passwordless-login demo using Passkeys (WebAuthn): Node 22 + <code>node:http</code>, SQLite (better-sqlite3 13.0.3), <code>@simplewebauthn/server</code> 14.0.3 and <code>@simplewebauthn/browser</code> 14.0.0 bundled locally with esbuild 0.28.2 (no CDN).</p>
+<ul>
+  <li>Registration with attestation <code>none</code> and required discoverable credentials; login by username, usernameless, and passkey autofill (conditional UI).</li>
+  <li>Multiple passkeys per user: list / rename / delete (the last one cannot be deleted); AAGUID name, BE/BS flags, transports, sign counter, last use.</li>
+  <li>Sign-counter regression check, single-use challenges with a 5-minute expiry stored in SQLite, HttpOnly SameSite session cookie (Secure on https), Origin header check on state-changing requests, strict CSP.</li>
+  <li>Audit log of auth events; <code>--debug</code> enables a learning page with raw options/responses, decoded clientDataJSON, authenticatorData flags (UP/UV/BE/BS) and the COSE key.</li>
+  <li>UI in zh-TW (default) and English, light/dark, works at 390px.</li>
+  <li>Data/logs: Windows <code>%ProgramData%\NewMiscCode\07-passkeys-webauthn</code>, elsewhere <code>./data</code>; override with <code>--data-dir</code> / <code>--log-dir</code>. JSONL logs never contain session tokens or public keys at info level.</li>
+</ul>
+<p><strong>Run:</strong> Windows <code>start.bat</code> / <code>start-debug.bat</code> / <code>run-tests.bat</code>; elsewhere <code>npm ci &amp;&amp; npm start</code>, then open <code>http://localhost:3007</code> (not 127.0.0.1). For a real domain: <code>--rp-id example.com --origin https://login.example.com</code> behind a TLS reverse proxy.</p>
+<p><strong>Tests:</strong> <code>npm test</code> runs 12 unit tests (using a small software authenticator that builds real ES256 attestation/assertion responses) and a Playwright e2e test driving Chromium with a CDP virtual authenticator (register, login, usernameless, autofill, InvalidStateError, second passkey, delete, deleted-credential login failure, counter increments and regression, origin mismatch, language toggle, debug page, 390px layout, no unexpected console errors).</p>
+<p><strong>ASP.NET Core:</strong> the same flow maps to Fido2NetLib (<code>RequestNewCredential</code> / <code>MakeNewCredentialAsync</code> / <code>GetAssertionOptions</code> / <code>MakeAssertionAsync</code>) or to the built-in passkey support in ASP.NET Core Identity in .NET 10 (<code>SignInManager</code> passkey methods). The .NET API names are listed from knowledge and were not compiled or verified here.</p>
+</section>
+
+</main>
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  function show() {
+    var id = (location.hash || '#overview').slice(1);
+    if (id === 'all') { document.body.classList.remove('tabs'); }
+    else {
+      var el = document.getElementById(id);
+      var anchor = null;
+      if (el && sections.indexOf(el) < 0) {
+        // A sub-anchor inside a section (e.g. #dev-api): open its section, then scroll to it.
+        var sec = el.closest('main section');
+        if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+      } else if (!el) {
+        id = 'overview';
+      }
+      document.body.classList.add('tabs');
+      sections.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+      if (anchor) setTimeout(function () { anchor.scrollIntoView(); }, 0);
+    }
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
+  }
+  window.addEventListener('hashchange', function () { window.scrollTo(0, 0); show(); });
+  show();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 OTel 追蹤檢視器 使用說明</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#5d6675;--card:#fff;--line:#dfe3ea;--accent:#2457c5;--codebg:#f0f2f6;--warn:#8a5a00;--warnbg:#fff4d6;--ok:#147a3d;--okbg:#e3f5ea}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2128;--line:#323844;--accent:#7aa2ff;--codebg:#262b34;--warn:#f0c75e;--warnbg:#3a3415;--ok:#4fd08a;--okbg:#163524}}
+*{box-sizing:border-box}
+html,body{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Segoe UI",sans-serif}
+header{max-width:1100px;margin:auto;padding:24px 24px 0}
+header h1{margin:0;font-size:26px;line-height:1.35}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);max-width:1100px;margin:14px auto 0;padding:8px 24px 0;display:flex;flex-wrap:wrap;gap:4px}
+nav.tabs a{padding:7px 12px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--card);color:var(--fg);text-decoration:none;font-size:14px;opacity:.75}
+nav.tabs a.active{opacity:1;font-weight:bold;border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+main{max-width:1100px;margin:auto;padding:12px 24px 60px}
+section.tab{display:none}
+section.tab.active{display:block}
+.no-js section.tab{display:block;border-top:2px solid var(--line);margin-top:24px}
+h2{font-size:22px;margin:18px 0 8px}
+h3{font-size:18px;margin:22px 0 6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:14px;background:var(--codebg);padding:1px 5px;border-radius:4px;word-break:break-word}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;font:14px/1.5 Consolas,"Cascadia Mono",monospace;max-width:100%}
+pre code{background:none;padding:0;word-break:normal}
+.tw{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:rgba(127,127,127,.08)}
+td{word-break:break-word}
+.note{background:var(--warnbg);color:var(--fg);border-left:4px solid var(--warn);padding:8px 14px;border-radius:6px;margin:12px 0}
+.ok{background:var(--okbg);border-left:4px solid var(--ok);padding:8px 14px;border-radius:6px;margin:12px 0}
+ol.steps>li{margin:12px 0}
+a{color:var(--accent)}
+figure{margin:12px 0}
+figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;display:block}
+figcaption{color:var(--muted);font-size:14px}
+.diagram{font:13px/1.45 Consolas,"Cascadia Mono",monospace}
+footer{max-width:1100px;margin:auto;padding:0 24px 40px;color:var(--muted);font-size:13px}
+@media (max-width:600px){header,main,footer{padding-left:16px;padding-right:16px}nav.tabs{padding-left:16px;padding-right:16px}nav.tabs a{font-size:13px;padding:6px 8px}header h1{font-size:21px}}
+</style>
+</head>
+<body class="no-js">
+<header>
+  <h1>04 OTel 追蹤檢視器：完全在本機執行的 OpenTelemetry 分散式追蹤</h1>
+  <p>多服務 Node 範例 · 官方 OpenTelemetry JS SDK · 自製 OTLP/HTTP JSON 收集器（SQLite）· 瀑布圖檢視器 · 日誌與追蹤關聯 · 繁體中文 / English</p>
+</header>
+<nav class="tabs" role="tablist">
+  <a href="#overview" data-tab="overview">概覽</a>
+  <a href="#quickstart" data-tab="quickstart">快速開始</a>
+  <a href="#usage" data-tab="usage">使用說明</a>
+  <a href="#verify" data-tab="verify">逐步驗證指南</a>
+  <a href="#dev" data-tab="dev">開發者指南</a>
+  <a href="#debug" data-tab="debug">除錯與日誌</a>
+  <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+  <h2>概覽</h2>
+  <p>本專案示範「分散式追蹤」從產生、傳送、儲存到檢視的完整流程，<b>不需要 Docker、Jaeger 或任何雲端服務</b>，只需 Node.js 22.13 以上版本。</p>
+  <ul>
+    <li><b>三個示範服務</b>：<code>gateway</code>（對外入口）→ <code>orders</code>（SQLite 寫入、讀取）→ <code>pricing</code>（價格查詢）。服務之間以 <code>fetch()</code> 呼叫，W3C <code>traceparent</code> 標頭由 OpenTelemetry 自動注入與解析，因此同一個請求跨三個行程仍屬於同一條 trace。</li>
+    <li><b>官方 OpenTelemetry JS SDK</b>：<code>@opentelemetry/sdk-node</code> + http / undici 自動儀表化，加上手動 span、span 事件（event）、屬性（attribute）、例外紀錄與錯誤狀態。</li>
+    <li><b>刻意設計的慢路徑與錯誤路徑</b>：<code>/api/slow</code>（可調整延遲）與 <code>/api/error</code>（模擬金流逾時，回傳 502），另有「未知商品」造成的 4xx 路徑。</li>
+    <li><b>自製收集器</b>：Node http 伺服器實作 <code>POST /v1/traces</code> 與 <code>POST /v1/logs</code>（OTLP/HTTP，JSON 編碼，支援 gzip），存入 SQLite（Node 內建 <code>node:sqlite</code>，不需編譯原生模組）。</li>
+    <li><b>檢視器網頁</b>：由收集器直接提供。追蹤清單（依服務、狀態、最短耗時、時間範圍、關鍵字篩選）、瀑布圖（巢狀 span、可收合）、span 詳細面板（屬性、事件、狀態、例外、資源屬性）、關聯日誌、服務相依圖。預設繁體中文，可切換英文；淺色 / 深色主題。</li>
+    <li><b>日誌關聯</b>：每個服務寫 JSONL 結構化日誌，並自動帶上目前 span 的 <code>trace_id</code> / <code>span_id</code>；同時以 OTLP JSON 送到收集器，檢視器可顯示「此 span 的日誌」或「整條 trace 的日誌」。</li>
+    <li><b>負載產生器</b>：<code>src/loadgen.mjs</code> 依比例產生結帳、查詢、慢請求、錯誤請求。</li>
+  </ul>
+  <figure><img src="examples/02-waterfall-detail.png" alt="瀑布圖與 span 詳細資訊" width="1200" height="760" loading="lazy"><figcaption>圖：結帳請求跨 gateway → orders → pricing 的瀑布圖，右側為 orders.create 的屬性、事件與關聯日誌（由 npm test 自動截圖）。</figcaption></figure>
+  <h3>資料夾結構</h3>
+<pre><code>04-otel-trace-viewer/
+  src/common/config.cjs       設定：資料夾（Windows 為 %ProgramData%）、參數解析
+  src/common/logger.cjs       JSONL 日誌（等級、trace 關聯、OTLP 送出）
+  src/services/tracing.cjs    OpenTelemetry SDK 初始化（必須在 node:http 之前載入）
+  src/services/base.cjs       服務共用骨架：tracing → logger → 路由 → HTTP 伺服器
+  src/services/gateway.cjs    gateway 服務
+  src/services/orders.cjs     orders 服務（node:sqlite）
+  src/services/pricing.cjs    pricing 服務
+  src/collector/server.mjs    收集器 + 查詢 API + 靜態檢視器
+  src/collector/otlp.mjs      OTLP JSON 解碼
+  src/collector/store.mjs     SQLite 儲存與查詢
+  src/start-all.mjs           一次啟動所有行程
+  src/loadgen.mjs             負載產生器
+  public/                     檢視器前端（index.html、app.js、app.css、i18n.js）
+  test/e2e.test.mjs           端對端測試（含 Playwright）
+  examples/                   測試產生的截圖
+  start.bat / loadgen.bat / run-tests.bat / setup.bat → otv.ps1 → node</code></pre>
+</section>
+
+<section class="tab" id="quickstart">
+  <h2>快速開始</h2>
+  <p>需求：Node.js <b>22.13 以上</b>（需要內建 <code>node:sqlite</code>）。開發時使用 Node 22.23.4。</p>
+  <h3 id="qs-windows">Windows</h3>
+  <ol class="steps">
+    <li>雙擊 <code>setup.bat</code>：執行 <code>npm ci</code> 並下載 Playwright 用的 Chromium（只有執行測試時需要）。</li>
+    <li>雙擊 <code>start.bat</code>：啟動收集器與三個服務。視窗會印出網址，預設為 <code>http://127.0.0.1:4318/</code>。</li>
+    <li>另開一個視窗，雙擊 <code>loadgen.bat</code> 產生 50 筆示範流量（也可以用 <code>start.bat --load 30</code> 在啟動後自動產生）。</li>
+    <li>以瀏覽器開啟 <code>http://127.0.0.1:4318/</code>，點選任一筆追蹤。</li>
+    <li>要結束時在 <code>start.bat</code> 視窗按 <code>Ctrl+C</code>（先停服務，最後停收集器，最後一批 span 不會遺失）。</li>
+  </ol>
+  <p>每個 <code>.bat</code> 都是純 ASCII + CRLF，會先切換到自己的資料夾（<code>pushd "%~dp0"</code>）、印出目前路徑，呼叫 <code>otv.ps1</code>（UTF-8 BOM），最後印出結束代碼並 <code>pause</code>。額外參數會原樣傳給 node，例如 <code>start.bat --debug --load 30</code>。</p>
+  <p>Windows 預設資料夾：<code>%ProgramData%\NewMiscCode\04-otel-trace-viewer</code>（<code>traces.db</code>、<code>orders-demo.db</code>、<code>logs\*.jsonl</code>）。</p>
+  <h3 id="qs-linux">Linux / macOS</h3>
+<pre><code>cd 04-otel-trace-viewer
+npm ci
+npm start                       # 或：npm start -- --load 30 --debug
+# 另一個終端機
+npm run loadgen -- --count 50
+# 瀏覽器開啟 http://127.0.0.1:4318/
+npx playwright install chromium # 只有 npm test 需要（若尚未安裝）
+npm test</code></pre>
+  <p>Linux 預設資料夾為專案內的 <code>./data</code>（已列入 <code>.gitignore</code>）。</p>
+  <h3 id="ports">預設連接埠</h3>
+  <div class="tw"><table>
+    <tr><th>行程</th><th>連接埠</th><th>變更參數</th></tr>
+    <tr><td>收集器 + 檢視器（OTLP/HTTP 標準埠）</td><td>4318</td><td><code>--collector-port</code></td></tr>
+    <tr><td>gateway</td><td>3401</td><td><code>--gateway-port</code></td></tr>
+    <tr><td>orders</td><td>3402</td><td><code>--orders-port</code></td></tr>
+    <tr><td>pricing</td><td>3403</td><td><code>--pricing-port</code></td></tr>
+  </table></div>
+  <p>若本機已經有其他 OpenTelemetry Collector 佔用 4318，請改用例如 <code>npm start -- --collector-port 14318</code>。</p>
+</section>
+
+<section class="tab" id="usage">
+  <h2>使用說明</h2>
+  <h3 id="endpoints">示範服務端點（gateway）</h3>
+  <div class="tw"><table>
+    <tr><th>端點</th><th>行為</th><th>追蹤中可看到</th></tr>
+    <tr><td><code>GET /api/checkout?item=widget&amp;qty=2</code></td><td>建立訂單：gateway → orders（驗證、呼叫 pricing、SQLite INSERT）</td><td>9 個 span、3 個服務；事件 <code>validation.passed</code>、<code>price.received</code>、<code>order.persisted</code></td></tr>
+    <tr><td><code>GET /api/checkout?item=unobtainium</code></td><td>pricing 回 404，orders 回 422</td><td><code>pricing.lookup</code> 為錯誤、事件 <code>catalog.miss</code></td></tr>
+    <tr><td><code>GET /api/orders/1</code></td><td>以 SQLite SELECT 查詢訂單</td><td><code>SELECT orders</code> span（含 <code>db.query.text</code>）</td></tr>
+    <tr><td><code>GET /api/slow?ms=1200</code></td><td>慢路徑：<code>report.aggregate</code> 刻意延遲</td><td>長條明顯較長、事件 <code>report.slow</code>、WARN 日誌</td></tr>
+    <tr><td><code>GET /api/error</code></td><td>錯誤路徑：<code>orders.charge</code> 拋出例外，gateway 回 502</td><td>5 個 span 全標為錯誤、<code>exception</code> 事件與堆疊、ERROR 日誌</td></tr>
+  </table></div>
+  <p>每個回應都帶 <code>x-trace-id</code> 標頭，可直接開啟 <code>http://127.0.0.1:4318/#/trace/&lt;trace id&gt;</code>。</p>
+  <h3 id="viewer">檢視器操作</h3>
+  <ul>
+    <li><b>追蹤清單</b>：每列為一條 trace（根 span、耗時與比例條、span 數、經過的服務、錯誤數）。左側紅線代表含錯誤。</li>
+    <li><b>篩選</b>：服務、狀態（正常 / 錯誤）、最短耗時（毫秒）、時間範圍、搜尋（根 span 名稱或 trace id 開頭）。勾選「每 5 秒自動更新」可持續觀察。</li>
+    <li><b>服務相依圖</b>：以 parent/child span 的服務不同來推導呼叫邊；數字為呼叫次數，紅色括號為錯誤數，虛線紅邊代表有錯誤。</li>
+    <li><b>瀑布圖</b>：依父子關係縮排；長條位置 = 相對開始時間，寬度 = 耗時；長條下方小刻度為 span 事件。▾ / ▸ 可收合子 span；「全部展開 / 全部收合」。鍵盤可用 ↑ ↓ 切換、Enter 選取。</li>
+    <li><b>Span 詳細面板</b>：服務、種類（伺服器 / 用戶端 / 內部）、狀態與訊息、耗時、起始偏移、Span ID、父 Span ID（可點擊跳轉）、儀表化範圍、例外（含堆疊）、屬性、事件（含事件屬性）、資源屬性。</li>
+    <li><b>關聯日誌</b>：預設顯示 <code>span_id</code> 相同的日誌；點「顯示整條追蹤的日誌」改為 trace 範圍。</li>
+    <li><b>語言 / 主題</b>：右上角 <code>EN</code> / <code>中文</code> 切換語言，◐ 切換深淺色；選擇會記在瀏覽器 localStorage。</li>
+    <li>網址可分享：<code>#/trace/&lt;traceId&gt;?span=&lt;spanId&gt;</code>。</li>
+  </ul>
+  <h3 id="cli">命令列參數</h3>
+  <div class="tw"><table>
+    <tr><th>指令</th><th>參數</th></tr>
+    <tr><td><code>node src/start-all.mjs</code>（<code>npm start</code>、<code>start.bat</code>）</td><td><code>--data-dir DIR</code> <code>--log-dir DIR</code> <code>--debug</code> <code>--load N</code>（啟動後送 N 個請求） <code>--inspect gateway|orders|pricing|collector</code>（該行程開 9229 除錯埠） <code>--collector-port</code> <code>--gateway-port</code> <code>--orders-port</code> <code>--pricing-port</code></td></tr>
+    <tr><td><code>node src/collector/server.mjs</code>（<code>npm run collector</code>）</td><td><code>--port 4318</code> <code>--host 127.0.0.1</code> <code>--data-dir</code> <code>--log-dir</code> <code>--jsonl</code>（另外把 span 附加到 <code>spans.jsonl</code>） <code>--debug</code></td></tr>
+    <tr><td><code>node src/loadgen.mjs</code>（<code>npm run loadgen</code>、<code>loadgen.bat</code>）</td><td><code>--gateway URL</code> <code>--count 50</code> <code>--concurrency 4</code> <code>--slow-ms 1200</code> <code>--verbose</code></td></tr>
+    <tr><td>個別服務 <code>node src/services/gateway.cjs</code></td><td><code>--port</code> <code>--collector URL</code> <code>--orders URL</code>（orders 用 <code>--pricing URL</code>） <code>--data-dir</code> <code>--debug</code></td></tr>
+  </table></div>
+  <p>環境變數：<code>OTV_DATA_DIR</code>、<code>OTV_LOG_DIR</code>、<code>OTV_DEBUG=1</code>、<code>OTV_COLLECTOR_URL</code>、<code>OTV_ORDERS_URL</code>、<code>OTV_PRICING_URL</code>。參數優先於環境變數。</p>
+  <h3 id="external">讓其他程式送資料進來</h3>
+  <p>任何支援 OTLP/HTTP <b>JSON</b> 的 SDK 都可以送到 <code>http://127.0.0.1:4318/v1/traces</code>，例如 Node 使用 <code>@opentelemetry/exporter-trace-otlp-http</code>；Python 需改用 JSON 編碼的匯出器（官方 Python HTTP 匯出器預設 protobuf，見「限制」）。</p>
+</section>
+
+<section class="tab" id="verify">
+  <h2>逐步驗證指南</h2>
+  <p>以下步驟讓同事在自己的電腦上重現並確認每個功能。指令以 Linux 為例；Windows 請使用對應的 <code>.bat</code> 或在 PowerShell 執行相同的 <code>npm</code> 指令。</p>
+  <ol class="steps">
+    <li><b>安裝</b>：<code>npm ci</code>。<br>預期：結尾出現 <code>found 0 vulnerabilities</code>，產生 <code>node_modules</code>。</li>
+    <li><b>自動測試</b>：<code>npm test</code>（Windows：<code>run-tests.bat</code>）。<br>預期：約 5 秒內完成，輸出
+<pre><code>ok 1 - W3C trace context propagates gateway -&gt; orders -&gt; pricing with correct parent/child links
+ok 2 - error path: exception recorded and ERROR status on failing spans up to the root
+ok 3 - slow path: span durations reflect the deliberate delay; list filters work
+ok 4 - logs are correlated with trace_id/span_id (collector + JSONL files)
+ok 5 - dependencies, stats and OTLP edge cases
+ok 6 - viewer UI (Playwright): list, waterfall, span detail, logs, language toggle, 390px layout
+ok 7 - README.html renders without console errors and without horizontal scroll at 390px
+# pass 7
+# fail 0</code></pre>
+    測試使用隨機連接埠與暫存資料夾，不會影響正在執行的 <code>npm start</code>；並重新產生 <code>examples/</code> 內的三張截圖。</li>
+    <li><b>手動啟動</b>：<code>npm start -- --load 30</code>。<br>預期：依序看到 <code>collector + viewer listening</code>、<code>pricing listening</code>、<code>orders listening</code>、<code>gateway listening</code>，再出現框線內的網址表與 <code>[loadgen] {"total":30,...,"failed":0}</code>。</li>
+    <li><b>開啟檢視器</b> <code>http://127.0.0.1:4318/</code>。<br>預期：標題「OTel 追蹤檢視器」，清單約 30 筆，右側服務相依圖顯示 gateway → orders → pricing。
+      <figure><img src="examples/01-trace-list.png" alt="追蹤清單與服務相依圖" width="1200" height="760" loading="lazy"><figcaption>圖 1：追蹤清單、篩選列與服務相依圖。</figcaption></figure></li>
+    <li><b>產生一筆結帳</b>：<code>curl -i "http://127.0.0.1:3401/api/checkout?item=widget&amp;qty=2"</code>。<br>預期：HTTP 201，JSON 含 <code>"total":240</code>，回應標頭有 <code>x-trace-id</code>。按「重新整理」，清單最上方是 <code>gateway GET /api/checkout</code>、9 個 span、狀態「正常」。</li>
+    <li><b>檢查跨服務傳遞</b>：點該列。<br>預期：瀑布圖 9 列，縮排順序為 <code>GET /api/checkout</code> → <code>checkout.handle</code> → <code>POST</code>（gateway 的 fetch 用戶端 span）→ <code>POST /orders</code>（orders 伺服器 span）→ <code>orders.create</code> → <code>GET</code> → <code>GET /price</code>（pricing）→ <code>pricing.lookup</code>，以及 <code>INSERT orders</code>。三個服務的 span 共用同一個 Trace ID。</li>
+    <li><b>檢查 span 詳細與日誌</b>：點 <code>orders.create</code>。<br>預期：右側屬性有 <code>app.item = widget</code>、<code>app.qty = 2</code>、<code>app.order_id</code>；事件依序 <code>validation.passed</code>、<code>price.received</code>、<code>order.persisted</code>；關聯日誌有 <code>INFO orders order created</code>。網址變成 <code>#/trace/…?span=…</code>。（見概覽的截圖）</li>
+    <li><b>錯誤路徑</b>：<code>curl -i http://127.0.0.1:3401/api/error</code>，回清單把「狀態」設為「錯誤」。<br>預期：HTTP 502；清單只剩含錯誤的 trace；開啟後 5 個 span 皆紅色並有「!」標記；點 <code>orders.charge</code> 看到狀態「錯誤」、訊息 <code>payment provider timeout (simulated)</code>、例外區塊與堆疊、ERROR 日誌 <code>charge failed</code>。
+      <figure><img src="examples/03-error-trace-en-dark.png" alt="錯誤追蹤（英文介面、深色主題）" width="1200" height="760" loading="lazy"><figcaption>圖 2：錯誤追蹤，已切換為英文介面與深色主題。</figcaption></figure></li>
+    <li><b>慢路徑</b>：<code>curl "http://127.0.0.1:3401/api/slow?ms=1500"</code>，最短耗時填 <code>1000</code>。<br>預期：清單只剩耗時 1 秒以上的 trace（這筆約 1.5 秒；loadgen 產生的慢請求約 1.2 秒也會出現）；瀑布圖中 <code>report.aggregate</code> 長條佔大部分寬度，<code>orders.report</code> 有 <code>report.slow</code> 事件。</li>
+    <li><b>語言與主題</b>：按右上 <code>EN</code>。<br>預期：所有標籤變英文（例如「← Back to list」），按鈕變成「中文」；重新整理後仍為英文。按 ◐ 切換深色。</li>
+    <li><b>JSONL 日誌</b>：查看 <code>data/logs/orders.jsonl</code>（Windows：<code>%ProgramData%\NewMiscCode\04-otel-trace-viewer\logs\orders.jsonl</code>）。<br>預期：每行一個 JSON，例如 <code>{"ts":"…","level":"info","service":"orders","msg":"order created","trace_id":"…","span_id":"…","order_id":1,…}</code>。</li>
+    <li><b>收集器 API</b>：<code>curl http://127.0.0.1:4318/api/stats</code>。<br>預期：<code>{"spans":…,"traces":…,"logs":…,"received":{…},"dbFile":"…traces.db"}</code>。</li>
+    <li><b>文字編碼稽核</b>：<code>npm run audit-text</code>（呼叫 repo 根目錄的 <code>tools/audit-text.mjs</code>）。<br>預期：<code>[audit] root=. files=… problems=0</code>。</li>
+  </ol>
+</section>
+
+<section class="tab" id="dev">
+  <h2>開發者指南</h2>
+  <h3 id="arch">架構與資料流</h3>
+<pre class="diagram"><code>  browser / curl / loadgen
+        │ HTTP
+        ▼
+  ┌──────────┐ fetch + traceparent ┌──────────┐ fetch + traceparent ┌──────────┐
+  │ gateway  │ ──────────────────▶ │  orders  │ ──────────────────▶ │ pricing  │
+  └────┬─────┘                     └──┬───┬───┘                     └────┬─────┘
+       │                              │   └─ node:sqlite (orders-demo.db) │
+       │  BatchSpanProcessor → OTLPTraceExporter (JSON)  /  logger → /v1/logs
+       └──────────────────────────────┼──────────────────────────────────┘
+                                      ▼
+                    ┌───────────────────────────────────┐
+                    │ collector (src/collector/server)  │
+                    │  POST /v1/traces  POST /v1/logs   │
+                    │  otlp.mjs decode -> store.mjs     │
+                    │  GET /api/*  +  public/ viewer    │
+                    └───────────────────────────────────┘</code></pre>
+  <ol>
+    <li>請求進入 gateway；http 自動儀表化建立 SERVER span，路由器把名稱改成 <code>GET /api/checkout</code> 並設定 <code>http.route</code>。</li>
+    <li>手動 span <code>checkout.handle</code> 內呼叫 <code>fetch()</code>；undici 儀表化建立 CLIENT span 並注入 <code>traceparent: 00-&lt;traceId&gt;-&lt;spanId&gt;-01</code>。</li>
+    <li>orders 的 http 儀表化讀取 <code>traceparent</code>，SERVER span 的父 span 就是 gateway 的 CLIENT span。pricing 同理。</li>
+    <li>各服務以 BatchSpanProcessor（300 ms）批次送 OTLP JSON 到收集器；日誌每 500 ms 批次送 <code>/v1/logs</code>（送出時 <code>suppressTracing</code>，避免產生自身追蹤）。</li>
+    <li>收集器將 ID 正規化為小寫 hex、時間轉為微秒，寫入 SQLite <code>spans</code> / <code>logs</code> 資料表；檢視器透過 <code>/api/*</code> 查詢。</li>
+  </ol>
+  <h3 id="modules">模組職責</h3>
+  <div class="tw"><table>
+    <tr><th>檔案</th><th>職責</th></tr>
+    <tr><td><code>src/services/tracing.cjs</code></td><td>建立 <code>NodeSDK</code>：resource（<code>service.name</code>）、OTLP JSON 匯出器、BatchSpanProcessor、Http / Undici 儀表化；關閉 metrics / logs 匯出。</td></tr>
+    <tr><td><code>src/services/base.cjs</code></td><td>先啟動 tracing 再 <code>require('node:http')</code>；簡易路由（<code>:param</code>）、JSON 回應、例外 → SERVER span 標錯誤 + 500、<code>x-trace-id</code> 標頭、就緒行 <code>OTV_READY {...}</code>、優雅關閉（SIGTERM / IPC <code>shutdown</code>）。</td></tr>
+    <tr><td><code>src/services/spans.cjs</code></td><td><code>withSpan()</code>：建立 active span、紀錄例外、設 ERROR、必定 <code>end()</code>。</td></tr>
+    <tr><td><code>src/common/logger.cjs</code></td><td>JSONL 日誌、等級 debug/info/warn/error、自動附加 trace_id/span_id、OTLP 日誌送出。</td></tr>
+    <tr><td><code>src/collector/otlp.mjs</code></td><td>OTLP JSON → 資料列（AnyValue、hex/base64 ID、奈秒 → 微秒）。</td></tr>
+    <tr><td><code>src/collector/store.mjs</code></td><td>SQLite schema、批次寫入（交易）、清單篩選、相依邊、統計。</td></tr>
+    <tr><td><code>src/collector/server.mjs</code></td><td>HTTP 路由、gzip/deflate 解壓、protobuf 回 415、靜態檔案（防目錄穿越）。</td></tr>
+    <tr><td><code>src/start-all.mjs</code></td><td>以子行程啟動四個行程、等待就緒、轉印輸出、依序關閉（服務先、收集器最後）。測試也重用 <code>startStack()</code>。</td></tr>
+    <tr><td><code>public/app.js</code></td><td>Hash 路由、清單、相依圖（SVG）、瀑布圖、詳細面板、i18n、主題。</td></tr>
+  </table></div>
+  <h3 id="api">收集器查詢 API</h3>
+  <div class="tw"><table>
+    <tr><th>端點</th><th>說明</th></tr>
+    <tr><td><code>GET /api/traces?service=&amp;status=ok|error&amp;minDurationMs=&amp;sinceMinutes=&amp;q=&amp;limit=</code></td><td>trace 摘要清單（新到舊）</td></tr>
+    <tr><td><code>GET /api/traces/&lt;traceId&gt;</code></td><td><code>{ trace_id, spans[], logs[] }</code></td></tr>
+    <tr><td><code>GET /api/logs?traceId=&amp;spanId=</code></td><td>關聯日誌</td></tr>
+    <tr><td><code>GET /api/services</code>、<code>GET /api/dependencies</code>、<code>GET /api/stats</code></td><td>服務、相依邊、統計</td></tr>
+    <tr><td><code>POST /api/clear</code></td><td>清空所有 span 與日誌</td></tr>
+  </table></div>
+  <h3 id="extend">如何擴充</h3>
+  <ul>
+    <li><b>新增服務</b>：複製 <code>src/services/pricing.cjs</code>，改 <code>runService('名稱', …)</code>，在 <code>src/start-all.mjs</code> 的 <code>startStack()</code> 加一個 <code>startChild()</code> 並傳入相關 URL。</li>
+    <li><b>新增手動 span / 事件</b>：<code>withSpan(tracer, 'name', { attributes }, async (span) =&gt; { span.addEvent('x', {...}); })</code>。自訂屬性建議用 <code>app.</code> 前綴，資料庫等請依 OpenTelemetry semantic conventions。</li>
+    <li><b>支援 protobuf</b>：在 <code>decodeOtlpBody()</code> 加入 protobuf 解碼（例如以 protobufjs 載入 OTLP .proto），輸出與 JSON 相同的物件結構即可沿用 <code>decodeTraces()</code>。</li>
+    <li><b>新增 UI 文字</b>：在 <code>public/i18n.js</code> 的兩種語言加入相同鍵值，HTML 用 <code>data-i18n="鍵"</code>，JS 用 <code>t('鍵')</code>。</li>
+    <li><b>測試</b>：在 <code>test/e2e.test.mjs</code> 加入 <code>test()</code>；<code>call()</code> 會取回 <code>x-trace-id</code>，<code>waitTrace()</code> 會輪詢直到 span 到齊。</li>
+  </ul>
+</section>
+
+<section class="tab" id="debug">
+  <h2>除錯與日誌</h2>
+  <h3 id="logfiles">日誌檔</h3>
+  <p>位置：<code>&lt;資料夾&gt;/logs/&lt;服務&gt;.jsonl</code>（collector、gateway、orders、pricing 各一檔，附加寫入）。可用 <code>--log-dir</code> 或 <code>OTV_LOG_DIR</code> 變更。每行欄位：<code>ts</code>、<code>level</code>、<code>service</code>、<code>msg</code>、（在 span 內時）<code>trace_id</code>、<code>span_id</code>，以及事件專屬欄位。</p>
+  <p><code>--debug</code>（或 <code>OTV_DEBUG=1</code>）：開啟 debug 等級（每個請求、收集器每次收到幾個 span / log、HTTP 耗時），並把 OpenTelemetry 內部診斷訊息（diag）印到主控台。例如 <code>npm start -- --debug</code> 或 <code>start.bat --debug</code>。</p>
+<pre><code># 找出某個 trace 的所有日誌（Linux）
+grep 7d80c64ca05747e1966c4c97df6e5dd2 data/logs/*.jsonl
+# Windows PowerShell
+Select-String -Path "$env:ProgramData\NewMiscCode\04-otel-trace-viewer\logs\*.jsonl" -Pattern 7d80c64c</code></pre>
+  <h3 id="inspect">使用 Chrome DevTools（node --inspect）</h3>
+  <ul>
+    <li>整組啟動並讓 gateway 開除錯埠：<code>npm start -- --inspect gateway</code>（9229 埠，可改為 orders、pricing、collector）。</li>
+    <li>或單獨啟動某一個行程：<code>node --inspect src/services/gateway.cjs --port 3401 --collector http://127.0.0.1:4318 --orders http://127.0.0.1:3402</code>；收集器：<code>node --inspect src/collector/server.mjs --debug</code>。</li>
+    <li>Chrome 開啟 <code>chrome://inspect</code> → 「Open dedicated DevTools for Node」。本專案沒有任何阻擋 DevTools 的設定。</li>
+    <li>檢視器是一般網頁，可直接按 F12 看 Network（<code>/api/*</code>）與 Console。</li>
+  </ul>
+  <h3 id="sql">直接查 SQLite</h3>
+<pre><code>node -e "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync('data/traces.db');console.table(db.prepare('SELECT service,name,duration_us,status_code FROM spans ORDER BY start_us DESC LIMIT 10').all())"</code></pre>
+</section>
+
+<section class="tab" id="limits">
+  <h2>限制與疑難排解</h2>
+  <h3 id="limitations">已知限制</h3>
+  <ul>
+    <li>收集器只接受 <b>OTLP/HTTP JSON</b>；protobuf（<code>application/x-protobuf</code>）會回 415 並附說明；不支援 gRPC（4317）。</li>
+    <li>僅處理 traces 與 logs；<code>/v1/metrics</code> 會回 200 但忽略內容。</li>
+    <li>單機、單一 SQLite 檔，適合開發與教學，不是正式環境的追蹤後端；沒有保留期限，請用 <code>POST /api/clear</code> 或刪除 <code>traces.db</code>。</li>
+    <li>時間精度為微秒；跨機器時鐘不同步時瀑布圖可能錯位（本機示範不受影響）。</li>
+    <li>相依圖由 parent/child 服務名稱推導，未顯示未儀表化的外部服務。</li>
+    <li><code>node:sqlite</code> 在 Node 22 仍標示為實驗性；啟動指令已加 <code>--disable-warning=ExperimentalWarning</code>。</li>
+    <li>收集器沒有驗證機制，預設只綁定 <code>127.0.0.1</code>；若用 <code>--host 0.0.0.0</code> 對外開放，請自行確保網路安全。</li>
+  </ul>
+  <h3 id="troubleshoot">疑難排解</h3>
+  <div class="tw"><table>
+    <tr><th>症狀</th><th>原因 / 處理</th></tr>
+    <tr><td><code>EADDRINUSE</code> 或 <code>collector exited early</code></td><td>連接埠被佔用（常見是另一個 OTel Collector 用 4318）。改用 <code>--collector-port 14318</code> 等參數。</td></tr>
+    <tr><td><code>No such built-in module: node:sqlite</code></td><td>Node 版本太舊，請升級到 22.13 以上。</td></tr>
+    <tr><td>清單是空的</td><td>尚未產生流量；執行 <code>loadgen.bat</code> 或 <code>npm run loadgen</code>，或確認 loadgen 的 <code>--gateway</code> 網址正確。span 約 0.3 秒後才會出現，請按「重新整理」。</td></tr>
+    <tr><td>只看到 gateway 的 span</td><td>orders / pricing 沒啟動或 <code>--collector</code> 指向別的位址；以 <code>--debug</code> 查看 <code>[logger] ship failed</code> 或 OTel diag 訊息。</td></tr>
+    <tr><td><code>npm test</code> 顯示找不到瀏覽器</td><td>執行 <code>npx playwright install chromium</code>（<code>setup.bat</code> 已包含）。</td></tr>
+    <tr><td>PowerShell 出現亂碼或拒絕執行</td><td>請透過 <code>.bat</code> 啟動（已使用 <code>-ExecutionPolicy Bypass</code>）；<code>otv.ps1</code> 為 UTF-8 BOM，請勿以其他編碼另存。</td></tr>
+    <tr><td>Windows 寫入 <code>%ProgramData%</code> 被拒</td><td>改用 <code>start.bat --data-dir %USERPROFILE%\otv-data</code>，或設定 <code>OTV_DATA_DIR</code>。</td></tr>
+  </table></div>
+</section>
+
+<section class="tab" id="english">
+  <h2>English summary</h2>
+  <p><b>What it is:</b> a fully local OpenTelemetry tracing playground. Three small Node services (<code>gateway</code> → <code>orders</code> → <code>pricing</code>, with SQLite via built-in <code>node:sqlite</code> and outbound <code>fetch()</code>) are instrumented with the official OpenTelemetry JS SDK (<code>@opentelemetry/sdk-node</code> 0.223.0, http + undici auto-instrumentation, manual spans, span events, attributes, exceptions). W3C <code>traceparent</code> propagates across processes. There are deliberate slow (<code>/api/slow?ms=</code>) and error (<code>/api/error</code>) endpoints.</p>
+  <p><b>Collector:</b> a tiny Node HTTP server implementing OTLP/HTTP <code>POST /v1/traces</code> and <code>POST /v1/logs</code> with <b>JSON encoding only</b> (gzip accepted; protobuf gets a 415). Data is stored in SQLite. The same server hosts the viewer UI and a JSON query API.</p>
+  <p><b>Viewer:</b> trace list with filters (service, status, min duration, time range, search), service dependency graph, collapsible waterfall, span detail (attributes, events, status, exception, resource) and correlated logs. zh-TW by default with an English toggle; light/dark theme.</p>
+  <p><b>Logs:</b> services write JSONL logs with <code>trace_id</code>/<code>span_id</code> to <code>&lt;data&gt;/logs/*.jsonl</code> and ship them to the collector. <code>--debug</code> enables debug level and OTel diagnostics. Debug any process with <code>node --inspect</code> or <code>npm start -- --inspect gateway</code>.</p>
+  <p><b>Run:</b> <code>npm ci</code>, <code>npm start -- --load 30</code>, open <code>http://127.0.0.1:4318/</code>. Windows: <code>setup.bat</code>, <code>start.bat</code>, <code>loadgen.bat</code>. Default data folder: <code>%ProgramData%\NewMiscCode\04-otel-trace-viewer</code> on Windows, <code>./data</code> elsewhere (override with <code>--data-dir</code> / <code>OTV_DATA_DIR</code>).</p>
+  <p><b>Verify:</b> <code>npm test</code> starts everything on random ports, generates traffic, asserts cross-service parent/child links, error status, slow-span duration, log correlation, OTLP edge cases, and drives the UI with Playwright (waterfall, span detail, language toggle, no console errors, no horizontal scroll at 390px). Screenshots are written to <code>examples/</code>.</p>
+  <p><b>Limitations:</b> JSON-only OTLP/HTTP (no protobuf, no gRPC), traces + logs only, single-node SQLite without retention, no authentication (binds to 127.0.0.1).</p>
+</section>
+</main>
+<footer>UTF-8 · 04-otel-trace-viewer · 由 npm test 產生的截圖位於 examples/</footer>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-tab]');
+    if (a) show(a.dataset.tab);
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

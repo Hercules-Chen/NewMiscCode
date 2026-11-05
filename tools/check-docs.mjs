@@ -30,7 +30,7 @@ for (const rel of docs) {
     const url = m[1];
     if (/^(https?:|mailto:|data:|javascript:)/.test(url)) continue;
     checks++;
-    if (url.startsWith('#')) { if (url.length > 1 && !ids.has(url.slice(1)) && !html.includes(`'${url}'`)) problems.push(`${rel}: anchor ${url} has no matching id`); continue; }
+    if (url.startsWith('#')) { if (url.length > 1 && !ids.has(url.slice(1)) && !html.includes(`'${url}'`) && !html.includes(`=== '${url.slice(1)}'`)) problems.push(`${rel}: anchor ${url} has no matching id`); continue; }
     const [pathPart, hash] = url.split('#');
     const target = join(dir, decodeURIComponent(pathPart));
     if (!(await exists(target))) { problems.push(`${rel}: link target missing: ${url}`); continue; }
@@ -75,6 +75,19 @@ if (!process.argv.includes('--no-browser')) {
         checks++;
         if (t.startsWith('#')) { await page.evaluate(h => { location.hash = h; }, t); await page.waitForTimeout(50); }
       }
+      // Every in-page anchor that targets an element must leave that element visible after navigation
+      // (catches tab scripts that hide everything when the hash points inside a tab).
+      const anchors = await page.$$eval('a[href^="#"]', as => [...new Set(as.map(a => a.getAttribute('href')))].filter(h => h.length > 1));
+      for (const h of anchors) {
+        const id = decodeURIComponent(h.slice(1));
+        if (!(await page.$(`[id="${id}"]`))) continue; // virtual targets such as #all are handled by script
+        checks++;
+        await page.evaluate(x => { location.hash = x; }, h);
+        await page.waitForTimeout(30);
+        const visible = await page.evaluate(x => { const el = document.getElementById(x); if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }, id);
+        if (!visible) problems.push(`${rel}: navigating to ${h} leaves the target hidden`);
+      }
+      await page.evaluate(() => { location.hash = ''; });
       const hScroll = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
       await page.setViewportSize({ width: 390, height: 800 });
       const hScrollMobile = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
