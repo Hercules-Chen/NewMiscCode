@@ -2,13 +2,15 @@
 // Checks: relative href/src targets exist, #anchors exist, `npm run X` scripts exist,
 // `node <file>` / referenced .bat/.ps1 files exist, and every tab renders without console errors.
 // Usage: node tools/check-docs.mjs [--no-browser]
-import { readFile, access } from 'node:fs/promises';
+import { readFile, access, readdir } from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(new URL(import.meta.url).pathname), '..');
-const docs = ['README.html', '01-mcp-ui-verifier/README.html', '02-local-semantic-search/README.html', '03-duckdb-wasm-dashboard/README.html'];
+// Root README plus every top-level project folder (NN-name/README.html), discovered automatically.
+const docs = ['README.html', ...(await readdir(root, { withFileTypes: true }))
+  .filter(e => e.isDirectory() && /^\d{2}-/.test(e.name)).map(e => `${e.name}/README.html`).sort()];
 const exists = async p => access(p).then(() => true, () => false);
 const problems = [];
 let checks = 0;
