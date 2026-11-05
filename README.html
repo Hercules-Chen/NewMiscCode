@@ -42,7 +42,7 @@ footer { max-width:1040px; margin:auto; padding:16px; color:var(--muted); font-s
 <body class="no-js">
 <header>
   <h1>NewMiscCode 新技術實驗</h1>
-  <p class="sub">12 個彼此獨立的小專案，每個都有自己的 README.html（含逐步驗證指南與開發者指南）。本頁是總覽與交接文件。</p>
+  <p class="sub">14 個彼此獨立的小專案，每個都有自己的 README.html（含逐步驗證指南與開發者指南）。本頁是總覽與交接文件。</p>
 </header>
 <nav><div class="in" id="nav">
   <a href="#overview">總覽</a>
@@ -76,6 +76,8 @@ footer { max-width:1040px; margin:auto; padding:16px; color:var(--muted); font-s
   <tr><td>10</td><td><a href="10-durable-workflow/README.html">durable-workflow</a></td><td>node:sqlite、事件溯源</td><td>Durable Workflow 引擎：當機重啟後從斷點繼續，已完成步驟不重跑</td><td class="ok">17/17</td></tr>
   <tr><td>11</td><td><a href="11-csharp-rules-treesitter/README.html">csharp-rules-treesitter</a></td><td>web-tree-sitter、SARIF</td><td>C# 團隊規則檢查（同步等待 async、async void、out 參數…），不需 .NET SDK</td><td class="ok">36/36</td></tr>
   <tr><td>12</td><td><a href="12-api-compat-guard/README.html">api-compat-guard</a></td><td>OpenAPI、錄製/重播</td><td>API 相容性守門員：找出會破壞舊呼叫的變更</td><td class="ok">73/73</td></tr>
+  <tr><td>13</td><td><a href="13-ui-recorder/README.html">ui-recorder</a></td><td>Playwright、注入腳本</td><td>在瀏覽器實際操作一遍，自動產生 01 可直接執行的驗證情境 JSON</td><td class="ok">9/9</td></tr>
+  <tr><td>14</td><td><a href="14-md-to-tabbed-html/README.html">md-to-tabbed-html</a></td><td>markdown-it</td><td>Markdown 轉成本 repo 風格的分頁 HTML 文件，內建錨點與編碼檢查</td><td class="ok">23/23</td></tr>
 </table>
 <div class="card">
   <b>建議閱讀順序（接手者）</b>：本頁「快速開始」→「Windows 實機驗證清單」→ 想用的專案 README.html 的「逐步驗證指南」→ 要改程式時看該專案的「開發者指南」。
@@ -107,7 +109,7 @@ footer { max-width:1040px; margin:auto; padding:16px; color:var(--muted); font-s
 <p>雙擊根目錄 <code>verify-all.bat</code>（純 ASCII，會先 <code>pushd "%~dp0"</code>、印出路徑與 Node 版本，最後顯示 exit code 並 pause）。沒有 node_modules 的專案會自動 <code>npm ci</code>。也可以只跑部分專案：</p>
 <pre><code>node tools/verify-all.mjs --only 01,03
 node tools/verify-all.mjs --install</code></pre>
-<p>預期最後出現 <code>[verify-all] projects=12 failed=0 exit=0</code>。紀錄寫到 <code>%ProgramData%\NewMiscCode\verify-all\verify-all-YYYY-MM-DD.jsonl</code>。</p>
+<p>預期最後出現 <code>[verify-all] projects=14 failed=0 exit=0</code>。紀錄寫到 <code>%ProgramData%\NewMiscCode\verify-all\verify-all-YYYY-MM-DD.jsonl</code>。</p>
 <h3 id="qs-one">4. 單一專案</h3>
 <pre><code>cd 03-duckdb-wasm-dashboard
 npm ci
@@ -131,6 +133,8 @@ npm test</code></pre>
   <tr><td>10</td><td>≥ 22.5</td><td>無（使用 node:sqlite）</td><td>—</td></tr>
   <tr><td>11</td><td>≥ 20</td><td>無（tree-sitter 為 wasm）</td><td>不需要 .NET SDK</td></tr>
   <tr><td>12</td><td>≥ 20</td><td>無</td><td>—</td></tr>
+  <tr><td>13</td><td>≥ 20</td><td>無</td><td>需要旁邊的 01 資料夾（含 node_modules）才能跑測試</td></tr>
+  <tr><td>14</td><td>≥ 20</td><td>無</td><td>—</td></tr>
 </table>
 <p class="muted">Node 版本出現 <code>NODE_MODULE_VERSION</code> 或 <code>Module did not self-register</code> 錯誤時，代表原生模組與目前 Node 不相容：先確認 <code>node -v</code>，再在該專案執行 <code>npm rebuild</code>（或刪除 node_modules 後 <code>npm ci</code>）。</p>
 </section>
@@ -168,6 +172,8 @@ npm test</code></pre>
   <tr><td>10</td><td>http://127.0.0.1:8710/</td><td>見 10 README</td></tr>
   <tr><td>11</td><td>（純 CLI，無伺服器）</td><td>—</td></tr>
   <tr><td>12</td><td>示範舊 API 3001、新 API 3002、錄製代理 9000、mock 4010</td><td>CLI 參數</td></tr>
+  <tr><td>13</td><td>（開啟有畫面的 Chromium 錄製，無伺服器）</td><td>—</td></tr>
+  <tr><td>14</td><td>（純 CLI，無伺服器）</td><td>—</td></tr>
 </table>
 <h3 id="ports-data">資料與 Log 位置</h3>
 <p>Windows 上所有專案預設寫到 <code>%ProgramData%\NewMiscCode\&lt;資料夾名稱&gt;\</code>（例如 <code>C:\ProgramData\NewMiscCode\02-local-semantic-search</code>）；Linux/macOS 寫在專案下的 <code>./data</code>、<code>./logs</code> 或 <code>./output</code>（已在 .gitignore）。每個專案都可用參數或環境變數改位置，名稱見各 README 的「除錯與日誌」。</p>
@@ -201,6 +207,8 @@ npm test</code></pre>
   <tr><td>10</td><td>依 10 README「逐步驗證指南」做「中途強制關閉再重啟」示範</td><td>工作流從斷點繼續，已完成步驟不重跑</td></tr>
   <tr><td>11</td><td><code>run-sample.bat</code>；用 VS Code SARIF Viewer 開輸出的 .sarif</td><td>31 個發現、exit code 1；VS Code 問題面板顯示定位</td></tr>
   <tr><td>12</td><td><code>run-demo.bat</code>；（選用）從自己的 ASP.NET Core 專案匯出 OpenAPI 再 diff</td><td>14 項破壞性變更；.NET 匯出指令文件中標示「未驗證」，請以實際結果為準</td></tr>
+  <tr><td>13</td><td><code>record-demo.bat</code>，在跳出的瀏覽器中操作後按「停止並儲存」，再用 01 的 <code>run-scenario.bat</code> 執行產生的 JSON</td><td>01 執行結果全部通過</td></tr>
+  <tr><td>14</td><td><code>build-docs.bat</code>；另外拿一份自己的 Markdown 用 <code>md2tabs.bat</code> 轉換</td><td>產生的 HTML 分頁正常、檢查 0 問題；Big5 檔會被拒絕並提示</td></tr>
 </table>
 </section>
 
@@ -239,6 +247,8 @@ npm test</code></pre>
   <tr><td>10</td><td class="ok">npm test 17/17</td><td>0 問題</td><td>含真實 SIGKILL 兩次再重啟的當機復原測試</td></tr>
   <tr><td>11</td><td class="ok">npm test 36/36</td><td>0 問題（encoding-bad 為刻意的壞檔，已排除）</td><td>—</td></tr>
   <tr><td>12</td><td class="ok">npm test 73/73</td><td>0 問題</td><td>—</td></tr>
+  <tr><td>13</td><td class="ok">npm test 9/9</td><td>0 問題</td><td>錄出的 JSON 經 01 的 CLI 實際重播，exit 0</td></tr>
+  <tr><td>14</td><td class="ok">npm test 23/23</td><td>0 問題（testdata 為刻意的 Big5 檔，已排除）</td><td>自己的 README.html 由本工具產生</td></tr>
 </table>
 <h3 id="verified-not">沒有驗證到的項目</h3>
 <ul>
@@ -289,13 +299,14 @@ node tools/check-docs.mjs</code></pre>
   <tr><td>2026-11-05</td><td>01～03 補開發者指南；修正 02/03 文件的小節錨點導覽與手機寬度表格。</td></tr>
   <tr><td>2026-11-05</td><td>第二輪：04 OpenTelemetry、05 Yjs 協作、06 編碼醫生、07 Passkeys。</td></tr>
   <tr><td>2026-11-05</td><td>第三輪：08 PWA 離線同步、09 Rust 視覺回歸、10 Durable Workflow、11 C# 規則檢查、12 API 相容性守門員。</td></tr>
+  <tr><td>2026-11-05</td><td>第四輪：13 UI 操作錄製器、14 Markdown 轉分頁 HTML 產生器。</td></tr>
   <tr><td>2026-11-05</td><td>本頁改寫為完整總覽與交接文件。</td></tr>
 </table>
 </section>
 
 <section class="tab" id="en">
 <h2>English summary</h2>
-<p>Twelve independent experiments, each with its own tabbed README.html (quick start, step-by-step verification guide, developer guide, debugging, limitations, English summary):</p>
+<p>Fourteen independent experiments, each with its own tabbed README.html (quick start, step-by-step verification guide, developer guide, debugging, limitations, English summary):</p>
 <ol>
   <li>01 MCP server + CLI driving Playwright, red-box annotated screenshots and HTML reports.</li>
   <li>02 Fully local hybrid search (SQLite FTS5 + sqlite-vec + multilingual-e5-small, RRF).</li>
@@ -309,6 +320,8 @@ node tools/check-docs.mjs</code></pre>
   <li>10 Durable workflow engine (event-sourced replay, durable timers, signals, crash recovery).</li>
   <li>11 C# team-rule checker on tree-sitter with SARIF output (no .NET SDK needed).</li>
   <li>12 API compatibility guard: OpenAPI breaking-change diff and traffic record/replay.</li>
+  <li>13 UI action recorder that writes scenario JSON replayable by project 01.</li>
+  <li>14 Markdown to tabbed, self-contained HTML documentation generator with built-in checks.</li>
 </ol>
 <p>Requirements: Node 22.13+ (pin with Volta), Playwright Chromium for tests. Run <code>verify-all.bat</code> or <code>node tools/verify-all.mjs</code> to test everything. On Windows, data and logs default to <code>%ProgramData%\NewMiscCode\&lt;project&gt;</code>. Everything was verified on Linux; the Windows launchers and the items in the "Windows 實機驗證清單" tab still need checking on a real Windows machine.</p>
 </section>

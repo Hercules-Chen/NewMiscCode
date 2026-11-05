@@ -1,0 +1,24 @@
+{
+  "name": "md-to-tabbed-html",
+  "version": "0.1.0",
+  "description": "Markdown 轉分頁式自包含 HTML 文件產生器 (zh-TW / en). Markdown to tabbed, self-contained HTML docs.",
+  "type": "module",
+  "bin": {
+    "md2tabs": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "build:docs": "node src/cli.js build docs/README.md --out README.html --embed-images --check",
+    "build:example": "node src/cli.js build examples/example.md --out examples/example.html --embed-images --check"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "markdown-it": "14.1.0"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

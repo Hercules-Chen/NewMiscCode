@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 180" width="560" height="180" font-family="system-ui, sans-serif" font-size="14">
+  <rect x="0" y="0" width="560" height="180" fill="#ffffff"/>
+  <g fill="#eff2f5" stroke="#d1d9e0">
+    <rect x="16" y="20" width="220" height="140" rx="8"/>
+    <rect x="324" y="20" width="220" height="140" rx="8"/>
+  </g>
+  <g fill="#1f2328">
+    <text x="32" y="48">## 概覽</text>
+    <text x="48" y="74">### 功能表</text>
+    <text x="32" y="104">## 快速開始</text>
+    <text x="48" y="130">### 安裝步驟</text>
+    <text x="340" y="48">tab  #overview</text>
+    <text x="356" y="74">anchor  #功能表</text>
+    <text x="340" y="104">tab  #快速開始</text>
+    <text x="356" y="130">anchor  #安裝步驟</text>
+  </g>
+  <g stroke="#0969da" stroke-width="2" fill="#0969da">
+    <line x1="246" y1="90" x2="308" y2="90"/>
+    <path d="M308 84 L320 90 L308 96 Z"/>
+  </g>
+</svg>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="md2tabs 0.1.0">
+<title>範例文件 Example</title>
+<style>
+:root { --bg:#fafafa; --fg:#1f2328; --muted:#59636e; --card:#ffffff; --line:#d1d9e0; --accent:#0969da; --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e; --imp:#8250df; --code:#eff2f5; color-scheme:light; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --imp:#ab7df8; --code:#1f2630; color-scheme:dark; } }
+:root[data-theme="dark"] { --bg:#0d1117; --fg:#e6edf3; --muted:#9198a1; --card:#151b23; --line:#3d444d; --accent:#4493f8; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --imp:#ab7df8; --code:#1f2630; color-scheme:dark; }
+* { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.7 "Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif; overflow-wrap:anywhere; }
+header { padding:24px 16px 8px; max-width:1040px; margin:auto; }
+header h1 { margin:0 0 4px; font-size:26px; }
+h2 { font-size:21px; margin:8px 0 12px; }
+h3 { font-size:17px; margin:22px 0 8px; }
+h2, h3, h4 { scroll-margin-top:56px; }
+.sub { color:var(--muted); margin:0; }
+nav#nav { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); z-index:5; }
+nav#nav .in { max-width:1040px; margin:auto; padding:0 16px; display:flex; gap:2px; overflow-x:auto; align-items:center; }
+nav#nav a { padding:10px 10px; color:var(--muted); text-decoration:none; white-space:nowrap; border-bottom:2px solid transparent; font-size:14px; }
+nav#nav a.on { color:var(--fg); border-color:var(--accent); font-weight:600; }
+nav#nav a.all { margin-left:auto; }
+nav#nav button { font:inherit; font-size:13px; color:var(--muted); background:none; border:1px solid var(--line); border-radius:6px; padding:2px 8px; cursor:pointer; white-space:nowrap; }
+main { max-width:1040px; margin:auto; padding:16px; }
+section.tab { display:none; } section.tab.on, body.all section.tab, body.no-js section.tab { display:block; }
+body.all section.tab + section.tab { border-top:1px dashed var(--line); margin-top:24px; padding-top:8px; }
+.toc { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:6px 14px; margin:8px 0 12px; font-size:14px; }
+.toc a { margin-right:14px; white-space:nowrap; display:inline-block; }
+a.anchor { color:var(--muted); text-decoration:none; font-weight:400; opacity:.5; }
+a.anchor:hover { opacity:1; }
+.card, .admonition { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 16px; margin:12px 0; }
+.admonition { border-left:4px solid var(--accent); }
+.admonition.tip { border-left-color:var(--ok); } .admonition.important { border-left-color:var(--imp); }
+.admonition.warning { border-left-color:var(--warn); } .admonition.caution { border-left-color:var(--bad); }
+.admonition-title { font-weight:700; margin:4px 0; color:var(--accent); }
+.tip .admonition-title { color:var(--ok); } .important .admonition-title { color:var(--imp); }
+.warning .admonition-title { color:var(--warn); } .caution .admonition-title { color:var(--bad); }
+.admonition > :last-child { margin-bottom:4px; }
+blockquote { margin:12px 0; padding:2px 14px; border-left:4px solid var(--line); color:var(--muted); }
+.table-wrap { max-width:100%; overflow-x:auto; margin:8px 0; }
+table { border-collapse:collapse; width:100%; font-size:14px; }
+th, td { border:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; overflow-wrap:anywhere; }
+th { background:var(--code); }
+code { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; background:var(--code); padding:1px 4px; border-radius:4px; }
+pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; background:var(--code); border:1px solid var(--line); border-radius:6px; padding:10px; overflow-x:auto; overflow-wrap:normal; }
+pre code { background:none; padding:0; }
+img { max-width:100%; height:auto; border:1px solid var(--line); border-radius:6px; }
+a { color:var(--accent); }
+li.task-item { list-style:none; margin-left:-1.2em; }
+li.task-item input { margin:0 6px 0 0; vertical-align:middle; }
+hr { border:0; border-top:1px solid var(--line); }
+footer { max-width:1040px; margin:auto; padding:16px; color:var(--muted); font-size:13px; }
+@media (max-width: 640px) { header h1 { font-size:22px; } main { padding:12px 16px; } }
+@media print {
+  nav#nav, a.anchor, .toc { display:none !important; }
+  section.tab { display:block !important; break-before:page; }
+  section.tab:first-of-type { break-before:auto; }
+  body { background:#fff; color:#000; }
+  pre, .table-wrap { overflow:visible; white-space:pre-wrap; }
+}
+</style>
+</head>
+<body class="no-js">
+<header>
+<h1>範例文件 Example</h1>
+<p class="sub">由 examples/example.md 產生，示範所有支援的語法</p>
+<p>這段文字位於第一個 <code>## </code> 之前，會顯示在標題下方（每個分頁都看得到）。</p>
+</header>
+<nav id="nav" aria-label="分頁"><div class="in">
+<a href="#overview">概覽</a>
+<a href="#快速開始">快速開始</a>
+<a href="#english">English</a>
+<a class="all" href="#all">全部顯示</a>
+<button type="button" id="theme" title="切換主題：自動 / 淺色 / 深色">主題</button>
+</div></nav>
+<main>
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<div class="toc" aria-label="本頁目錄"><a href="#功能表">功能表</a> <a href="#待辦清單">待辦清單</a></div>
+<p>一般段落，含 <strong>粗體</strong>、<code>行內程式碼</code> 與<a href="#安裝步驟">跳到安裝步驟</a>、<a href="#english">跳到 English 分頁</a>。</p>
+<div class="admonition note" role="note">
+<p class="admonition-title">備註</p>
+<p>這是備註卡片。</p>
+</div>
+<div class="admonition warning" role="note">
+<p class="admonition-title">自訂標題：請先備份</p>
+<p>警告卡片可以有自訂標題。</p>
+</div>
+<h3 id="功能表">功能表 <a class="anchor" href="#功能表" aria-label="功能表">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>功能</th>
+<th>狀態</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>分頁</td>
+<td>✅</td>
+<td>每個 <code>## </code> 一個分頁</td>
+</tr>
+<tr>
+<td>子錨點</td>
+<td>✅</td>
+<td>每個 <code>### </code> 都有可分享的 id</td>
+</tr>
+<tr>
+<td>很長的欄位</td>
+<td>✅</td>
+<td>averyveryverylongunbrokenwordthatwouldnormallyoverflowthecolumnonaphone_averyveryverylongunbrokenword</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="待辦清單">待辦清單 <a class="anchor" href="#待辦清單" aria-label="待辦清單">#</a></h3>
+<ul>
+<li class="task-item"><input type="checkbox" disabled checked> 已完成項目</li>
+<li class="task-item"><input type="checkbox" disabled> 未完成項目</li>
+<li>一般項目</li>
+</ul>
+</section>
+<section class="tab" id="快速開始">
+<h2>快速開始</h2>
+<div class="toc" aria-label="本頁目錄"><a href="#安裝步驟">安裝步驟</a> <a href="#對應關係圖">對應關係圖</a></div>
+<h3 id="安裝步驟">安裝步驟 <a class="anchor" href="#安裝步驟" aria-label="安裝步驟">#</a></h3>
+<pre><code class="language-bash">npm install
+node src/cli.js build examples/example.md --out examples/example.html --embed-images --check
+</code></pre>
+<div class="admonition tip" role="note">
+<p class="admonition-title">提示</p>
+<p>加上 <code>--check</code> 會自動驗證所有錨點。</p>
+</div>
+<h3 id="對應關係圖">對應關係圖 <a class="anchor" href="#對應關係圖" aria-label="對應關係圖">#</a></h3>
+<p><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1NjAgMTgwIiB3aWR0aD0iNTYwIiBoZWlnaHQ9IjE4MCIgZm9udC1mYW1pbHk9InN5c3RlbS11aSwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCI+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjU2MCIgaGVpZ2h0PSIxODAiIGZpbGw9IiNmZmZmZmYiLz4KICA8ZyBmaWxsPSIjZWZmMmY1IiBzdHJva2U9IiNkMWQ5ZTAiPgogICAgPHJlY3QgeD0iMTYiIHk9IjIwIiB3aWR0aD0iMjIwIiBoZWlnaHQ9IjE0MCIgcng9IjgiLz4KICAgIDxyZWN0IHg9IjMyNCIgeT0iMjAiIHdpZHRoPSIyMjAiIGhlaWdodD0iMTQwIiByeD0iOCIvPgogIDwvZz4KICA8ZyBmaWxsPSIjMWYyMzI4Ij4KICAgIDx0ZXh0IHg9IjMyIiB5PSI0OCI+IyMg5qaC6Ka9PC90ZXh0PgogICAgPHRleHQgeD0iNDgiIHk9Ijc0Ij4jIyMg5Yqf6IO96KGoPC90ZXh0PgogICAgPHRleHQgeD0iMzIiIHk9IjEwNCI+IyMg5b+r6YCf6ZaL5aeLPC90ZXh0PgogICAgPHRleHQgeD0iNDgiIHk9IjEzMCI+IyMjIOWuieijneatpempnzwvdGV4dD4KICAgIDx0ZXh0IHg9IjM0MCIgeT0iNDgiPnRhYiAgI292ZXJ2aWV3PC90ZXh0PgogICAgPHRleHQgeD0iMzU2IiB5PSI3NCI+YW5jaG9yICAj5Yqf6IO96KGoPC90ZXh0PgogICAgPHRleHQgeD0iMzQwIiB5PSIxMDQiPnRhYiAgI+W/q+mAn+mWi+WnizwvdGV4dD4KICAgIDx0ZXh0IHg9IjM1NiIgeT0iMTMwIj5hbmNob3IgICPlronoo53mraXpqZ88L3RleHQ+CiAgPC9nPgogIDxnIHN0cm9rZT0iIzA5NjlkYSIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSIjMDk2OWRhIj4KICAgIDxsaW5lIHgxPSIyNDYiIHkxPSI5MCIgeDI9IjMwOCIgeTI9IjkwIi8+CiAgICA8cGF0aCBkPSJNMzA4IDg0IEwzMjAgOTAgTDMwOCA5NiBaIi8+CiAgPC9nPgo8L3N2Zz4K" alt="Markdown 標題如何對應到分頁與子錨點" loading="lazy"></p>
+</section>
+<section class="tab" id="english">
+<h2>English</h2>
+<div class="toc" aria-label="本頁目錄"><a href="#notes">Notes</a> <a href="#notes-2">Notes</a></div>
+<p>This tab is English. Deep link: <a href="#安裝步驟">Install steps</a>. Duplicate headings get suffixes:</p>
+<h3 id="notes">Notes <a class="anchor" href="#notes" aria-label="Notes">#</a></h3>
+<p>First.</p>
+<h3 id="notes-2">Notes <a class="anchor" href="#notes-2" aria-label="Notes">#</a></h3>
+<p>Second (id <code>notes-2</code>).</p>
+</section>
+</main>
+<footer>md2tabs example · 由 md2tabs 產生 0.1.0</footer>
+<script>
+(function () {
+  var root = document.documentElement, body = document.body;
+  body.classList.remove('no-js');
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a[href^="#"]'));
+  function show() {
+    var raw = (location.hash || '').slice(1), id;
+    try { id = decodeURIComponent(raw); } catch (e) { id = raw; }
+    var all = id === 'all', target = null, tabId = tabs.length ? tabs[0].id : '';
+    if (!all && id) {
+      var el = document.getElementById(id);
+      if (el) {
+        var sec = el.closest('section.tab');
+        if (sec) { tabId = sec.id; if (sec !== el) target = el; }
+      }
+    }
+    body.classList.toggle('all', all);
+    tabs.forEach(function (s) { s.classList.toggle('on', !all && s.id === tabId); });
+    links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + (all ? 'all' : tabId)); });
+    if (target) target.scrollIntoView();
+    else if (!all && id && document.getElementById(id) && document.getElementById(id).classList.contains('tab')) window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', show);
+  show();
+  var modes = ['auto', 'light', 'dark'], btn = document.getElementById('theme');
+  function applyTheme(m) {
+    if (m === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', m);
+    if (btn) btn.setAttribute('data-mode', m);
+  }
+  var saved = 'auto';
+  try { saved = localStorage.getItem('md2tabs-theme') || 'auto'; } catch (e) {}
+  applyTheme(modes.indexOf(saved) >= 0 ? saved : 'auto');
+  if (btn) btn.addEventListener('click', function () {
+    var next = modes[(modes.indexOf(btn.getAttribute('data-mode')) + 1) % modes.length];
+    applyTheme(next);
+    try { localStorage.setItem('md2tabs-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

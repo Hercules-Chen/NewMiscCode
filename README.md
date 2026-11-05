@@ -16,6 +16,8 @@
 | 10 | [10-durable-workflow](10-durable-workflow/README.html) | 事件溯源 + node:sqlite | 當機可續跑的工作流程引擎 |
 | 11 | [11-csharp-rules-treesitter](11-csharp-rules-treesitter/README.html) | tree-sitter | C# 團隊規則檢查（SARIF 輸出） |
 | 12 | [12-api-compat-guard](12-api-compat-guard/README.html) | OpenAPI | API 相容性守門員 |
+| 13 | [13-ui-recorder](13-ui-recorder/README.html) | Playwright | 操作錄製器，產生 01 可執行的情境 JSON |
+| 14 | [14-md-to-tabbed-html](14-md-to-tabbed-html/README.html) | markdown-it | Markdown 轉分頁 HTML 文件產生器 |
 
 需求：Node 22.13 以上。全部測試：`verify-all.bat` 或 `node tools/verify-all.mjs`。
 文件檢查：`node tools/audit-text.mjs` 與 `node tools/check-docs.mjs`。
