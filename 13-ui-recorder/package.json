@@ -1,0 +1,18 @@
+{
+  "name": "ui-recorder",
+  "version": "0.1.0",
+  "description": "UI 錄製器：把真實的瀏覽器操作錄成 01-mcp-ui-verifier 的情境 JSON (zh-TW / en).",
+  "type": "module",
+  "bin": {
+    "ui-recorder": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "record": "node src/cli.js record",
+    "record:demo": "node scripts/record-demo.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

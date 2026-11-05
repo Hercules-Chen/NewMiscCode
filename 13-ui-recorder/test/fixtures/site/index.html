@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head><meta charset="utf-8"><title>選擇器測試 Selector fixture</title></head>
+<body>
+<h1>選擇器測試</h1>
+<button id="ok-id">有 id</button>
+<button data-testid="save-btn">儲存</button>
+<input name="email" placeholder="Email">
+<button id="dup">甲</button><button id="dup">乙 Second</button>
+<span class="tag">標籤 A</span>
+<div class="grid"><div class="cell" style="width:40px;height:20px;background:#ccc"></div><div class="cell" style="width:40px;height:20px;background:#999"></div></div>
+<label><input type="checkbox" id="agree"> 同意 Agree</label>
+<form id="search" onsubmit="document.getElementById('out').textContent='搜尋：'+document.getElementById('q').value;return false">
+  <input id="q" type="search"><button type="submit">搜尋 Search</button>
+</form>
+<div id="out"></div>
+<a id="go" href="/page2.html">下一頁 Next</a>
+</body>
+</html>

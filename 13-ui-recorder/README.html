@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI 錄製器 ui-recorder</title>
+<style>
+:root{--bg:#f7f8fa;--fg:#1d2330;--muted:#5b6475;--card:#fff;--line:#dfe3ea;--accent:#1f5fbf;--warn:#c62828;--code:#eef1f6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2129;--line:#2f3542;--accent:#7fb0ff;--warn:#ef5350;--code:#252a34}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 "Segoe UI","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;overflow-wrap:anywhere}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:16px}
+header h1{margin:0;font-size:1.4rem}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+nav.tabs a{padding:6px 10px;border-radius:6px;color:var(--fg);text-decoration:none;border:1px solid var(--line);font-size:.92rem}
+nav.tabs a.active{background:var(--fg);color:var(--bg)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+section.tab{display:none}section.tab.active{display:block}
+body.no-js section.tab{display:block}
+h2{font-size:1.35rem;border-bottom:2px solid var(--line);padding-bottom:4px}
+h3{font-size:1.1rem;margin-top:1.6em}
+a{color:var(--accent)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-family:Consolas,"Cascadia Mono",monospace;font-size:.88em}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;max-width:100%;font-size:.85em;line-height:1.45}
+pre code{background:none;padding:0}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.92rem}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.note{border-left:4px solid var(--accent);background:var(--card);padding:8px 12px;margin:12px 0}
+.warn{border-left:4px solid var(--warn);background:var(--card);padding:8px 12px;margin:12px 0}
+img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+figure{margin:12px 0}figcaption{color:var(--muted);font-size:.9rem}
+ol li,ul li{margin:4px 0}
+[id]{scroll-margin-top:64px}
+@media (max-width:600px){nav.tabs{position:static}[id]{scroll-margin-top:8px}nav.tabs a{font-size:.85rem;padding:4px 8px}}
+</style>
+</head>
+<body class="no-js">
+<header>
+<h1>UI 錄製器 <small>ui-recorder v0.1.0</small></h1>
+<p>在真實瀏覽器裡操作一次，自動產生 <a href="../01-mcp-ui-verifier/README.html">01-mcp-ui-verifier</a> 可直接執行的情境 JSON。</p>
+</header>
+<nav class="tabs" role="tablist">
+<a href="#overview" data-tab="overview">概覽</a>
+<a href="#quickstart" data-tab="quickstart">快速開始</a>
+<a href="#usage" data-tab="usage">使用說明</a>
+<a href="#verify" data-tab="verify">逐步驗證指南</a>
+<a href="#dev" data-tab="dev">開發者指南</a>
+<a href="#debug" data-tab="debug">除錯與日誌</a>
+<a href="#limits" data-tab="limits">限制與疑難排解</a>
+<a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>手寫 UI 驗證情境很花時間：要查每個元素的選擇器、記得每一步的順序。ui-recorder 讓你<strong>在有視窗的 Chromium 裡實際操作一次</strong>，它會把點擊、輸入、按 Enter、換頁錄成 01-mcp-ui-verifier 的情境格式（<code>open</code> / <code>click</code> / <code>fill</code> / <code>press</code> / <code>assert_text</code> / <code>assert_visible</code> / <code>screenshot_annotate</code>），存檔後可以<strong>不修改</strong>直接交給 01 的 <code>run</code> 重播。</p>
+<ul>
+<li>頁面右下角有浮動工具列（預設中文，可切 English）：<strong>開始/暫停</strong>、<strong>加入斷言</strong>、<strong>截圖標註</strong>、<strong>停止並儲存</strong>。工具列本身的點擊不會被錄進去。</li>
+<li>密碼欄位會標記 <code>"secret": true</code>（01 的報告會遮罩），日誌裡一律寫成 <code>******</code>。</li>
+<li>選擇器依序嘗試 <code>#id</code> → <code>[data-testid]</code> → <code>[name]</code> → 角色＋可及名稱 → <code>text=</code> → 短 CSS 路徑，並用 Playwright 在頁面上確認<strong>只對應一個元素</strong>（見<a href="#dev-selectors">選擇器策略</a>）。</li>
+<li>也能以程式驅動：<code>record --script steps.js</code> 或 API <code>startRecorder(page)</code>，方便寫自動測試。</li>
+</ul>
+<figure><img src="examples/toolbar-annotate-zh-TW.png" alt="錄製中的示範商店，右下角是錄製工具列，兩個元素被標註" width="1280" height="720"><figcaption>錄製 01 的示範商店：已輸入帳號密碼、登入，正在「截圖標註」模式挑選兩個元素。</figcaption></figure>
+<h3 id="overview-files">檔案結構</h3>
+<pre><code>13-ui-recorder/
+  src/cli.js            CLI 進入點（record）
+  src/recorder.js       Node 端：exposeBinding、事件 → 情境步驟、選擇器驗證（startRecorder API）
+  src/injected.js       注入頁面的錄製腳本與工具列（Shadow DOM）
+  src/validate.js       載入 01 的 validateScenario（找不到時用相同規則的本地版本）
+  src/i18n.js           zh-TW / en 文字
+  src/logger.js         JSONL 日誌
+  src/config.js         參數、輸出路徑、載入 Playwright
+  scripts/record-demo.js  啟動 01 示範網站並錄製
+  test/                 node:test 測試（含端到端：錄製 → 01 驗證 → 01 重播）
+  examples/             範例截圖與 demo-recorded.json
+  ui-recorder.ps1, *.bat  Windows 啟動器</code></pre>
+<h3 id="overview-dependency">與 01-mcp-ui-verifier 的關係</h3>
+<p>輸出格式由 01 定義。ui-recorder 執行時會嘗試載入 <code>../01-mcp-ui-verifier/src/scenario.js</code> 的 <code>validateScenario</code> 檢查輸出；若 01 不存在則使用 <code>src/validate.js</code> 內相同規則的副本。<strong>測試（<code>npm test</code>）一定需要 01</strong>：用它的示範網站、它的 <code>validateScenario</code>，並用它的 CLI 重播。</p>
+</section>
+
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<p>需求：Node.js 20 以上；Playwright 與 Chromium（全域安裝，或已執行過 01 的 setup，ui-recorder 會使用 01 的 <code>node_modules</code>）。本專案<strong>沒有 npm 相依套件</strong>，不需要 <code>npm install</code>。</p>
+<h3 id="quickstart-windows">Windows</h3>
+<ol>
+<li>雙擊 <code>setup.bat</code>：檢查 Node.js 與 Playwright。<br>預期：顯示 <code>Playwright OK</code>、<code>exit code: 0</code>。</li>
+<li>雙擊 <code>record-demo.bat</code>：啟動 01 的示範商店（<code>http://127.0.0.1:4173/</code>）並開啟有視窗的 Chromium。<br>預期：右下角出現「UI 錄製器 錄製中 · 1 步」工具列。</li>
+<li>在頁面上操作，最後按「停止並儲存」。<br>預期：命令視窗顯示「已儲存情境（N 個步驟）」與檔案路徑（預設 <code>%ProgramData%\NewMiscCode\13-ui-recorder\scenarios\demo-recorded.json</code>）。</li>
+<li>錄自己的網站：在命令提示字元執行 <code>record.bat http://localhost:5000/ --out my.json</code>。</li>
+<li>執行測試：雙擊 <code>run-tests.bat</code>。預期：<code># fail 0</code>。</li>
+</ol>
+<p class="note">鏈結：<code>.bat</code>（純 ASCII、CRLF，<code>pushd "%~dp0"</code>，顯示路徑與結束代碼，結束前 <code>pause</code>）→ <code>ui-recorder.ps1</code>（UTF-8 BOM）→ <code>node</code>。設定環境變數 <code>UIREC_NO_PAUSE=1</code> 可略過 pause。</p>
+<h3 id="quickstart-linux">Linux / macOS</h3>
+<pre><code>cd 13-ui-recorder
+npm test                                      # 9 個測試，需要 ../01-mcp-ui-verifier
+npm run record:demo                           # 啟動 01 示範網站並錄製（需要圖形介面）
+node src/cli.js record http://localhost:5000/ --out my.json
+node ../01-mcp-ui-verifier/src/cli.js run my.json   # 用 01 重播</code></pre>
+<p>沒有桌面環境（CI、SSH）時可用 <code>xvfb-run -a node src/cli.js record ...</code>，或改用<a href="#usage-script">腳本模式</a>（無頭）。</p>
+</section>
+
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<h3 id="usage-cli">命令列</h3>
+<pre><code>node src/cli.js record &lt;url&gt; [選項]</code></pre>
+<div class="scroll"><table>
+<tr><th>選項</th><th>說明</th></tr>
+<tr><td><code>--out file.json</code></td><td>輸出檔。未指定時存到 <code>&lt;輸出資料夾&gt;/scenarios/&lt;name&gt;-&lt;時間&gt;.json</code></td></tr>
+<tr><td><code>--name 名稱</code></td><td>情境名稱（預設 <code>recorded-&lt;host&gt;</code>）</td></tr>
+<tr><td><code>--lang zh-TW|en</code></td><td>CLI 與工具列語言（工具列可隨時切換）</td></tr>
+<tr><td><code>--script steps.js</code></td><td>以腳本驅動頁面（預設無頭；加 <code>--headed</code> 顯示視窗）</td></tr>
+<tr><td><code>--check-console</code></td><td>在情境最後加上 <code>check_console_errors</code></td></tr>
+<tr><td><code>--debounce 400</code></td><td>輸入合併時間（毫秒），停止打字這麼久後才記錄 <code>fill</code></td></tr>
+<tr><td><code>--debug</code></td><td>日誌層級 debug，並把日誌同步印到 stderr</td></tr>
+</table></div>
+<p>結束代碼：<code>0</code> 已儲存；<code>2</code> 參數錯誤或執行失敗。</p>
+<h3 id="usage-toolbar">工具列</h3>
+<div class="scroll"><table>
+<tr><th>按鈕</th><th>作用</th><th>產生的步驟</th></tr>
+<tr><td>暫停 / 開始</td><td>暫停時的操作與換頁都不記錄</td><td>無</td></tr>
+<tr><td>加入斷言</td><td>下一次點擊不會真的點下去，而是選取元素</td><td>有文字 → <code>assert_text</code>（目前文字，最多 100 字，包含比對）；沒有文字或是輸入框 → <code>assert_visible</code></td></tr>
+<tr><td>截圖標註</td><td>之後點選的元素都加紅框；再按一次「完成標註 (N)」</td><td><code>screenshot_annotate</code>（<code>selectors</code> + <code>labels</code>）</td></tr>
+<tr><td>停止並儲存</td><td>送出尚未記錄的輸入並存檔；關閉瀏覽器視窗效果相同</td><td>—</td></tr>
+<tr><td>EN / 中</td><td>切換工具列語言，換頁後仍保留</td><td>無</td></tr>
+</table></div>
+<h3 id="usage-recorded">會錄到什麼</h3>
+<ul>
+<li><strong>open</strong>：第一個頁面，以及「不是由點擊/Enter 造成」的換頁（例如在網址列輸入）。同網域時寫相對路徑，<code>baseUrl</code> 另外存，可用 01 的 <code>--base-url</code> 換環境。</li>
+<li><strong>click</strong>：按鈕、連結、核取方塊等。點進文字輸入框只是聚焦，不記錄；點 <code>&lt;label&gt;</code> 只記錄它控制的元素一次。</li>
+<li><strong>fill</strong>：文字類輸入框與 textarea；連續輸入合併成一步；密碼欄位加 <code>"secret": true</code>。</li>
+<li><strong>press</strong>：在輸入框按 Enter（輸入法選字的 Enter 不算）。Enter 觸發的表單送出不會再多記一個 click。</li>
+</ul>
+<h3 id="usage-script">腳本模式與 API</h3>
+<pre><code>// steps.js
+export default async function ({ page, recorder }) {
+  await page.fill('#username', '小明');
+  await page.click('#login-btn');
+  await page.click('[data-uirec-act=assert]');   // 工具列：加入斷言
+  await page.click('#login-msg');
+  await recorder.flush();
+}</code></pre>
+<pre><code>node src/cli.js record http://127.0.0.1:4173/ --script test/fixtures/demo-steps.js --out out.json</code></pre>
+<pre><code>import { startRecorder } from './src/recorder.js';
+const rec = await startRecorder(page, { lang: 'zh-TW' });   // 在 page.goto 之前呼叫
+await page.goto(url);
+// ……用 Playwright 操作……
+const scenario = await rec.stop();                          // 或 await rec.waitForStop()（使用者按停止）</code></pre>
+<p>工具列按鈕可用 <code>[data-uirec-act=toggle|assert|annotate|stop|lang]</code> 點擊（Playwright 會穿透 open Shadow DOM）。</p>
+</section>
+
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下每一步都有預期結果；全部在 Linux（Node 22.23.4、Playwright 1.63.0）實際跑過。</p>
+<h3 id="verify-1">步驟 1：自動測試</h3>
+<pre><code>npm test</code></pre>
+<p>預期：<code># tests 9</code>、<code># pass 9</code>、<code># fail 0</code>。其中端到端測試會：啟動 01 的示範網站 → 用 Playwright 操作並同時錄製（切換語言、暫停時點擊、輸入中文帳號「小明」、密碼、登入、用工具列加斷言、截圖標註）→ 檢查產生的步驟、工具列點擊沒有被錄到、頁面沒有 console 錯誤、390px 寬沒有水平捲動 → 用 01 的 <code>validateScenario</code> 檢查 → 用 01 的 CLI 重播，結束代碼必須是 0。</p>
+<h3 id="verify-2">步驟 2：看範例輸出</h3>
+<p>打開 <a href="examples/demo-recorded.json">examples/demo-recorded.json</a>（由測試產生）。預期 6 個步驟：<code>open /</code>、<code>fill #username 小明</code>、<code>fill #password</code>（<code>secret: true</code>）、<code>click #login-btn</code>、<code>assert_text #login-msg 歡迎，小明！…</code>、<code>screenshot_annotate #price, #add-to-cart</code>。</p>
+<h3 id="verify-3">步驟 3：用 01 重播範例</h3>
+<pre><code>node ../01-mcp-ui-verifier/src/cli.js serve-demo --port 4173     # 另開一個視窗
+node ../01-mcp-ui-verifier/src/cli.js run examples/demo-recorded.json</code></pre>
+<p>預期：6 個步驟都「通過」，最後一行 <code>完成：6 通過 / 0 失敗</code>，結束代碼 0，並產生 01 的 HTML 報告（含標註截圖）。</p>
+<h3 id="verify-4">步驟 4：親手錄一次</h3>
+<ol>
+<li>執行 <code>npm run record:demo</code>（Windows：<code>record-demo.bat</code>）。預期：Chromium 開啟示範商店，右下角工具列顯示「錄製中 · 1 步」。</li>
+<li>帳號輸入「小明」、密碼任意，按「登入 Sign in」。預期：工具列步數變成 4。</li>
+<li>按「加入斷言」，再點綠色的歡迎訊息。預期：按鈕先變成黃色「點選要斷言的元素…」，點完恢復，步數 +1，網頁本身沒有反應。</li>
+<li>按「截圖標註」，點價格與「加入購物車」。預期：兩個元素加上紅框，按鈕顯示「完成標註 (2)」；購物車按鈕的程式<strong>不會</strong>被觸發。再按一次結束標註。</li>
+<li>按「EN」。預期：工具列變成英文（如下圖，手機寬度時自動換行）。</li>
+<li>按「停止並儲存」。預期：工具列顯示「已儲存」，命令視窗印出檔案路徑與重播指令。</li>
+</ol>
+<figure><img src="examples/toolbar-en-390.png" alt="390 像素寬度下的英文工具列" width="390" height="700"><figcaption>390px 寬、英文模式的工具列（測試自動截圖）。</figcaption></figure>
+<h3 id="verify-5">步驟 5：文件與編碼檢查</h3>
+<pre><code>node ../tools/audit-text.mjs .
+node ../tools/check-docs.mjs --no-browser</code></pre>
+<p>預期：<code>problems=0</code>。</p>
+</section>
+
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<h3 id="dev-architecture">架構</h3>
+<pre><code>Node (src/recorder.js)                      頁面 (src/injected.js, addInitScript)
+ page.exposeBinding('__uirecEmit')  &lt;------  click / input / change / keydown（window 捕獲階段）
+ page.exposeBinding('__uirecState') &lt;-----&gt;  暫停、語言（換頁後由 Node 取回）
+ page.exposeBinding('__uirecStop')  &lt;------  工具列「停止並儲存」
+ page.on('framenavigated')  -&gt; open 步驟
+ 事件佇列（依序處理）-&gt; 選擇器驗證 -&gt; steps[] -&gt; scenario()</code></pre>
+<ul>
+<li>頁面腳本以 <code>Function.prototype.toString</code> 序列化後注入，每次換頁自動重跑；只在主框架（top）執行。</li>
+<li>工具列放在 <code>&lt;div id="__uirec_root"&gt;</code> 的 open Shadow DOM 裡，掛在 <code>&lt;html&gt;</code> 下而不是 <code>&lt;body&gt;</code>，所以不影響頁面的 <code>nth-of-type</code>。所有監聽器先檢查 <code>event.composedPath()</code> 是否包含工具列，是就忽略。</li>
+<li>斷言/標註模式下在捕獲階段 <code>preventDefault</code> + <code>stopImmediatePropagation</code>（click、mousedown、pointerdown、submit…），網頁本身收不到點擊。</li>
+<li>Node 端所有事件經過一個 Promise 佇列依序處理，保證步驟順序與頁面發生順序一致；<code>flush()</code> 會先送出頁面裡尚未到時的 debounce 輸入。</li>
+</ul>
+<h3 id="dev-selectors">選擇器策略</h3>
+<ol>
+<li><code>#id</code>（排除看起來是自動產生的 id：數字開頭、含 4 位以上數字、含冒號、react/ember 等前綴）</li>
+<li><code>[data-testid="…"]</code>（也接受 data-test-id、data-test、data-cy）</li>
+<li><code>tag[name="…"]</code></li>
+<li><code>role=button[name="…"]</code>（簡化版 ARIA：aria-label、aria-labelledby、label、alt、placeholder、按鈕/連結/標題文字）</li>
+<li><code>text="…"</code>（40 字以內的元素文字，完整比對）</li>
+<li>短 CSS 路徑：往上走到有穩定 id 的祖先為止，使用 class 與必要時的 <code>:nth-of-type()</code>，一旦唯一就停止</li>
+</ol>
+<p>頁面端產生候選清單並先估計唯一性；Node 端再用 <code>page.locator(sel).count()</code> 逐一驗證，<strong>選第一個剛好對應 1 個元素的</strong>。若頁面已換頁無法驗證（例如點連結），使用頁面端估計為唯一的第一個候選。點擊目標會先往上找最近的互動元素（button、a、input、label、[role=button]…）。</p>
+<h3 id="dev-extend">如何擴充</h3>
+<ul>
+<li><strong>新的事件類型</strong>：在 <code>src/injected.js</code> 加監聽器並 <code>emit({ type: 'xxx', cands })</code>；在 <code>src/recorder.js</code> 的 <code>_onEvent</code> 轉成 01 支援的 action（清單見 01 的 <code>ACTIONS</code>）。</li>
+<li><strong>新的選擇器規則</strong>：在 <code>candidates()</code> 依優先順序插入 <code>{ kind, sel, unique }</code>；Node 端驗證會自動套用。</li>
+<li><strong>工具列文字</strong>：<code>src/i18n.js</code> 的 <code>tb.*</code> 鍵，兩種語言都要加（單元測試會檢查鍵是否一致）。</li>
+</ul>
+<h3 id="dev-versions">版本</h3>
+<div class="scroll"><table>
+<tr><th>元件</th><th>版本</th></tr>
+<tr><td>Node.js</td><td>20 以上（測試於 22.23.4）</td></tr>
+<tr><td>Playwright</td><td>1.63.0（全域，或 01 的 node_modules）</td></tr>
+<tr><td>Chromium</td><td>Playwright 內建（測試於 153）</td></tr>
+<tr><td>npm 相依套件</td><td>無</td></tr>
+</table></div>
+<h3 id="dev-changelog">變更紀錄</h3>
+<ul><li><strong>0.1.0</strong>（2026-11-05）：第一版。record CLI、工具列（暫停、斷言、標註、停止、語言）、腳本模式、startRecorder API、選擇器驗證、JSONL 日誌、Windows 啟動器、端到端測試（01 驗證＋重播）。</li></ul>
+</section>
+
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<ul>
+<li>日誌位置：Windows <code>%ProgramData%\NewMiscCode\13-ui-recorder\logs\recorder-&lt;時間&gt;.jsonl</code>；Linux <code>./output/logs/</code>。可用環境變數 <code>UIREC_OUTPUT_DIR</code> 改變輸出根目錄。</li>
+<li>每行一個 JSON：<code>{"ts","level","event",…}</code>，層級 <code>debug / info / warn / error</code>。<code>--debug</code>（或 <code>UIREC_DEBUG=1</code>）啟用 debug 並同步印出；<code>--log-level warn</code> 只留警告以上。</li>
+<li>常見事件：<code>step.recorded</code>、<code>step.merged</code>、<code>selector.chosen</code> / <code>selector.rejected</code>（含 count）/ <code>selector.fallback</code>、<code>nav.skipped</code>、<code>page.console.error</code>、<code>recorder.stopped</code>。</li>
+<li>密碼欄位的值在日誌中一律是 <code>******</code>（測試會檢查）。</li>
+</ul>
+<p>範例（測試用選擇器頁面，兩個按鈕都用了 <code>id="dup"</code>）：</p>
+<pre><code>node src/cli.js record http://127.0.0.1:8080/ --debug
+[debug] selector.rejected {"sel":"#dup","kind":"id","count":2}
+[debug] selector.chosen {"sel":"role=button[name=\"乙 Second\"]","kind":"role","verified":true}</code></pre>
+</section>
+
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limits-list">已知限制</h3>
+<ul>
+<li>只錄主框架；iframe、彈出視窗（新分頁）內的操作不會記錄。</li>
+<li><code>&lt;select&gt;</code>、檔案上傳、拖放、hover、捲動不會記錄（01 沒有對應的 action）。</li>
+<li>密碼值會以明文存在 JSON（01 重播需要），只在 01 報告與本工具日誌中遮罩；請勿把含真實密碼的情境提交到版本控制。</li>
+<li>角色/可及名稱是簡化計算，複雜的 ARIA 可能與 Playwright 不同；Node 端驗證失敗時會自動退回下一個候選。</li>
+<li>斷言使用「包含」比對；動態內容（時間、亂數）請手動改成 <code>"mode": "regex"</code>。</li>
+<li>點擊造成的換頁在 2 秒內不另外記錄 <code>open</code>；非常慢的轉址可能被誤記為 open（重播時通常無害）。</li>
+</ul>
+<h3 id="limits-trouble">疑難排解</h3>
+<div class="scroll"><table>
+<tr><th>症狀</th><th>處理</th></tr>
+<tr><td>Playwright not found</td><td><code>npm i -g playwright</code> 後 <code>npx playwright install chromium</code>，或先完成 01 的安裝</td></tr>
+<tr><td>Linux 沒有視窗 / Missing X server</td><td>使用 <code>xvfb-run -a</code> 或腳本模式（無頭）</td></tr>
+<tr><td>看不到工具列</td><td>頁面有極高 z-index 的遮罩或嚴格 CSP 阻擋 init script；用 <code>--debug</code> 看 <code>inject.failed</code></td></tr>
+<tr><td>重播時找不到元素</td><td>查日誌 <code>selector.fallback</code>；替元素加 <code>data-testid</code> 後重錄</td></tr>
+<tr><td>測試失敗：找不到 01</td><td>測試需要同層的 <code>01-mcp-ui-verifier</code> 及其 node_modules</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="english">
+<h2>English</h2>
+<p><strong>ui-recorder</strong> records real browser interactions into a scenario JSON that <a href="../01-mcp-ui-verifier/README.html">01-mcp-ui-verifier</a> runs unchanged.</p>
+<h3 id="english-quick">Quick start</h3>
+<pre><code>npm test                                         # needs ../01-mcp-ui-verifier
+npm run record:demo                              # record 01's demo shop (headed)
+node src/cli.js record http://localhost:5000/ --out my.json [--lang en] [--debug]
+node src/cli.js record &lt;url&gt; --script steps.js --out my.json   # scripted, headless
+node ../01-mcp-ui-verifier/src/cli.js run my.json --base-url http://localhost:5000/</code></pre>
+<p>Windows: <code>setup.bat</code>, <code>record-demo.bat</code>, <code>record.bat &lt;url&gt; --out my.json</code>, <code>run-tests.bat</code> (chain .bat → <code>ui-recorder.ps1</code> → node). Output and logs: <code>%ProgramData%\NewMiscCode\13-ui-recorder</code> on Windows, <code>./output</code> on Linux.</p>
+<h3 id="english-features">Features</h3>
+<ul>
+<li>Records <code>open</code>, <code>click</code>, <code>fill</code> (debounced; password fields get <code>"secret": true</code>), <code>press</code> Enter.</li>
+<li>Floating toolbar (zh-TW default / English): Start/Pause, Add assertion (<code>assert_text</code> with current text, or <code>assert_visible</code>), Annotate (<code>screenshot_annotate</code>), Stop &amp; save. Toolbar clicks are never recorded.</li>
+<li>Selector priority: <code>#id</code> → <code>[data-testid]</code> → <code>[name]</code> → <code>role=…[name="…"]</code> → <code>text=</code> → short CSS path, each verified to match exactly one element with Playwright.</li>
+<li>Programmatic API <code>startRecorder(page)</code> → <code>flush()</code>, <code>stop()</code>, <code>waitForStop()</code>, <code>scenario()</code>.</li>
+<li>Output is checked with 01's own <code>validateScenario</code> (local copy as fallback). JSONL logs with levels; <code>--debug</code>.</li>
+</ul>
+<h3 id="english-limits">Limitations</h3>
+<p>Main frame only (no iframes/popups); no select/upload/drag/hover; password values are stored in plain text in the JSON (needed for replay) and masked only in logs and 01 reports; simplified accessible-name computation.</p>
+</section>
+
+</main>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-tab') === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); } else { window.scrollTo(0, 0); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

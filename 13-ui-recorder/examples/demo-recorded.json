@@ -1,0 +1,45 @@
+{
+  "name": "demo-login-recorded",
+  "description": "由 13-ui-recorder 錄製 Recorded by 13-ui-recorder v0.1.0",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "stopOnFailure": false,
+  "recordedAt": "2026-11-05T00:00:00.000Z",
+  "steps": [
+    {
+      "action": "open",
+      "url": "/"
+    },
+    {
+      "action": "fill",
+      "selector": "#username",
+      "text": "小明"
+    },
+    {
+      "action": "fill",
+      "selector": "#password",
+      "text": "secret123",
+      "secret": true
+    },
+    {
+      "action": "click",
+      "selector": "#login-btn"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#login-msg",
+      "expected": "歡迎，小明！ Welcome, 小明!"
+    },
+    {
+      "action": "screenshot_annotate",
+      "selectors": [
+        "#price",
+        "#add-to-cart"
+      ],
+      "labels": [
+        "NT$ 1,200",
+        "加入購物車 Add to cart"
+      ],
+      "label": "標註截圖"
+    }
+  ]
+}
