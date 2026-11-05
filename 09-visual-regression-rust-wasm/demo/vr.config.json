@@ -1,0 +1,11 @@
+{
+  "viewport": { "width": 960, "height": 640 },
+  "fullPage": true,
+  "threshold": 0.1,
+  "gap": 12,
+  "ignoreSelectors": ["#clock"],
+  "pages": [
+    { "name": "home", "path": "index.html" },
+    { "name": "pricing", "path": "pricing.html" }
+  ]
+}

@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Pricing v2</title><link rel="stylesheet" href="site.css"></head>
+<body>
+<header><span class="logo">DemoShop</span><nav><a href="index.html">Home</a><a href="pricing.html">Pricing</a><a href="#">Contact</a></nav></header>
+<section class="hero"><h1>Pricing</h1><p>Simple plans for every team.</p></section>
+<section class="features">
+  <div class="card"><h3>Free</h3><div class="price">NT$0</div><p>1 project, 50 screenshots.</p></div>
+  <div class="card"><h3>Team</h3><div class="price" data-vr-change="price">NT$390</div><p>10 projects, 5,000 screenshots.</p></div>
+  <div class="card"><h3>Enterprise <span class="badge" data-vr-change="badge">NEW</span></h3><div class="price">NT$990</div><p>Unlimited projects.</p></div>
+</section>
+<footer><span>&copy; 2026 DemoShop</span><span>Local time: <span id="clock">--:--:--</span></span></footer>
+<script>document.getElementById('clock').textContent = new Date().toISOString().slice(11, 19);</script>
+</body>
+</html>

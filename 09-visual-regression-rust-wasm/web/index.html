@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>視覺回歸比對 VR Diff</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1 data-i18n="app.title">視覺回歸比對（Rust + WebAssembly）</h1>
+    <p class="sub" data-i18n="app.subtitle"></p>
+  </div>
+  <button type="button" id="langBtn" class="btn ghost" data-i18n="lang.toggle">English</button>
+</header>
+<main>
+  <section class="drops">
+    <label class="drop" id="dropA" for="fileA">
+      <strong data-i18n="drop.baseline"></strong>
+      <span class="hint" data-i18n="drop.hint"></span>
+      <span class="name" id="nameA"></span>
+      <img id="thumbA" alt="" hidden>
+      <input type="file" id="fileA" accept="image/png">
+    </label>
+    <label class="drop" id="dropB" for="fileB">
+      <strong data-i18n="drop.current"></strong>
+      <span class="hint" data-i18n="drop.hint"></span>
+      <span class="name" id="nameB"></span>
+      <img id="thumbB" alt="" hidden>
+      <input type="file" id="fileB" accept="image/png">
+    </label>
+  </section>
+  <section class="opts">
+    <label><span data-i18n="opt.threshold"></span> <output id="thrOut">0.10</output>
+      <input type="range" id="threshold" min="0" max="0.5" step="0.01" value="0.1"></label>
+    <label><span data-i18n="opt.gap"></span> <input type="number" id="gap" min="0" max="200" value="8"></label>
+    <label class="chk"><input type="checkbox" id="includeAA"> <span data-i18n="opt.includeAA"></span></label>
+    <label class="wide"><span data-i18n="opt.ignore"></span> <input type="text" id="ignore" placeholder="0,0,100,40; 300,10,80,20"></label>
+    <div class="actions">
+      <button type="button" class="btn" id="compareBtn" data-i18n="btn.compare">比對</button>
+      <button type="button" class="btn ghost" id="sampleBtn" data-i18n="btn.sample">載入範例圖</button>
+      <a class="btn ghost" id="downloadLink" download="diff.png" hidden data-i18n="btn.download">下載差異圖</a>
+    </div>
+  </section>
+  <section class="result">
+    <h2 data-i18n="stats.title"></h2>
+    <p id="status" class="status" data-i18n="stats.none"></p>
+    <dl id="stats" class="stats" hidden>
+      <div><dt data-i18n="stats.diffPixels"></dt><dd id="sDiff" data-testid="diff-pixels"></dd></div>
+      <div><dt data-i18n="stats.percent"></dt><dd id="sPct"></dd></div>
+      <div><dt data-i18n="stats.boxes"></dt><dd id="sBoxes" data-testid="box-count"></dd></div>
+      <div><dt data-i18n="stats.aaPixels"></dt><dd id="sAA"></dd></div>
+      <div><dt data-i18n="stats.size"></dt><dd id="sSize"></dd></div>
+      <div><dt data-i18n="stats.time"></dt><dd id="sTime"></dd></div>
+    </dl>
+    <div id="viewer" class="viewer"></div>
+    <details id="boxList" hidden><summary data-i18n="box.list"></summary><ol id="boxItems"></ol></details>
+  </section>
+  <section id="debugPanel" class="debug" hidden>
+    <h2 data-i18n="debug.title"></h2>
+    <pre id="debugLog"></pre>
+  </section>
+</main>
+<footer class="foot">vr-core <span id="ver">?</span> · WebAssembly · <a href="../README.html">README</a></footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

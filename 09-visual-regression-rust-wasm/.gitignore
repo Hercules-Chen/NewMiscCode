@@ -1,0 +1,6 @@
+crate/target/
+target/
+node_modules/
+output/
+logs/
+*.log

@@ -1,0 +1,22 @@
+{
+  "name": "visual-regression-rust-wasm",
+  "version": "0.1.0",
+  "description": "Visual regression testing with a Rust image-diff core compiled to WebAssembly (Node CLI + browser UI + native CLI). zh-TW / en.",
+  "type": "module",
+  "bin": { "vr": "src/cli.js" },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 \"test/*.test.mjs\"",
+    "test:rust": "cargo test -j 2 --manifest-path crate/Cargo.toml",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:native": "cargo build --release -j 2 --manifest-path crate/Cargo.toml",
+    "demo": "node scripts/demo.mjs",
+    "serve": "node src/cli.js serve",
+    "bench": "node src/cli.js bench",
+    "vr": "node src/cli.js"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT",
+  "optionalDependencies": {
+    "playwright": "1.63.0"
+  }
+}

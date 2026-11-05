@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Demo Shop v2</title><link rel="stylesheet" href="site.css"></head>
+<body>
+<header><span class="logo">DemoShop</span><nav><a href="index.html">Home</a><a href="pricing.html">Pricing</a><a href="#">Contact</a></nav></header>
+<section class="hero">
+  <h1 data-vr-change="headline">Faster visual testing</h1>
+  <p>Catch unintended UI changes before your users do. Screenshots are compared pixel by pixel.</p>
+  <a class="cta" data-vr-change="cta" href="pricing.html" style="background:#11813b">Start free trial</a>
+</section>
+<section class="features">
+  <div class="card"><h3>Pixel diff</h3><p>YIQ color distance with anti-aliasing detection.</p></div>
+  <div class="card"><h3>Red boxes</h3><p>Changed pixels are clustered into regions.</p></div>
+  <div class="card"><h3>Reports</h3><p>Slider, onion skin and side-by-side views.</p></div>
+</section>
+<footer><span>&copy; 2026 DemoShop</span><span>Local time: <span id="clock">--:--:--</span></span></footer>
+<script>document.getElementById('clock').textContent = new Date().toISOString().slice(11, 19);</script>
+</body>
+</html>

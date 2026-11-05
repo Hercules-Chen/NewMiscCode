@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09 視覺回歸測試（Rust 影像比對核心 + WebAssembly）使用說明</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f6f7f9;--fg:#1d2330;--muted:#5d6675;--card:#fff;--line:#dfe3ea;--accent:#2457c5;--codebg:#f0f2f6;--warn:#8a5a00;--warnbg:#fff4d6;--ok:#147a3d;--okbg:#e3f5ea;--red:#e6141e}
+@media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2128;--line:#323844;--accent:#7aa2ff;--codebg:#262b34;--warn:#f0c75e;--warnbg:#3a3415;--ok:#4fd08a;--okbg:#163524}}
+*{box-sizing:border-box}
+html,body{max-width:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 "Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","Segoe UI",sans-serif;overflow-wrap:anywhere}
+header{max-width:1100px;margin:auto;padding:24px 16px 0}
+header h1{margin:0;font-size:24px;line-height:1.4}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);max-width:1100px;margin:14px auto 0;padding:8px 16px 0;display:flex;flex-wrap:wrap;gap:4px}
+nav.tabs a{padding:6px 10px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--card);color:var(--fg);text-decoration:none;font-size:14px;opacity:.75}
+nav.tabs a.active{opacity:1;font-weight:bold;border-color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+main{max-width:1100px;margin:auto;padding:12px 16px 60px}
+section.tab{display:none}
+section.tab.active{display:block}
+.no-js section.tab{display:block;border-top:2px solid var(--line);margin-top:24px}
+h2{font-size:22px;margin:18px 0 8px}
+h3{font-size:18px;margin:22px 0 6px}
+code{font-family:Consolas,"Cascadia Mono",monospace;font-size:14px;background:var(--codebg);padding:1px 5px;border-radius:4px;word-break:break-word}
+pre{background:var(--codebg);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;max-width:100%;font:14px/1.5 Consolas,"Cascadia Mono",monospace;white-space:pre}
+pre code{background:none;padding:0;word-break:normal}
+.tw{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);margin:8px 0}
+th,td{border-bottom:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:rgba(127,127,127,.08)}
+.note{background:var(--warnbg);color:var(--fg);border-left:4px solid var(--warn);padding:8px 14px;border-radius:6px;margin:12px 0}
+.ok{background:var(--okbg);border-left:4px solid var(--ok);padding:8px 14px;border-radius:6px;margin:12px 0}
+ol.steps>li{margin:10px 0}
+a{color:var(--accent)}
+.toc a{display:inline-block;margin-right:12px}
+figure{margin:12px 0}
+figure img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px;display:block}
+figcaption{font-size:14px;color:var(--muted)}
+footer{max-width:1100px;margin:auto;padding:0 16px 40px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body class="no-js">
+<header>
+  <h1>09 視覺回歸測試：Rust 影像比對核心編譯成 WebAssembly</h1>
+  <p>同一份 Rust 程式碼 → Node CLI（<code>vr</code>）、瀏覽器 UI、原生 CLI · 紅框標示變更區塊 · 自帶 HTML 報告 · 繁體中文 / English</p>
+</header>
+<nav class="tabs" role="tablist">
+  <a href="#overview" data-tab="overview">概覽</a>
+  <a href="#quickstart" data-tab="quickstart">快速開始</a>
+  <a href="#usage" data-tab="usage">使用說明</a>
+  <a href="#verify" data-tab="verify">逐步驗證指南</a>
+  <a href="#dev" data-tab="dev">開發者指南</a>
+  <a href="#perf" data-tab="perf">效能比較</a>
+  <a href="#debug" data-tab="debug">除錯與日誌</a>
+  <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<!-- ============================== 概覽 ============================== -->
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>這是一套「視覺回歸測試」（visual regression testing）工具：把網頁截圖和「基準圖」（baseline）逐像素比對，找出非預期的畫面變化，並以<strong>紅框</strong>標出變更區塊。</p>
+<p>影像比對核心以 <strong>Rust</strong> 撰寫（<code>crate/</code>），編譯成約 265 KB 的 <strong>WebAssembly</strong>（<code>web/vr_core.wasm</code>），同一份核心被三個地方使用：</p>
+<div class="tw"><table>
+<tr><th>使用方式</th><th>說明</th><th>入口</th></tr>
+<tr><td>Node CLI <code>vr</code></td><td><code>compare</code> 比對兩張 PNG；<code>run</code> 用 Playwright 截圖多個網址並和基準比對、輸出自帶 HTML 報告；<code>approve</code> 把目前截圖升級為基準；<code>serve</code>、<code>bench</code></td><td><code>node src/cli.js</code>、<code>vr.bat</code></td></tr>
+<tr><td>瀏覽器 UI</td><td>拖放兩張 PNG，在瀏覽器裡用 WebAssembly 計算差異；滑桿 / 並排 / 洋蔥皮 / 差異圖檢視；繁中預設、可切換英文</td><td><code>web/index.html</code>（以 <code>serve-ui.bat</code> 啟動）</td></tr>
+<tr><td>原生 CLI</td><td>同一個 crate 以 <code>cargo build --release</code> 編譯的原生執行檔 <code>vr-native</code>，用來對照結果與比較速度</td><td><code>crate/src/bin/vr_native.rs</code></td></tr>
+</table></div>
+<h3 id="features">核心功能</h3>
+<ul>
+<li>PNG 解碼（Rust <code>png</code> crate；支援 RGB/RGBA/灰階/調色盤、16-bit 會降為 8-bit）。</li>
+<li>pixelmatch 風格的 YIQ 色差比對，含<strong>反鋸齒（anti-aliasing）偵測</strong>，字型邊緣的微小差異不會被誤判。</li>
+<li>忽略區域（矩形 <code>x,y,w,h</code>），<code>vr run</code> 另可用 CSS 選擇器（例如時鐘 <code>#clock</code>）自動算出忽略區域。</li>
+<li>變更像素以「格狀合併 + 連通元件」聚成邊界框（bounding boxes）。</li>
+<li>輸出差異圖：淡化灰階背景 + 變更像素半透明紅色覆蓋 + 紅框；反鋸齒像素為黃色、忽略區域為藍色。</li>
+<li>統計：差異像素數、變更比例（%）、區塊清單、反鋸齒像素數、尺寸不一致提示。</li>
+<li>WASM 與原生結果<strong>位元組完全相同</strong>（JSON 與差異 PNG 都一致，由 <code>npm test</code> 驗證）。</li>
+</ul>
+<h3 id="layout">資料夾結構</h3>
+<pre><code>09-visual-regression-rust-wasm/
+  crate/                Rust crate vr-core（lib + wasm 匯出 + 原生 CLI vr-native）
+    src/lib.rs          解碼、比對、反鋸齒、聚類、繪製差異圖、單元測試
+    src/wasm.rs         extern "C" 匯出（不使用 wasm-bindgen）
+    src/bin/vr_native.rs 原生 CLI（compare / bench / gen-fixtures）
+  web/                  瀏覽器 UI 與共用 JS：vrcore.js、viewer.js、i18n.js、vr_core.wasm
+  src/                  Node：cli.js、run.js、report.js、server.js、logger.js、paths.js
+  demo/                 示範網站 v1 / v2（刻意的視覺變更）與 vr.config.json
+  test/                 node --test 測試與 fixtures
+  scripts/              build-wasm.mjs、demo.mjs
+  examples/             測試時自動產生的截圖（UI、報告、紅框差異圖）
+  *.bat / vr.ps1        Windows 啟動器</code></pre>
+</section>
+
+<!-- ============================== 快速開始 ============================== -->
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<p>需求：<strong>Node.js 20 以上</strong>（已測 22.23.4）。<code>vr compare</code> 與瀏覽器 UI 只需要 Node；<code>vr run</code> 與測試需要 Playwright + Chromium。已編譯好的 <code>web/vr_core.wasm</code> 已隨附，<strong>不需要安裝 Rust</strong>，除非你要修改核心或比較原生速度。</p>
+<h3 id="qs-windows">Windows（繁體中文環境）</h3>
+<ol class="steps">
+<li>安裝 Node.js LTS（<a href="https://nodejs.org/">nodejs.org</a>）。</li>
+<li>在檔案總管中雙擊 <code>setup.bat</code>：執行 <code>npm install</code>（安裝 Playwright）與 <code>npx playwright install chromium</code>。視窗會顯示目前資料夾與結束碼（exit code 0 表示成功）。</li>
+<li>雙擊 <code>run-demo.bat</code>：截圖 demo v1 → 升級為基準 → 截圖 demo v2 → 產生報告。最後一行會印出報告路徑，預設在 <code>%ProgramData%\NewMiscCode\09-visual-regression-rust-wasm\report.html</code>。</li>
+<li>雙擊 <code>serve-ui.bat</code>，再用瀏覽器開 <code>http://127.0.0.1:5179/</code> 使用拖放 UI。</li>
+<li>雙擊 <code>run-tests.bat</code> 執行全部測試。</li>
+</ol>
+<p>呼叫鏈：<code>.bat</code>（純 ASCII、CRLF，<code>pushd "%~dp0"</code>、顯示路徑與結束碼、<code>pause</code>）→ <code>vr.ps1</code>（UTF-8 BOM）→ <code>node</code>。命令列使用：</p>
+<pre><code>vr.bat compare test\fixtures\base.png test\fixtures\current.png --out diff.png
+vr.bat run --site demo\v2
+vr.bat approve</code></pre>
+<div class="note"><code>vr.bat</code> 會先切換到專案資料夾，因此相對路徑以專案資料夾為準；其他位置的檔案請用完整路徑。</div>
+<h3 id="qs-linux">Linux / macOS</h3>
+<pre><code>cd 09-visual-regression-rust-wasm
+npm install                      # 選用：若全域已有 playwright 可略過
+npx playwright install chromium  # 選用：同上
+node src/cli.js compare test/fixtures/base.png test/fixtures/current.png --out output/diff.png
+npm run demo                     # v1 -> approve -> v2 -> output/report.html
+npm run serve                    # http://127.0.0.1:5179/
+npm test</code></pre>
+<h3 id="qs-rust">（選用）從原始碼建置 Rust 核心</h3>
+<pre><code>rustup target add wasm32-unknown-unknown
+npm run build:wasm      # = node scripts/build-wasm.mjs，輸出 web/vr_core.wasm
+npm run build:native    # cargo build --release -j 2，輸出 crate/target/release/vr-native
+npm run test:rust       # cargo test</code></pre>
+</section>
+
+<!-- ============================== 使用說明 ============================== -->
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<p class="toc"><a href="#use-compare">vr compare</a><a href="#use-run">vr run</a><a href="#use-approve">vr approve</a><a href="#use-config">設定檔</a><a href="#use-ui">瀏覽器 UI</a><a href="#use-report">HTML 報告</a><a href="#use-native">原生 CLI</a></p>
+<h3 id="use-compare">vr compare：比對兩張 PNG</h3>
+<pre><code>node src/cli.js compare baseline.png current.png --out diff.png --threshold 0.1 --ignore 0,0,200,40</code></pre>
+<div class="tw"><table>
+<tr><th>選項</th><th>預設</th><th>說明</th></tr>
+<tr><td><code>--out FILE</code></td><td>（不輸出）</td><td>寫出差異圖（紅框 + 半透明紅色覆蓋）</td></tr>
+<tr><td><code>--threshold N</code></td><td>0.1</td><td>0–1，越小越敏感（YIQ 色差門檻，與 pixelmatch 相同語意）</td></tr>
+<tr><td><code>--ignore x,y,w,h</code></td><td>—</td><td>忽略區域，可重複多次</td></tr>
+<tr><td><code>--aa</code></td><td>關</td><td>把反鋸齒像素也算成差異</td></tr>
+<tr><td><code>--gap N</code></td><td>8</td><td>合併距離（格子大小，px）；0 = 嚴格 8 連通</td></tr>
+<tr><td><code>--json</code></td><td>關</td><td>輸出與原生 CLI 相同格式的 JSON</td></tr>
+<tr><td><code>--out-dir DIR</code></td><td>Windows：<code>%ProgramData%\NewMiscCode\09-visual-regression-rust-wasm</code>；Linux：<code>./output</code></td><td>輸出與日誌位置，也可用環境變數 <code>VR_OUTPUT_DIR</code></td></tr>
+<tr><td><code>--debug</code></td><td>關</td><td>寫入 debug 等級 JSONL 日誌並在 stderr 顯示</td></tr>
+<tr><td><code>--lang en</code></td><td>zh-TW</td><td>CLI 訊息語言（亦可 <code>VR_LANG=en</code>）</td></tr>
+</table></div>
+<p>結束碼：<code>0</code> 無差異、<code>1</code> 有差異、<code>2</code> 錯誤（參數錯誤、PNG 損毀等）。</p>
+<h3 id="use-run">vr run：截圖網址並與基準比對</h3>
+<pre><code>node src/cli.js run --config demo/vr.config.json --site demo/v2
+node src/cli.js run --config my.config.json --site http://localhost:3000/ --baseline-dir baselines</code></pre>
+<p><code>--site</code> 可以是資料夾（以 <code>file://</code> 開啟）或 http(s) 網址。流程：Playwright Chromium（deviceScaleFactor 1、reducedMotion）開啟每個頁面 → 等字型載入 → 計算 <code>ignoreSelectors</code> 的位置 → 全頁截圖存到 <code>current/</code> → 若 <code>baseline/</code> 有同名圖就用 WASM 比對、存 <code>diff/</code> → 寫出 <code>report.html</code>（自帶所有圖片）與 <code>report.json</code>。</p>
+<p>頁面狀態：<code>pass</code>（無差異）、<code>changed</code>（有差異）、<code>new</code>（尚無基準）、<code>error</code>。全部 <code>pass</code> 時結束碼 0，否則 1。</p>
+<h3 id="use-approve">vr approve：把目前截圖升級為基準</h3>
+<pre><code>node src/cli.js approve                 # 全部
+node src/cli.js approve --name home     # 只升級 home</code></pre>
+<h3 id="use-config">設定檔（demo/vr.config.json）</h3>
+<pre><code>{
+  "viewport": { "width": 960, "height": 640 },
+  "fullPage": true,
+  "threshold": 0.1,
+  "gap": 12,
+  "ignoreSelectors": ["#clock"],
+  "pages": [
+    { "name": "home", "path": "index.html" },
+    { "name": "pricing", "path": "pricing.html", "ignore": [[0, 0, 100, 20]] }
+  ]
+}</code></pre>
+<p>每頁可設 <code>path</code>（相對於 <code>--site</code>）或完整 <code>url</code>，以及 <code>ignore</code>、<code>ignoreSelectors</code>、<code>gap</code>。另可設 <code>baselineDir</code>（相對於設定檔，適合把基準圖放進版本控制）。</p>
+<h3 id="use-ui">瀏覽器 UI</h3>
+<ol>
+<li>執行 <code>serve-ui.bat</code> 或 <code>npm run serve</code>，開啟 <code>http://127.0.0.1:5179/</code>。</li>
+<li>把基準圖拖到左邊、目前畫面拖到右邊（或點擊選擇檔案；也可按「載入範例圖」）。兩張都載入後自動比對。</li>
+<li>調整門檻值、合併距離、反鋸齒、忽略區域（<code>x,y,w,h; x,y,w,h</code>）後按「比對」。</li>
+<li>切換「滑桿 / 並排 / 洋蔥皮 / 差異圖」檢視；按「下載差異圖」存檔。右上角按鈕切換 English / 中文（記在 localStorage，也可用 <code>?lang=en</code>）。</li>
+</ol>
+<div class="note">UI 以 <code>fetch</code> 載入 <code>vr_core.wasm</code>，必須透過 http 開啟；直接雙擊 <code>web/index.html</code>（file://）會顯示載入失敗的提示。</div>
+<h3 id="use-report">HTML 報告</h3>
+<p><code>report.html</code> 是單一檔案：圖片以 data URI 內嵌、檢視器與中英文字串也內嵌，可直接寄給同事或附在 CI 產出物。每頁顯示狀態、差異像素、比例、區塊座標清單，以及滑桿（預設用於有變更的頁面）/ 並排 / 洋蔥皮 / 差異圖檢視；滑桿與洋蔥皮檢視上另以 SVG 疊加紅框。</p>
+<h3 id="use-native">原生 CLI（vr-native）</h3>
+<pre><code>crate/target/release/vr-native compare a.png b.png --out diff.png --threshold 0.1 --ignore 0,0,10,10
+crate/target/release/vr-native bench a.png b.png --iter 20
+crate/target/release/vr-native gen-fixtures output/bench</code></pre>
+</section>
+
+<!-- ============================== 逐步驗證 ============================== -->
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下每一步都附「預期結果」。數字是在本機（Linux、Node 22.23.4、Chromium 由 Playwright 1.63.0 驅動）實測所得；Windows 字型不同，demo 頁的像素數會不同，但「哪些區塊有變更」應一致。</p>
+<ol class="steps">
+<li id="verify-1"><strong>比對範例圖（只需 Node）</strong>
+<pre><code>node src/cli.js compare test/fixtures/base.png test/fixtures/current.png --out output/diff.png</code></pre>
+預期：結束碼 1，輸出
+<pre><code>有差異: diffPixels=3360 (5.25%) boxes=2 aa=0 size=320x200 ...
+  box x=200 y=120 w=40 h=30 pixels=1200
+  box x=16 y=158 w=90 h=24 pixels=2160</code></pre></li>
+<li id="verify-2"><strong>忽略區域</strong>：加上 <code>--ignore 200,120,40,30 --ignore 16,158,90,24</code>，預期「相同（在門檻值內）」、結束碼 0。</li>
+<li id="verify-3"><strong>示範網站 v1 → v2</strong>：執行 <code>run-demo.bat</code>（或 <code>npm run demo</code>）。預期三段輸出：
+<pre><code>=== 1/3 v1 -> current (new) ===        new home / new pricing     (exit code 1)
+=== 2/3 approve v1 as baseline ===     已升級為基準: home, pricing  (exit code 0)
+=== 3/3 v2 vs baseline (expect: changed) ===
+                                       changed home diffPixels=7971 (1.301%) boxes=2
+                                       changed pricing diffPixels=791 (0.129%) boxes=2</code></pre>
+v2 的刻意變更：首頁標題「Fast → Faster」、按鈕由藍變綠；價格頁「NT$290 → NT$390」、Enterprise 多了「NEW」標籤。頁尾時鐘每次不同，但已由 <code>ignoreSelectors: ["#clock"]</code> 忽略（差異圖中呈藍色）。
+<figure><img src="examples/diff-home.png" alt="首頁差異圖：標題與按鈕被紅框標出" width="960" height="640" loading="lazy"><figcaption>examples/diff-home.png：v1 → v2 首頁差異圖，紅框 = 變更區塊，藍色 = 忽略的時鐘</figcaption></figure></li>
+<li id="verify-4"><strong>開啟報告</strong>：用瀏覽器開啟上一步印出的 <code>report.html</code>。預期摘要「有變更 2」，home 列出 2 個區塊；切換滑桿/並排/洋蔥皮/差異圖；右上角可切換 English。
+<figure><img src="examples/report.png" alt="HTML 報告截圖" width="1000" height="800" loading="lazy"><figcaption>examples/report.png：自帶 HTML 報告（滑桿檢視，紅框以 SVG 疊加）</figcaption></figure></li>
+<li id="verify-5"><strong>v1 再跑一次應全部通過</strong>：<code>node src/cli.js run --site demo/v1</code> → 兩頁 <code>pass</code>、結束碼 0（證明截圖穩定、時鐘忽略有效）。之後若要回到 v2 驗證可再執行步驟 3。</li>
+<li id="verify-6"><strong>瀏覽器 UI</strong>：執行 <code>serve-ui.bat</code>，開 <code>http://127.0.0.1:5179/</code>，按「載入範例圖」或拖放 <code>test/fixtures</code> 的兩張圖。預期：差異像素 3,360、變更比例 5.25%、變更區塊 2、狀態「偵測到變更。」；按右上「English」後標題變為英文。
+<figure><img src="examples/ui-diff.png" alt="瀏覽器 UI 截圖" width="1000" height="900" loading="lazy"><figcaption>examples/ui-diff.png：瀏覽器 UI（繁中預設），滑桿檢視含紅框</figcaption></figure></li>
+<li id="verify-7"><strong>除錯模式</strong>：開 <code>http://127.0.0.1:5179/web/index.html?debug=1</code>，頁面下方出現「除錯紀錄」，DevTools Console 輸入 <code>VR.state</code>、<code>VR.logs</code>、<code>VR.setLang('en')</code> 可操作。</li>
+<li id="verify-8"><strong>自動測試</strong>：<code>run-tests.bat</code> 或 <code>npm test</code>。預期 <code>tests 10 / pass 10 / fail 0</code>（若未建置原生 CLI，「wasm 與原生相同」一項會顯示 skipped）。Rust 單元測試：<code>npm run test:rust</code> → <code>6 passed</code>。</li>
+<li id="verify-9"><strong>效能比較</strong>（需 Rust 原生建置）：<code>bench.bat</code> 或 <code>npm run bench</code>，輸出 wasm 與 native 的中位數毫秒與比值（見<a href="#perf">效能比較</a>）。</li>
+</ol>
+</section>
+
+<!-- ============================== 開發者指南 ============================== -->
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<p class="toc"><a href="#dev-arch">架構</a><a href="#dev-boundary">Rust↔JS 邊界</a><a href="#dev-algo">演算法</a><a href="#dev-build">建置 wasm</a><a href="#dev-extend">如何擴充</a><a href="#dev-tests">測試</a><a href="#dev-versions">版本</a><a href="#dev-changelog">變更紀錄</a></p>
+<h3 id="dev-arch">架構</h3>
+<pre><code>             crate/src/lib.rs  (decode_png / compare / cluster / render_diff / encode_png)
+              /                           \
+  crate/src/wasm.rs (extern "C")      crate/src/bin/vr_native.rs (原生 CLI)
+              |
+      web/vr_core.wasm  (wasm32-unknown-unknown, 約 265 KB)
+              |
+      web/vrcore.js  (共用的非同步包裝：記憶體配置、選項字串、JSON 解析)
+        /                         \
+ src/core.js (Node 載入)      web/app.js (瀏覽器 UI)
+   |-- src/cli.js   compare / run / approve / serve / bench
+   |-- src/run.js   Playwright 截圖 + 比對 + approve
+   `-- src/report.js 自帶報告（內嵌 web/viewer.js + web/i18n.js）</code></pre>
+<p>Node 端全部為 async（<code>fs/promises</code>、Playwright、子行程）。wasm 實例是單執行緒的，<code>core.compare()</code> 以 Promise 佇列序列化呼叫。</p>
+<h3 id="dev-boundary">Rust ↔ JS 邊界</h3>
+<p>不使用 wasm-bindgen，只用原始 <code>extern "C"</code> 匯出與手動記憶體管理，因此 wasm 沒有任何 import、JS 端零相依：</p>
+<div class="tw"><table>
+<tr><th>匯出</th><th>說明</th></tr>
+<tr><td><code>vr_alloc(len) -&gt; ptr</code></td><td>在 wasm 線性記憶體配置 len 位元組（<code>std::alloc</code>），JS 用 <code>new Uint8Array(memory.buffer).set(bytes, ptr)</code> 寫入。注意配置後要重新取得 <code>memory.buffer</code>（記憶體可能成長）。</td></tr>
+<tr><td><code>vr_free(ptr, len)</code></td><td>釋放未交給 <code>vr_compare</code> 的緩衝區。</td></tr>
+<tr><td><code>vr_compare(aPtr,aLen,bPtr,bLen,optPtr,optLen,render) -&gt; u32</code></td><td>解碼兩張 PNG、比對、（render=1 時）繪製並編碼差異 PNG。三個輸入緩衝區的所有權移交給 Rust 並由 Rust 釋放。回傳 0 成功、1 失敗。</td></tr>
+<tr><td><code>vr_out_json_ptr/len</code></td><td>結果 JSON（UTF-8）；失敗時為 <code>{"ok":false,"error":"..."}</code>。</td></tr>
+<tr><td><code>vr_out_png_ptr/len</code></td><td>差異 PNG 位元組。JS 讀出（<code>slice</code> 複製）後呼叫 <code>vr_out_clear()</code>。</td></tr>
+<tr><td><code>vr_version_ptr/len</code></td><td>crate 版本字串。</td></tr>
+</table></div>
+<p>選項以簡單字串傳遞（由 Rust <code>Options::parse</code> 解析，原生 CLI 也用同一格式）：<code>threshold=0.1;aa=0;gap=8;minPixels=1;fade=0.3;overlay=0.7;ignore=x,y,w,h|x,y,w,h</code>。錯誤一律以 <code>Result</code> 傳回 JSON，不會 panic（release 設定 <code>panic = "abort"</code>，真的 panic 會變成 JS 的 <code>RuntimeError: unreachable</code>）。</p>
+<p>結果 JSON 範例：</p>
+<pre><code>{"ok":true,"version":"0.1.0","width":320,"height":200,"sizeA":[320,200],"sizeB":[320,200],
+ "sizeMismatch":false,"totalPixels":64000,"diffPixels":3360,"aaPixels":0,"ignoredPixels":0,
+ "percent":5.25,"boxes":[{"x":200,"y":120,"w":40,"h":30,"pixels":1200},{"x":16,"y":158,"w":90,"h":24,"pixels":2160}]}</code></pre>
+<h3 id="dev-algo">演算法說明</h3>
+<ol>
+<li><strong>尺寸</strong>：兩張圖尺寸不同時，以透明像素補齊到較大的寬高（透明與白色混合後視為白色），並回報 <code>sizeMismatch</code>。</li>
+<li><strong>色差（YIQ）</strong>：每個像素先依 alpha 與白色混合，再轉 YIQ：<code>Y = 0.29889531R + 0.58662247G + 0.11448223B</code>，<code>I</code>、<code>Q</code> 同理；距離 <code>Δ = 0.5053·ΔY² + 0.299·ΔI² + 0.1957·ΔQ²</code>（Kotsarenko &amp; Ramos 的感知加權）。黑白最大距離為 35215，所以門檻 <code>maxDelta = 35215 × threshold²</code>，<code>|Δ| &gt; maxDelta</code> 才算不同。</li>
+<li><strong>反鋸齒偵測</strong>（Vysniauskas 2009，與 pixelmatch 相同）：看 3×3 鄰域的亮度差；若同色鄰居超過 2 個則不是反鋸齒；否則找出最暗與最亮的鄰居，若其中之一在兩張圖中都位於「平坦區域」（有 3 個以上同色鄰居），此像素就是邊緣的反鋸齒像素，標為黃色且不計入差異（<code>--aa</code> 可改為計入）。</li>
+<li><strong>忽略區域</strong>：落在任一矩形內的像素標為 ignored（藍色），不參與比較，也不計入百分比的分母。</li>
+<li><strong>聚類成紅框</strong>：把影像切成 <code>gap×gap</code> 的格子，含差異像素的格子為「熱格」；熱格以 8 連通做 union-find，相鄰（約一格距離內）的變更合為同一群；再對每群計算實際像素的緊密邊界框，最後把互相重疊的框反覆合併直到穩定。整體為 O(像素數 + 格數)，大量雜訊也不會退化成 O(n²)。<code>gap=0</code> 等於純像素 8 連通。</li>
+<li><strong>繪製</strong>：未變更像素 = 灰階並淡化（<code>fade</code>）；變更像素 = 原色與紅色以 <code>overlay</code>（0.7）混合；框外擴 3 px、線寬 2 px。</li>
+</ol>
+<p>浮點運算只用 IEEE 754 的加減乘除（無 FMA），因此原生與 wasm 的結果逐位元相同，測試直接比對 SHA-256。</p>
+<h3 id="dev-build">如何建置 wasm</h3>
+<pre><code>rustup target add wasm32-unknown-unknown
+npm run build:wasm
+# 等同：cargo build --release -j 2 --lib --target wasm32-unknown-unknown --manifest-path crate/Cargo.toml
+#       再複製 crate/target/wasm32-unknown-unknown/release/vr_core.wasm 到 web/vr_core.wasm</code></pre>
+<p>Release 設定：<code>opt-level=3</code>、<code>lto=true</code>、<code>codegen-units=1</code>、<code>panic="abort"</code>、<code>strip=true</code>。不需要 wasm-bindgen 或 wasm-pack。產物約 265 KB（&lt; 2 MB，因此直接提交到版本庫；<code>crate/target/</code> 不提交）。若要更小可用 <code>opt-level="s"</code> 或 binaryen 的 <code>wasm-opt -Oz</code>（未內建）。</p>
+<h3 id="dev-extend">如何擴充</h3>
+<ul>
+<li><strong>新的比對選項</strong>：在 <code>Options</code>（lib.rs）加欄位與 <code>parse</code> 的 key，在 <code>web/vrcore.js</code> 的 <code>optionString</code> 加對應欄位，再在 <code>src/cli.js</code> 與 <code>vr_native.rs</code> 加旗標。</li>
+<li><strong>新的輸出</strong>（例如遮罩 PNG）：在 <code>wasm.rs</code> 的 <code>OUT</code> 加一個緩衝區與一組 <code>_ptr/_len</code> 匯出，JS 端在 <code>compareSync</code> 讀出。</li>
+<li><strong>新的檢視模式</strong>：在 <code>web/viewer.js</code> 的 <code>VIEW_MODES</code> 與 <code>html()</code> 加一個分支，UI 與報告會一起得到。</li>
+<li><strong>新的語系字串</strong>：<code>web/i18n.js</code>（UI 與報告）、<code>src/messages.js</code>（CLI）。</li>
+<li><strong>自己的網站</strong>：複製 <code>demo/vr.config.json</code>，改 <code>pages</code>，以 <code>--site http://...</code> 指向你的開發伺服器。</li>
+</ul>
+<h3 id="dev-tests">測試</h3>
+<div class="tw"><table>
+<tr><th>檔案</th><th>內容</th></tr>
+<tr><td><code>crate/src/lib.rs</code>（cargo test，6 項）</td><td>相同圖 → 0 差異；已知矩形 → 框位置正確；兩處變更 → 兩個框；忽略區域（全部與部分）；反鋸齒邊緣不計、<code>include_aa</code> 會計；門檻 0 與 0.1 的差別；尺寸不一致；選項解析；紅框繪製位置</td></tr>
+<tr><td><code>test/core.test.mjs</code></td><td>Node 載入 wasm；fixtures 的數值與框；錯誤以例外回報且核心仍可用；<strong>與原生 CLI 的 JSON 與差異 PNG 位元組相同</strong>（4 組選項）</td></tr>
+<tr><td><code>test/cli.test.mjs</code></td><td><code>vr compare</code> 結束碼/JSON/忽略/錯誤參數/JSONL 日誌；<code>vr run</code> v1 → approve → v1 全通過 → v2：每個 <code>[data-vr-change]</code> 元素都有框、且沒有多餘的框；報告是自帶的</td></tr>
+<tr><td><code>test/ui.test.mjs</code></td><td>Playwright：UI 上傳兩張 PNG、統計數字、四種檢視、忽略區域、語言切換、390px 無水平捲動、<code>?debug=1</code> 與 <code>window.VR</code>；報告的檢視與語言切換；全程無 console error；輸出 <code>examples/</code> 截圖</td></tr>
+</table></div>
+<h3 id="dev-versions">版本</h3>
+<div class="tw"><table>
+<tr><th>元件</th><th>版本</th></tr>
+<tr><td>vr-core（crate / wasm / CLI）</td><td>0.1.0</td></tr>
+<tr><td>rustc / cargo</td><td>1.97.0</td></tr>
+<tr><td>png crate</td><td>0.17.16</td></tr>
+<tr><td>Node.js</td><td>22.23.4（需求 &gt;= 20）</td></tr>
+<tr><td>Playwright</td><td>1.63.0（optionalDependencies；也可用全域安裝）</td></tr>
+<tr><td>web/vr_core.wasm</td><td>271,391 bytes</td></tr>
+</table></div>
+<h3 id="dev-changelog">變更紀錄</h3>
+<ul>
+<li><strong>0.1.0</strong>（2026-11-05）：首版。Rust 核心（PNG 解碼/編碼、YIQ + 反鋸齒、忽略區域、格狀聚類、紅框差異圖）；raw extern "C" wasm；Node CLI compare/run/approve/serve/bench；瀏覽器 UI；自帶 HTML 報告；原生 CLI；示範網站 v1/v2；zh-TW/en；JSONL 日誌；Windows 啟動器。</li>
+</ul>
+</section>
+
+<!-- ============================== 效能比較 ============================== -->
+<section class="tab" id="perf">
+<h2>效能比較（WASM vs 原生）</h2>
+<p>量測範圍為完整流程：解碼兩張 PNG + 比對 + 繪製差異圖 + 編碼 PNG（WASM 端另含 JS↔wasm 的記憶體複製）。指令：<code>npm run bench</code>（自動產生 1600×1200 測試圖）或 <code>node src/cli.js bench a.png b.png --iter 30</code>。環境：4 核心共用 Linux 主機（同時有其他工作在跑，數字僅供相對比較），Node 22.23.4（V8），Rust 1.97.0 release + LTO。</p>
+<div class="tw"><table>
+<tr><th>輸入</th><th>WASM 中位數</th><th>原生中位數</th><th>WASM / 原生</th><th>原生細項（解碼 / 比對 / 繪製+編碼）</th></tr>
+<tr><td>320×200 fixture（3,360 差異像素）</td><td>2.99 ms</td><td>1.75 ms</td><td>1.71×</td><td>0.58 / 0.42 / 0.81 ms</td></tr>
+<tr><td>960×640 demo 首頁截圖（7,971 差異像素）</td><td>30.7 ms</td><td>18.5 ms</td><td>1.66×</td><td>6.5 / 3.5 / 9.1 ms</td></tr>
+<tr><td>1600×1200 合成頁（39,600 差異像素）</td><td>84.1 ms</td><td>54.8 ms</td><td>1.53×</td><td>18.1 / 10.2 / 27.6 ms</td></tr>
+</table></div>
+<p>觀察：WASM 約為原生的 1.5–1.7 倍時間，對一般截圖（&lt; 100 ms）已足夠互動使用。時間大多花在 PNG 解碼與編碼（zlib），比對本身最快。瀏覽器 Chromium 內的 UI 對 320×200 fixture 約 3–4 ms（UI 的「WASM 耗時」欄位）。原生版本可再加上多執行緒（rayon）或 SIMD，wasm 則可啟用 <code>simd128</code>；目前為求兩者結果完全一致且建置簡單，未使用。</p>
+</section>
+
+<!-- ============================== 除錯與日誌 ============================== -->
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-cli">CLI：JSONL 日誌</h3>
+<ul>
+<li>位置：<code>&lt;out-dir&gt;/logs/vr-YYYY-MM-DD.jsonl</code>。預設 out-dir：Windows <code>%ProgramData%\NewMiscCode\09-visual-regression-rust-wasm</code>，Linux/macOS 為專案下的 <code>output/</code>；以 <code>--out-dir</code> 或環境變數 <code>VR_OUTPUT_DIR</code> 變更。</li>
+<li>等級：<code>debug</code> &lt; <code>info</code> &lt; <code>warn</code> &lt; <code>error</code>。平常寫入 info 以上；加 <code>--debug</code> 後寫入 debug（含參數、每頁 console 訊息、HTTP 請求）並同步顯示在 stderr，結束時印出日誌路徑。</li>
+<li>每行一筆 JSON：<code>{"ts":"...","level":"info","component":"run","pid":1234,"msg":"page done","name":"home","status":"changed","diffPixels":7971,"boxes":2,"ms":164}</code></li>
+</ul>
+<pre><code>node src/cli.js run --site demo/v2 --debug
+# Windows PowerShell 篩選錯誤：
+Get-Content "$env:ProgramData\NewMiscCode\09-visual-regression-rust-wasm\logs\*.jsonl" | ConvertFrom-Json | Where-Object level -eq 'error'</code></pre>
+<h3 id="debug-browser">瀏覽器：?debug=1 與 window.VR</h3>
+<ul>
+<li><code>http://127.0.0.1:5179/web/index.html?debug=1</code>：顯示「除錯紀錄」面板，並以 <code>console.debug</code> 輸出。</li>
+<li>DevTools 物件 <code>window.VR</code>：<code>VR.state</code>（目前輸入與結果）、<code>VR.logs</code>、<code>VR.compare()</code>、<code>VR.setLang('en')</code>、<code>VR.core.compare(aBytes, bBytes, {threshold:0.05})</code>、<code>VR.core.exports</code>（原始 wasm 匯出）。</li>
+<li>報告頁有 <code>window.VR_REPORT</code>（<code>data</code>、<code>setLang()</code>）。</li>
+</ul>
+<h3 id="debug-native">原生 CLI</h3>
+<p><code>vr-native</code> 在 stderr 印出耗時；錯誤時 stdout 為 <code>{"ok":false,"error":"..."}</code>，結束碼 2。</p>
+</section>
+
+<!-- ============================== 限制與疑難排解 ============================== -->
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limits-known">已知限制</h3>
+<ul>
+<li>只支援 PNG（不支援 JPEG/WebP）；單張上限 5000 萬像素。</li>
+<li>尺寸不同時以補齊方式比對，若頁面高度改變，下方內容整體位移會被視為大量差異（不做位移對齊）。</li>
+<li>聚類以格子距離合併，非常接近的兩個獨立變更可能合為一框；可調小 <code>--gap</code>。</li>
+<li>截圖結果受作業系統字型與 GPU 影響：<strong>基準圖請在同一種環境（同 OS、同字型）產生與比對</strong>。Linux 產生的基準圖拿到 Windows 比對會出現大量文字差異。</li>
+<li>報告把所有圖片內嵌，頁面很多或很長時檔案會變大（每頁約數百 KB）。</li>
+<li>WASM 為單執行緒；未使用 SIMD 與多執行緒。</li>
+</ul>
+<h3 id="limits-trouble">疑難排解</h3>
+<div class="tw"><table>
+<tr><th>症狀</th><th>原因與處理</th></tr>
+<tr><td><code>Playwright not found</code></td><td>執行 <code>setup.bat</code>（或 <code>npm install</code> 與 <code>npx playwright install chromium</code>）。<code>vr compare</code> 與 UI 不需要 Playwright。</td></tr>
+<tr><td>UI 顯示「無法載入 WebAssembly 核心」</td><td>用 file:// 開啟了 UI；請用 <code>serve-ui.bat</code> 透過 http 開啟。</td></tr>
+<tr><td><code>cannot load wasm core</code></td><td><code>web/vr_core.wasm</code> 遺失：執行 <code>npm run build:wasm</code>（需要 Rust）。</td></tr>
+<tr><td>連接埠 5179 被占用（EADDRINUSE）</td><td><code>node src/cli.js serve --port 5180</code>。</td></tr>
+<tr><td>v1 對 v1 也出現差異</td><td>頁面有動畫、時間、隨機內容：在設定檔加 <code>ignoreSelectors</code> 或 <code>ignore</code>；或提高 <code>threshold</code>。</td></tr>
+<tr><td>寫入 ProgramData 失敗（權限）</td><td>以 <code>--out-dir</code> 或 <code>VR_OUTPUT_DIR</code> 指到使用者可寫的資料夾。</td></tr>
+<tr><td>中文亂碼</td><td><code>vr.ps1</code> 已設定 UTF-8 輸出；若仍亂碼，請在 PowerShell 執行 <code>chcp 65001</code>。</td></tr>
+<tr><td>原生比對測試 skipped</td><td>尚未執行 <code>npm run build:native</code>。</td></tr>
+</table></div>
+</section>
+
+<!-- ============================== English ============================== -->
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><strong>What it is.</strong> A visual regression tool whose image-diff core is written in Rust (<code>crate/</code>) and compiled to a ~265 KB WebAssembly module (<code>web/vr_core.wasm</code>, raw <code>extern "C"</code> exports, no wasm-bindgen, zero JS dependencies). The same core powers a Node CLI, a browser UI and a native Rust CLI; WASM and native outputs are byte-identical (verified by tests).</p>
+<p><strong>Core.</strong> PNG decode (png crate) → pad to common size → pixelmatch-style YIQ delta with anti-aliasing detection (<code>maxDelta = 35215 × threshold²</code>) → ignore rectangles → grid-merge clustering (union-find over <code>gap×gap</code> cells, then tight pixel bounding boxes, overlapping boxes merged) → diff image (faded grayscale context, semi-transparent red overlay, yellow AA, blue ignored, red boxes) → stats JSON.</p>
+<p><strong>CLI.</strong> <code>node src/cli.js compare a.png b.png --out diff.png --threshold 0.1 --ignore x,y,w,h</code> (exit 0 same / 1 diff / 2 error); <code>run --config demo/vr.config.json --site demo/v2</code> screenshots pages with Playwright, compares against the baseline folder and writes a self-contained <code>report.html</code> (slider / side-by-side / onion-skin / diff views, red boxes); <code>approve</code> promotes current to baseline; <code>serve</code> starts the UI; <code>bench</code> times WASM vs native. Windows: <code>setup.bat</code>, <code>run-demo.bat</code>, <code>serve-ui.bat</code>, <code>run-tests.bat</code>, <code>bench.bat</code>, <code>vr.bat</code> (→ <code>vr.ps1</code> → node).</p>
+<p><strong>Output/logs.</strong> Default output dir is <code>%ProgramData%\NewMiscCode\09-visual-regression-rust-wasm</code> on Windows and <code>./output</code> elsewhere (<code>--out-dir</code> / <code>VR_OUTPUT_DIR</code>). JSONL logs with levels in <code>logs/</code>; <code>--debug</code> for debug level. Browser: <code>?debug=1</code> and <code>window.VR</code>.</p>
+<p><strong>Performance</strong> (full pipeline incl. PNG decode/encode, shared 4-core host): WASM is about 1.5–1.7× slower than native — 320×200: 2.99 vs 1.75 ms; 960×640 screenshot: 30.7 vs 18.5 ms; 1600×1200: 84.1 vs 54.8 ms.</p>
+<p><strong>Verification.</strong> <code>npm run test:rust</code> (6 Rust unit tests) and <code>npm test</code> (10 Node tests: wasm vs native equality, CLI, demo v1→v2 run where every changed element gets a box and no extra boxes appear, Playwright UI/report checks, no console errors). Step-by-step guide with expected numbers: <a href="#verify">逐步驗證指南</a>.</p>
+<p><strong>Limitations.</strong> PNG only; no shift/alignment detection (page-height changes show as large diffs); baselines must be produced on the same OS/fonts; single-threaded, no SIMD.</p>
+</section>
+
+</main>
+<footer>NewMiscCode · 09-visual-regression-rust-wasm · vr-core 0.1.0 · <a href="README.md">README.md</a> · <a href="web/index.html">web/index.html</a></footer>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.dataset.tab === id); a.setAttribute('aria-selected', a.dataset.tab === id ? 'true' : 'false'); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-tab]');
+    if (a) show(a.dataset.tab);
+  });
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>
