@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API 相容性守門員 apiguard</title>
+<style>
+:root{--bg:#f7f8fa;--fg:#1d2330;--muted:#5b6475;--card:#fff;--line:#dfe3ea;--accent:#1f5fbf;--br:#c62828;--nb:#2e7d32;--info:#1565c0;--code:#eef1f6}
+@media (prefers-color-scheme:dark){:root{--bg:#14171d;--fg:#e6e9ef;--muted:#9aa3b2;--card:#1d2129;--line:#2f3542;--accent:#7fb0ff;--br:#ef5350;--nb:#66bb6a;--info:#64b5f6;--code:#252a34}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 "Segoe UI","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;overflow-wrap:anywhere}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:16px}
+header h1{margin:0;font-size:1.4rem}
+header p{margin:4px 0 0;color:var(--muted)}
+nav.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+nav.tabs a{padding:6px 10px;border-radius:6px;color:var(--fg);text-decoration:none;border:1px solid var(--line);font-size:.92rem}
+nav.tabs a.active{background:var(--fg);color:var(--bg)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+section.tab{display:none}section.tab.active{display:block}
+body.no-js section.tab{display:block}
+h2{font-size:1.35rem;border-bottom:2px solid var(--line);padding-bottom:4px}
+h3{font-size:1.1rem;margin-top:1.6em}
+a{color:var(--accent)}
+code{background:var(--code);padding:1px 4px;border-radius:4px;font-family:Consolas,"Cascadia Mono",monospace;font-size:.88em}
+pre{background:var(--code);padding:10px 12px;border-radius:6px;overflow-x:auto;max-width:100%;font-size:.85em;line-height:1.45}
+pre code{background:none;padding:0}
+.scroll{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.92rem}
+th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.BREAKING{color:var(--br);font-weight:600}.NON_BREAKING{color:var(--nb);font-weight:600}.INFO{color:var(--info);font-weight:600}
+.note{border-left:4px solid var(--accent);background:var(--card);padding:8px 12px;margin:12px 0}
+.warn{border-left:4px solid var(--br);background:var(--card);padding:8px 12px;margin:12px 0}
+img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
+figure{margin:12px 0}figcaption{color:var(--muted);font-size:.9rem}
+ol li,ul li{margin:4px 0}
+.toc{columns:2;column-gap:24px}
+[id]{scroll-margin-top:64px}
+@media (max-width:600px){nav.tabs{position:static}[id]{scroll-margin-top:8px}.toc{columns:1}nav.tabs a{font-size:.85rem;padding:4px 8px}}
+</style>
+</head>
+<body class="no-js">
+<header>
+<h1>API 相容性守門員 <small>apiguard v0.1.0</small></h1>
+<p>改寫程式時，確保 Web API 的輸入/輸出與原本相容：OpenAPI 差異比對 + 流量錄製重播契約測試。</p>
+</header>
+<nav class="tabs" role="tablist">
+<a href="#overview" data-tab="overview">概覽</a>
+<a href="#rules" data-tab="rules">相容性規則表</a>
+<a href="#quickstart" data-tab="quickstart">快速開始</a>
+<a href="#usage" data-tab="usage">使用說明</a>
+<a href="#verify" data-tab="verify">逐步驗證指南</a>
+<a href="#dev" data-tab="dev">開發者指南</a>
+<a href="#aspnet" data-tab="aspnet">ASP.NET Core 整合</a>
+<a href="#debug" data-tab="debug">除錯與日誌</a>
+<a href="#limits" data-tab="limits">限制與疑難排解</a>
+<a href="#english" data-tab="english">English</a>
+</nav>
+<main>
+
+<section class="tab" id="overview">
+<h2>概覽</h2>
+<p>需求原則：<strong>改寫程式時，對外 Web API 的輸入與輸出必須跟原本的呼叫相容。</strong>apiguard 用兩種互補的方式在上線前抓出破壞性變更：</p>
+<ol>
+<li><strong>OpenAPI 差異比對（<code>apiguard diff</code>）</strong>：比較舊/新兩份 OpenAPI 3.x（JSON 或 YAML，會解析 <code>$ref</code>，含跨檔案參照），每個變更依<a href="#rules">規則表</a>分為 <span class="BREAKING">破壞性 BREAKING</span>、<span class="NON_BREAKING">非破壞性 NON_BREAKING</span>、<span class="INFO">資訊 INFO</span>。</li>
+<li><strong>流量錄製與重播（<code>apiguard record</code> / <code>apiguard replay</code>）</strong>：不需要 OpenAPI。錄製代理放在<em>舊服務</em>前面，把真實的請求/回應存成 JSONL（先遮罩 Authorization、Cookie 與設定的 JSON 欄位）；之後把同樣的請求送到<em>新服務</em>，以結構方式比較狀態碼、標頭、JSON 欄位與型別、值（時間戳、UUID、指定路徑可忽略）。</li>
+<li><strong>Mock 伺服器（<code>apiguard mock</code>）</strong>：用 OpenAPI 的 example 產生假服務，讓前端/客戶端先對新規格開發。</li>
+</ol>
+<p>輸出格式：主控台、JSON、Markdown、自含式 HTML 報告（可切換 中文/English，含「除錯 / 原始資料」分頁）。<strong>發現破壞性變更時結束代碼為 1</strong>，可直接放進 CI。</p>
+<div class="scroll"><table>
+<tr><th>結束代碼</th><th>意義</th></tr>
+<tr><td>0</td><td>相容（或使用 <code>--fail-on none</code>）</td></tr>
+<tr><td>1</td><td>發現至少一個破壞性變更</td></tr>
+<tr><td>2</td><td>參數錯誤、檔案讀不到、規格無效等執行失敗</td></tr>
+</table></div>
+<h3 id="overview-files">檔案結構</h3>
+<pre><code>12-api-compat-guard/
+  src/cli.js                 CLI 進入點（diff / record / replay / mock / rules）
+  src/openapi/load.js        讀取 JSON/YAML、解析 $ref（含循環參照保護）
+  src/openapi/diff.js        規格比對
+  src/openapi/rules.js       相容性規則表（單一事實來源）
+  src/traffic/proxy.js       錄製用反向代理
+  src/traffic/redact.js      遮罩（寫檔前執行）
+  src/traffic/replay.js      重播
+  src/traffic/compare.js     回應結構比對 + 忽略規則
+  src/report/render.js       console / json / md / html 報告
+  src/mock/server.js         OpenAPI example Mock 伺服器
+  demo/old-api, demo/new-api 示範用訂單 API（v1 / v2 改寫版）
+  demo/openapi-v1.yaml, demo/openapi-v2.yaml, demo/common.yaml, demo/apiguard.config.json
+  examples/                  範例報告、錄製檔、截圖
+  test/                      單元測試、端對端測試、Playwright 報告測試
+  *.bat + apiguard.ps1       Windows 啟動器</code></pre>
+<p>快速連結：<a href="#usage-config">忽略規則設定</a>、<a href="#usage-ci">CI 範例</a>、<a href="#verify-replay">驗證：錄製與重播</a>、<a href="#aspnet-export">從 ASP.NET Core 匯出 OpenAPI</a>。</p>
+</section>
+
+<section class="tab" id="rules">
+<h2>相容性規則表</h2>
+<p>原則：<strong>請求端</strong>要「舊客戶端送得出去的東西，新服務仍然接受」；<strong>回應端</strong>要「舊客戶端讀得到、看得懂的東西，新服務仍然給」。規則定義在 <code>src/openapi/rules.js</code>，可用 <code>node src/cli.js rules</code> 列出。</p>
+<h3 id="rules-openapi">OpenAPI diff 規則（apiguard diff）</h3>
+<div class="scroll"><table>
+<thead><tr><th>規則 ID</th><th>嚴重度</th><th>範例</th><th>為什麼</th></tr></thead>
+<tbody>
+<tr id="rule-PATH_REMOVED"><td><code>PATH_REMOVED</code></td><td class="BREAKING">破壞性</td><td>DELETE /orders/{id} 整個路徑消失</td><td>舊客戶端呼叫會得到 404。<br><small>Existing clients get 404.</small></td></tr>
+<tr id="rule-OPERATION_REMOVED"><td><code>OPERATION_REMOVED</code></td><td class="BREAKING">破壞性</td><td>DELETE /orders/{id} removed</td><td>舊客戶端呼叫會得到 404/405。<br><small>Existing clients get 404/405.</small></td></tr>
+<tr id="rule-PATH_ADDED"><td><code>PATH_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>GET /orders/{id}/history</td><td>新增功能不影響舊客戶端。<br><small>Additive.</small></td></tr>
+<tr id="rule-OPERATION_ADDED"><td><code>OPERATION_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>PATCH /orders/{id}</td><td>新增功能不影響舊客戶端。<br><small>Additive.</small></td></tr>
+<tr id="rule-OPERATION_DEPRECATED"><td><code>OPERATION_DEPRECATED</code></td><td class="INFO">資訊</td><td>deprecated: true</td><td>目前仍可用，但應規劃遷移。<br><small>Still works; plan migration.</small></td></tr>
+<tr id="rule-OPERATION_ID_CHANGED"><td><code>OPERATION_ID_CHANGED</code></td><td class="INFO">資訊</td><td>listOrders -&gt; getOrders</td><td>線上呼叫不受影響，但產生的 SDK 方法名稱會變。<br><small>Wire-compatible, but generated SDK method names change.</small></td></tr>
+<tr id="rule-PARAM_REMOVED"><td><code>PARAM_REMOVED</code></td><td class="INFO">資訊</td><td>query ?expand removed</td><td>客戶端仍送出時通常被忽略，但行為可能改變。<br><small>Usually ignored when still sent, but behaviour may change.</small></td></tr>
+<tr id="rule-PARAM_ADDED_REQUIRED"><td><code>PARAM_ADDED_REQUIRED</code></td><td class="BREAKING">破壞性</td><td>header X-Tenant required</td><td>舊客戶端沒有送這個參數，請求會被拒絕。<br><small>Old clients do not send it; requests are rejected.</small></td></tr>
+<tr id="rule-PARAM_ADDED_OPTIONAL"><td><code>PARAM_ADDED_OPTIONAL</code></td><td class="NON_BREAKING">非破壞性</td><td>query ?sort</td><td>不送也可以。<br><small>Can be omitted.</small></td></tr>
+<tr id="rule-PARAM_BECAME_REQUIRED"><td><code>PARAM_BECAME_REQUIRED</code></td><td class="BREAKING">破壞性</td><td>limit required: false -&gt; true</td><td>沒有送此參數的舊客戶端會失敗。<br><small>Clients omitting it now fail.</small></td></tr>
+<tr id="rule-PARAM_BECAME_OPTIONAL"><td><code>PARAM_BECAME_OPTIONAL</code></td><td class="NON_BREAKING">非破壞性</td><td>required: true -&gt; false</td><td>放寬限制。<br><small>Relaxed.</small></td></tr>
+<tr id="rule-PARAM_LOCATION_CHANGED"><td><code>PARAM_LOCATION_CHANGED</code></td><td class="BREAKING">破壞性</td><td>query limit -&gt; header X-Limit</td><td>客戶端仍送到舊位置，伺服器讀不到。<br><small>Clients still send it in the old location.</small></td></tr>
+<tr id="rule-REQUEST_BODY_BECAME_REQUIRED"><td><code>REQUEST_BODY_BECAME_REQUIRED</code></td><td class="BREAKING">破壞性</td><td>requestBody.required: true</td><td>未送本文的舊客戶端會失敗。<br><small>Clients without body fail.</small></td></tr>
+<tr id="rule-REQUEST_MEDIA_TYPE_REMOVED"><td><code>REQUEST_MEDIA_TYPE_REMOVED</code></td><td class="BREAKING">破壞性</td><td>application/xml removed</td><td>以該格式送出的請求會得到 415。<br><small>Requests in that format get 415.</small></td></tr>
+<tr id="rule-REQUEST_FIELD_ADDED_REQUIRED"><td><code>REQUEST_FIELD_ADDED_REQUIRED</code></td><td class="BREAKING">破壞性</td><td>POST /orders 需要 currency</td><td>舊客戶端不會送此欄位，驗證失敗。<br><small>Old clients do not send it; validation fails.</small></td></tr>
+<tr id="rule-REQUEST_FIELD_ADDED_OPTIONAL"><td><code>REQUEST_FIELD_ADDED_OPTIONAL</code></td><td class="NON_BREAKING">非破壞性</td><td>couponCode?</td><td>可省略。<br><small>Can be omitted.</small></td></tr>
+<tr id="rule-REQUEST_FIELD_BECAME_REQUIRED"><td><code>REQUEST_FIELD_BECAME_REQUIRED</code></td><td class="BREAKING">破壞性</td><td>note -&gt; required</td><td>省略此欄位的舊客戶端會失敗。<br><small>Clients omitting it fail.</small></td></tr>
+<tr id="rule-REQUEST_FIELD_REMOVED"><td><code>REQUEST_FIELD_REMOVED</code></td><td class="INFO">資訊</td><td>legacyCode removed</td><td>若伺服器拒絕未知欄位（additionalProperties: false）則會失敗。<br><small>Fails if the server rejects unknown fields.</small></td></tr>
+<tr id="rule-REQUEST_TYPE_CHANGED"><td><code>REQUEST_TYPE_CHANGED</code></td><td class="BREAKING">破壞性</td><td>qty: integer -&gt; string</td><td>舊客戶端送出的值不再符合型別。<br><small>Values sent by old clients no longer validate.</small></td></tr>
+<tr id="rule-REQUEST_ENUM_VALUE_REMOVED"><td><code>REQUEST_ENUM_VALUE_REMOVED</code></td><td class="BREAKING">破壞性</td><td>status=cancelled 不再接受</td><td>舊客戶端仍可能送出此值。<br><small>Old clients may still send it.</small></td></tr>
+<tr id="rule-REQUEST_ENUM_VALUE_ADDED"><td><code>REQUEST_ENUM_VALUE_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>status=refunded</td><td>放寬限制。<br><small>Relaxed.</small></td></tr>
+<tr id="rule-REQUEST_CONSTRAINT_TIGHTENED"><td><code>REQUEST_CONSTRAINT_TIGHTENED</code></td><td class="BREAKING">破壞性</td><td>maxLength 100 -&gt; 50</td><td>以前合法的值現在會被拒絕。<br><small>Previously valid values are rejected.</small></td></tr>
+<tr id="rule-RESPONSE_STATUS_REMOVED"><td><code>RESPONSE_STATUS_REMOVED</code></td><td class="BREAKING">破壞性</td><td>201 -&gt; 200</td><td>客戶端依狀態碼判斷成功（例如 201），改了就判斷錯。<br><small>Clients branch on the status code (e.g. 201).</small></td></tr>
+<tr id="rule-RESPONSE_STATUS_REMOVED_ERROR"><td><code>RESPONSE_STATUS_REMOVED_ERROR</code></td><td class="INFO">資訊</td><td>409 removed</td><td>錯誤處理路徑可能不同，請確認。<br><small>Error handling path may differ.</small></td></tr>
+<tr id="rule-RESPONSE_STATUS_ADDED"><td><code>RESPONSE_STATUS_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>429 added</td><td>一般客戶端可處理；若是新的 2xx 請留意。<br><small>Usually fine.</small></td></tr>
+<tr id="rule-RESPONSE_MEDIA_TYPE_REMOVED"><td><code>RESPONSE_MEDIA_TYPE_REMOVED</code></td><td class="BREAKING">破壞性</td><td>application/json removed</td><td>要求該格式的客戶端解析失敗。<br><small>Clients expecting it fail to parse.</small></td></tr>
+<tr id="rule-RESPONSE_FIELD_REMOVED"><td><code>RESPONSE_FIELD_REMOVED</code></td><td class="BREAKING">破壞性</td><td>customerName removed</td><td>讀取該欄位的客戶端拿到 undefined/null。<br><small>Clients reading it get undefined.</small></td></tr>
+<tr id="rule-RESPONSE_FIELD_ADDED"><td><code>RESPONSE_FIELD_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>currency added</td><td>客戶端應忽略未知欄位（嚴格反序列化者除外）。<br><small>Clients should ignore unknown fields.</small></td></tr>
+<tr id="rule-RESPONSE_TYPE_CHANGED"><td><code>RESPONSE_TYPE_CHANGED</code></td><td class="BREAKING">破壞性</td><td>total: number -&gt; string</td><td>強型別客戶端（C# DTO 等）反序列化失敗。<br><small>Typed clients (C# DTOs etc.) fail to deserialize.</small></td></tr>
+<tr id="rule-RESPONSE_REQUIRED_TO_OPTIONAL"><td><code>RESPONSE_REQUIRED_TO_OPTIONAL</code></td><td class="BREAKING">破壞性</td><td>note required -&gt; optional</td><td>客戶端假設一定存在，缺少時會出錯。<br><small>Clients assume it is always present.</small></td></tr>
+<tr id="rule-RESPONSE_OPTIONAL_TO_REQUIRED"><td><code>RESPONSE_OPTIONAL_TO_REQUIRED</code></td><td class="NON_BREAKING">非破壞性</td><td>email optional -&gt; required</td><td>保證更強。<br><small>Stronger guarantee.</small></td></tr>
+<tr id="rule-RESPONSE_BECAME_NULLABLE"><td><code>RESPONSE_BECAME_NULLABLE</code></td><td class="BREAKING">破壞性</td><td>nullable: true</td><td>客戶端未處理 null。<br><small>Clients may not handle null.</small></td></tr>
+<tr id="rule-RESPONSE_ENUM_VALUE_ADDED"><td><code>RESPONSE_ENUM_VALUE_ADDED</code></td><td class="INFO">資訊</td><td>status: refunded</td><td>用 switch 窮舉的客戶端可能無法處理新值。<br><small>Exhaustive switches may not handle it.</small></td></tr>
+<tr id="rule-RESPONSE_ENUM_VALUE_REMOVED"><td><code>RESPONSE_ENUM_VALUE_REMOVED</code></td><td class="NON_BREAKING">非破壞性</td><td>status: cancelled</td><td>回應值域變小，客戶端仍可處理。<br><small>Narrower output; clients still cope.</small></td></tr>
+<tr id="rule-RESPONSE_HEADER_REMOVED"><td><code>RESPONSE_HEADER_REMOVED</code></td><td class="BREAKING">破壞性</td><td>X-Total-Count removed</td><td>讀取該標頭的客戶端（如分頁 X-Total-Count）失效。<br><small>Clients reading it break.</small></td></tr>
+<tr id="rule-FORMAT_CHANGED"><td><code>FORMAT_CHANGED</code></td><td class="INFO">資訊</td><td>int32 -&gt; int64</td><td>型別相同但格式不同（如 int32 -&gt; int64），請確認客戶端解析。<br><small>Same type, different format.</small></td></tr>
+<tr id="rule-SECURITY_ADDED"><td><code>SECURITY_ADDED</code></td><td class="BREAKING">破壞性</td><td>security: [bearer]</td><td>原本匿名呼叫的客戶端會得到 401。<br><small>Anonymous clients get 401.</small></td></tr>
+</tbody></table></div>
+<h3 id="rules-replay">流量重播比對規則（apiguard replay）</h3>
+<div class="scroll"><table>
+<thead><tr><th>規則 ID</th><th>嚴重度</th><th>說明</th></tr></thead>
+<tbody>
+<tr><td><code>STATUS_CHANGED</code></td><td class="BREAKING">破壞性</td><td>狀態碼由 … 變成 …<br><small>Status changed … -&gt; …</small></td></tr>
+<tr><td><code>REQUEST_FAILED</code></td><td class="BREAKING">破壞性</td><td>無法呼叫新服務：…<br><small>Request to new service failed: …</small></td></tr>
+<tr><td><code>HEADER_MISSING</code></td><td class="BREAKING">破壞性</td><td>缺少回應標頭 …<br><small>Response header … missing</small></td></tr>
+<tr><td><code>HEADER_CHANGED</code></td><td class="BREAKING">破壞性</td><td>回應標頭 … 由 … 變成 …<br><small>Response header … changed … -&gt; …</small></td></tr>
+<tr><td><code>BODY_KIND_CHANGED</code></td><td class="BREAKING">破壞性</td><td>回應本文格式由 … 變成 …<br><small>Body kind changed … -&gt; …</small></td></tr>
+<tr><td><code>FIELD_MISSING</code></td><td class="BREAKING">破壞性</td><td>欄位 … 在新回應中消失<br><small>Field … missing in new response</small></td></tr>
+<tr><td><code>FIELD_ADDED</code></td><td class="NON_BREAKING">非破壞性</td><td>新回應多了欄位 …<br><small>Field … added in new response</small></td></tr>
+<tr><td><code>TYPE_CHANGED</code></td><td class="BREAKING">破壞性</td><td>欄位 … 型別由 … 變成 …<br><small>Field … type changed … -&gt; …</small></td></tr>
+<tr><td><code>NULL_TO_VALUE</code></td><td class="INFO">資訊</td><td>欄位 … 由 null 變成有值（…）<br><small>Field … was null, now …</small></td></tr>
+<tr><td><code>VALUE_CHANGED</code></td><td class="BREAKING">破壞性</td><td>欄位 … 值由 … 變成 …<br><small>Field … value changed … -&gt; …</small></td></tr>
+<tr><td><code>ARRAY_LENGTH_CHANGED</code></td><td class="BREAKING">破壞性</td><td>陣列 … 長度由 … 變成 …<br><small>Array … length changed … -&gt; …</small></td></tr>
+</tbody></table></div>
+<p class="note">型別相容性：請求端 integer → number 視為放寬（非破壞性）；回應端 integer → number 視為破壞性（強型別客戶端如 C# <code>int</code> 無法接收小數）。OpenAPI 3.0 的 <code>nullable: true</code> 與 3.1 的 <code>type: [string, "null"]</code> 都會被辨識。<code>allOf</code> 會先合併再比較。路徑參數改名（<code>/orders/{id}</code> → <code>/orders/{orderId}</code>）不算變更。</p>
+</section>
+
+<section class="tab" id="quickstart">
+<h2>快速開始</h2>
+<p>需求：Node.js 20 以上（已在 Node 22.23.4 驗證）。唯一的執行期相依套件是 <code>yaml</code>（版本鎖定 2.9.1）。</p>
+<h3 id="quickstart-windows">Windows（繁體中文環境）</h3>
+<ol>
+<li>安裝 Node.js LTS（<a href="https://nodejs.org/">nodejs.org</a>）。</li>
+<li>在檔案總管進入 <code>12-api-compat-guard</code> 資料夾，雙擊 <code>setup.bat</code>（執行 npm install）。</li>
+<li>雙擊 <code>run-demo.bat</code>：自動啟動 v1/v2 示範服務、錄製、重播並產生報告到 <code>%ProgramData%\NewMiscCode\12-api-compat-guard\demo\</code>。視窗最後會顯示結束代碼。</li>
+<li>雙擊 <code>run-tests.bat</code> 執行全部測試；<code>diff-demo.bat</code> 只做規格比對並產生 HTML 報告。</li>
+<li>任意指令：在命令提示字元執行 <code>apiguard.bat diff old.yaml new.yaml --format html</code>。</li>
+</ol>
+<p class="note">啟動鏈：<code>.bat</code>（純 ASCII + CRLF）→ <code>apiguard.ps1</code>（UTF-8 with BOM）→ node。設定環境變數 <code>APIGUARD_NO_PAUSE=1</code> 可讓 .bat 結束時不暫停（給排程或 CI 使用）。</p>
+<h3 id="quickstart-linux">Linux / macOS</h3>
+<pre><code>cd 12-api-compat-guard
+npm install
+npm test                      # 全部測試
+npm run demo                  # 一鍵示範，報告寫到 ./data/demo/
+npm run diff:demo             # 只比對 demo/openapi-v1.yaml 與 v2
+node src/cli.js diff demo/openapi-v1.yaml demo/openapi-v2.yaml --out report.html</code></pre>
+</section>
+
+<section class="tab" id="usage">
+<h2>使用說明</h2>
+<p>共用選項：<code>--lang zh-TW|en</code>（預設 zh-TW，也可用環境變數 <code>APIGUARD_LANG</code>）、<code>--config 檔案</code>（預設讀取目前目錄的 <code>apiguard.config.json</code>）、<code>--data-dir 路徑</code>、<code>--debug</code>、<code>--fail-on breaking|none</code>。</p>
+
+<h3 id="usage-diff">diff：比對兩份 OpenAPI</h3>
+<pre><code>node src/cli.js diff old.yaml new.yaml                        # 主控台輸出
+node src/cli.js diff old.yaml new.json --out report.html      # 依副檔名決定格式（.html/.md/.json）
+node src/cli.js diff old.yaml new.yaml --format md --out diff.md --lang en
+node src/cli.js diff old.yaml new.yaml --fail-on none         # 只產報告，不讓 CI 失敗</code></pre>
+<p>只指定 <code>--format html</code> 而不給 <code>--out</code> 時，報告寫到資料夾下的 <code>reports/</code>。</p>
+
+<h3 id="usage-record">record：錄製舊服務的流量</h3>
+<pre><code>node src/cli.js record --target http://127.0.0.1:3001 --port 9000 --out recordings.jsonl</code></pre>
+<p>把客戶端（或整合測試、Postman、前端開發環境）的 base URL 改成 <code>http://127.0.0.1:9000</code>，所有請求會轉送到舊服務，回應原封不動回給客戶端，同時寫入 JSONL（每行一筆 request/response）。按 Ctrl+C 結束。上游可以是 https。</p>
+<p class="warn">遮罩在<strong>寫檔之前</strong>執行：預設遮罩標頭 authorization、proxy-authorization、cookie、set-cookie、x-api-key、x-auth-token；查詢參數 access_token、api_key、apikey、token、password；JSON 路徑 <code>$..password</code>、<code>$..token</code>、<code>$..accessToken</code>、<code>$..refreshToken</code>、<code>$..secret</code>。可在設定檔 <code>redact</code> 改寫。</p>
+
+<h3 id="usage-replay">replay：重播到新服務並比較</h3>
+<pre><code>node src/cli.js replay recordings.jsonl --to http://127.0.0.1:3002 --out replay.html
+node src/cli.js replay recordings.jsonl --to http://new --header "Authorization: Bearer xxx"
+node src/cli.js replay recordings.jsonl --to http://new --array-order ignore --no-values</code></pre>
+<p>請求依錄製順序逐筆送出（保留有狀態 API 的先後關係）。已遮罩的標頭不會送出，需要驗證時用 <code>--header</code> 或設定檔的 <code>replay.injectHeaders</code>（支援 <code>${環境變數}</code>）。若狀態碼類別不同（例如 201 → 400），只回報狀態碼差異，不再比較本文以免雜訊。</p>
+
+<h3 id="usage-config">忽略規則與設定檔（apiguard.config.json）</h3>
+<pre><code>{
+  "lang": "zh-TW",
+  "failOn": "breaking",
+  "dataDir": "D:\\apiguard-data",
+  "redact": {
+    "headers": ["authorization", "cookie", "set-cookie", "x-api-key"],
+    "query": ["access_token", "api_key", "token"],
+    "jsonPaths": ["$..password", "$..token", "$.payment.cardNumber"]
+  },
+  "record": { "target": "http://127.0.0.1:3001", "port": 9000, "exclude": ["^/favicon\\.ico"] },
+  "replay": {
+    "to": "http://127.0.0.1:3002",
+    "headers": ["content-type"],
+    "compareValues": true,
+    "arrayOrder": "strict",
+    "ignoreTimestamps": true,
+    "ignoreUuids": true,
+    "ignorePaths": ["$..updatedAt"],
+    "skipPaths": ["$.debugInfo"],
+    "statusClassMismatchSkipsBody": true,
+    "injectHeaders": { "Authorization": "Bearer ${APIGUARD_REPLAY_TOKEN}" },
+    "rules": [
+      { "match": "POST /orders", "ignorePaths": ["$.id", "$.createdAt"] },
+      { "match": "GET /reports/**", "compareValues": false }
+    ]
+  }
+}</code></pre>
+<div class="scroll"><table>
+<tr><th>設定</th><th>說明</th></tr>
+<tr><td><code>headers</code></td><td>要比對的回應標頭子集合（content-type 只比 media type，忽略 charset）。</td></tr>
+<tr><td><code>compareValues</code></td><td>false 時只比結構與型別，不比值、不比陣列長度。</td></tr>
+<tr><td><code>arrayOrder</code></td><td><code>strict</code>（依索引比較）或 <code>ignore</code>（先以正規化 JSON 排序再比較）。</td></tr>
+<tr><td><code>ignoreTimestamps</code> / <code>ignoreUuids</code></td><td>兩邊都是 ISO 8601 時間 / UUID 時視為相同值。</td></tr>
+<tr><td><code>ignorePaths</code></td><td>JSONPath：忽略<strong>值</strong>，但仍檢查欄位存在與型別。</td></tr>
+<tr><td><code>skipPaths</code></td><td>JSONPath：整個略過（不檢查存在、型別、值）。</td></tr>
+<tr><td><code>rules[].match</code></td><td><code>"METHOD /path"</code>，<code>*</code> 比對一段路徑，<code>**</code> 比對任意多段；符合時合併該規則的設定。</td></tr>
+</table></div>
+<p>支援的 JSONPath 子集：<code>$.a.b</code>、<code>$.items[*].id</code>、<code>$.items[0]</code>、<code>$..id</code>（任意深度）、<code>$.*</code>。</p>
+
+<h3 id="usage-mock">mock：由 OpenAPI 範例產生 Mock 伺服器</h3>
+<pre><code>node src/cli.js mock demo/openapi-v2.yaml --port 4010</code></pre>
+<p>依路徑樣板比對請求，回傳第一個 2xx 回應的 <code>example</code> / <code>examples</code>，沒有範例時依 schema 產生假資料。</p>
+
+<h3 id="usage-ci">CI 範例</h3>
+<p>GitHub Actions：</p>
+<pre><code>- uses: actions/setup-node@v4
+  with: { node-version: 22 }
+- run: npm ci
+  working-directory: 12-api-compat-guard
+- name: API compatibility gate
+  working-directory: 12-api-compat-guard
+  run: |
+    node src/cli.js diff ../contracts/openapi-released.json ../build/openapi.json --out apiguard-report.html --lang zh-TW
+- uses: actions/upload-artifact@v4
+  if: always()
+  with: { name: apiguard-report, path: 12-api-compat-guard/apiguard-report.html }</code></pre>
+<p>Azure DevOps / 一般 Windows agent（cmd）：</p>
+<pre><code>set APIGUARD_NO_PAUSE=1
+call apiguard.bat diff contracts\openapi-released.json build\openapi.json --out apiguard-report.html
+if errorlevel 1 exit /b 1</code></pre>
+<p>結束代碼 1 會讓 pipeline 失敗；若想先觀察一段時間，加 <code>--fail-on none</code>。</p>
+</section>
+
+<section class="tab" id="verify">
+<h2>逐步驗證指南</h2>
+<p>以下步驟使用內附的示範：<code>demo/old-api</code>（v1）與 <code>demo/new-api</code>（v2 改寫版）。v2 刻意做了這些變更：</p>
+<ul>
+<li><span class="BREAKING">破壞性</span>：<code>total</code> 由 number 改成字串；<code>customerName</code>/<code>email</code> 移到 <code>customer</code> 物件；<code>note</code> 空字串時省略；<code>POST /orders</code> 新增必填 <code>currency</code> 且 201 → 200；<code>DELETE /orders/{id}</code> 移除；<code>limit</code> 由查詢參數改成 <code>X-Limit</code> 標頭；狀態篩選不再接受 <code>cancelled</code>；拿掉 <code>X-Total-Count</code> 標頭。</li>
+<li><span class="NON_BREAKING">非破壞性</span>：新增 <code>currency</code>、<code>updatedAt</code> 欄位；新增 <code>GET /orders/{orderId}/history</code>；新增選填 <code>sort</code> 參數。</li>
+</ul>
+
+<h3 id="verify-tests">步驟 1：執行自動測試</h3>
+<pre><code>npm test          # Windows：run-tests.bat</code></pre>
+<p>預期：<code># pass 73</code>、<code># fail 0</code>。測試包含每條 diff 規則、$ref 解析、遮罩（秘密不得出現在錄製檔與日誌）、重播比對與忽略規則、端對端（真的啟動 v1/v2 與錄製代理 CLI）、Playwright 開啟 HTML 報告。</p>
+
+<h3 id="verify-diff">步驟 2：規格比對</h3>
+<pre><code>npm run diff:demo      # Windows：diff-demo.bat</code></pre>
+<p>預期最後兩行：</p>
+<pre><code>-- 破壞性: 14  非破壞性: 11  資訊: 1
+發現破壞性變更：不可直接上線</code></pre>
+<p>結束代碼為 1。其中應包含 <code>OPERATION_REMOVED DELETE /orders/{orderId}</code>、<code>PARAM_LOCATION_CHANGED</code>（limit → X-Limit）、<code>RESPONSE_TYPE_CHANGED</code>（total number → string）、<code>REQUEST_FIELD_ADDED_REQUIRED</code>（currency）、<code>RESPONSE_STATUS_REMOVED</code>（201）。</p>
+<figure><img src="examples/diff-report-zh.png" alt="diff 報告截圖（中文）" width="1100" height="760" loading="lazy"><figcaption>diff HTML 報告：變更清單分頁（範例檔 <a href="examples/diff-report.html">examples/diff-report.html</a>、<a href="examples/diff-report.md">examples/diff-report.md</a>）</figcaption></figure>
+
+<h3 id="verify-replay">步驟 3：錄製與重播（手動，四個終端機）</h3>
+<ol>
+<li>終端機 A：<code>npm run demo:old</code> → 顯示 <code>old-api (v1) listening on http://127.0.0.1:3001</code></li>
+<li>終端機 B：<code>npm run demo:new</code> → 顯示 <code>new-api (v2) listening on http://127.0.0.1:3002</code></li>
+<li>終端機 C：<code>node src/cli.js record --config demo/apiguard.config.json --out data/rec.jsonl</code> → 顯示「錄製代理已啟動：http://127.0.0.1:9000 -&gt; http://127.0.0.1:3001」</li>
+<li>終端機 D：<code>node demo/traffic.js http://127.0.0.1:9000</code> → 8 行，狀態碼依序 200、200、200、200、200、201、200、204。</li>
+<li>終端機 C 按 Ctrl+C → 「已停止，共錄製 8 筆。」打開 <code>data/rec.jsonl</code>：<code>authorization</code>、<code>cookie</code>、<code>password</code>、<code>token</code> 都是 <code>***REDACTED***</code>。</li>
+<li>終端機 D（Linux）：<code>APIGUARD_REPLAY_TOKEN=t node src/cli.js replay data/rec.jsonl --config demo/apiguard.config.json --out data/replay.html</code>；Windows PowerShell：先 <code>$env:APIGUARD_REPLAY_TOKEN='t'</code> 再執行同一指令。</li>
+</ol>
+<p>預期：<code>-- 破壞性: 15  非破壞性: 9  資訊: 0</code>，結束代碼 1。<code>/health</code> 與 <code>/login</code> 為「相容」；<code>createdAt</code> 格式不同（<code>...00Z</code> vs <code>...00.000Z</code>）但被時間戳規則忽略；<code>GET /orders?limit=1</code> 因 limit 失效而回傳 2 筆（ARRAY_LENGTH_CHANGED）；<code>POST /orders</code> 201 → 400；<code>DELETE</code> 204 → 404。</p>
+<p>一鍵版本：<code>npm run demo</code>（Windows：<code>run-demo.bat</code>），會在資料夾的 <code>demo/</code> 下產生 recordings.jsonl、diff-report.html/.md、replay-report.html/.json，最後顯示 <code>exit codes: diff=1 replay=1</code>。</p>
+<figure><img src="examples/replay-report-en.png" alt="replay report screenshot (English)" width="1100" height="760" loading="lazy"><figcaption>replay HTML 報告（切換成 English，請求比對分頁）。範例：<a href="examples/replay-report.html">examples/replay-report.html</a>、<a href="examples/recordings.jsonl">examples/recordings.jsonl</a></figcaption></figure>
+
+<h3 id="verify-report">步驟 4：檢查 HTML 報告</h3>
+<ol>
+<li>開啟報告：摘要分頁三張卡片的數字與主控台相同。</li>
+<li>按右上角「English」：介面與每一筆訊息切換成英文；再按「中文」切回。</li>
+<li>「變更清單」分頁：按「破壞性」篩選，只剩破壞性項目。</li>
+<li>「除錯 / 原始資料」分頁：可看到完整報告 JSON 與 debug 資訊（解析到的 $ref、重播選項）。</li>
+<li>手機寬度（390px）不會出現水平捲動，表格改成卡片式排列：</li>
+</ol>
+<figure><img src="examples/diff-report-mobile.png" alt="手機寬度報告截圖" width="390" height="800" loading="lazy" style="max-width:260px"><figcaption>390px 寬度</figcaption></figure>
+
+<h3 id="verify-mock">步驟 5（選用）：Mock 伺服器</h3>
+<pre><code>node src/cli.js mock demo/openapi-v2.yaml --port 4010
+curl http://127.0.0.1:4010/orders/abc</code></pre>
+<p>預期回傳 v2 規格中的範例，<code>"total":"1250.50"</code>、<code>"customer":{"name":"王小明",...}</code>。</p>
+</section>
+
+<section class="tab" id="dev">
+<h2>開發者指南</h2>
+<h3 id="dev-arch">架構</h3>
+<pre><code>          diff                                record / replay
+ old.yaml ─┐                      client ──&gt; proxy.js ──&gt; OLD service
+ new.yaml ─┼─&gt; load.js ($ref) ──┐            │ redact.js（寫檔前遮罩）
+           │                    │            v
+           └─&gt; diff.js + rules.js        recordings.jsonl ──&gt; replay.js ──&gt; NEW service
+                    │                                           │ compare.js（忽略規則）
+                    v                                           v
+               findings[] ──────────&gt; render.js（console / json / md / html）&lt;── findings[] + exchanges[]
+                                              │
+                                        cli.js 結束代碼 0 / 1 / 2</code></pre>
+<p>所有 I/O 都是 async（<code>fs/promises</code>、串流讀取 JSONL、<code>http</code> 非同步）。報告物件格式統一：<code>{ tool, version, kind, summary, findings[], exchanges?, debug }</code>，每筆 finding 都有 <code>message['zh-TW']</code> 與 <code>message.en</code>，HTML 報告因此可以即時切換語言。</p>
+<h3 id="dev-add-rule">如何新增規則</h3>
+<ol>
+<li>在 <code>src/openapi/rules.js</code> 的 <code>RULES</code> 加一筆：嚴重度、中英文訊息模板（<code>{field}</code> 等參數）、原因、範例。</li>
+<li>在 <code>src/openapi/diff.js</code> 適當位置（<code>compareSchema</code>、<code>compareParams</code>、<code>compareResponses</code>…）呼叫 <code>makeFinding('YOUR_RULE', loc, params)</code>。</li>
+<li>在 <code>test/diff-rules.test.js</code> 的 <code>CASES</code> 加一筆變更函式。測試「every rule in the rule table has a test case」會強制每條規則都有測試。</li>
+<li>更新本頁的規則表。重播比對規則則在 <code>src/traffic/compare.js</code> 的 <code>REPLAY_RULES</code>。</li>
+</ol>
+<h3 id="dev-versions">版本</h3>
+<div class="scroll"><table>
+<tr><th>元件</th><th>版本</th><th>備註</th></tr>
+<tr><td>apiguard</td><td>0.1.0</td><td></td></tr>
+<tr><td>Node.js</td><td>&gt;= 20（驗證於 22.23.4）</td><td></td></tr>
+<tr><td>yaml</td><td>2.9.1（鎖定）</td><td>唯一執行期相依；package-lock.json 有提交</td></tr>
+<tr><td>Playwright</td><td>1.63.0（全域安裝，非相依）</td><td>只用於 HTML 報告測試；找不到時該測試自動 skip</td></tr>
+</table></div>
+<h3 id="dev-changelog">變更紀錄</h3>
+<ul>
+<li><strong>0.1.0</strong>（2026-11-05）：第一版。OpenAPI 3.0/3.1 diff（37 條規則）、$ref（同檔/跨檔/循環）、錄製代理 + 遮罩、重播比對（忽略規則、陣列順序、個別端點規則）、Mock 伺服器、console/JSON/Markdown/HTML 報告（zh-TW/en）、Windows 啟動器、示範與測試。</li>
+</ul>
+</section>
+
+<section class="tab" id="aspnet">
+<h2>ASP.NET Core 整合</h2>
+<p class="warn"><strong>未驗證：</strong>本節的 .NET 指令與程式碼是依官方文件整理，<strong>沒有在此環境實際執行過</strong>（此機器沒有 .NET SDK），套件版本與參數請以你的專案為準。</p>
+<h3 id="aspnet-export">從 ASP.NET Core 匯出 OpenAPI</h3>
+<p><strong>方法 A：Microsoft.AspNetCore.OpenApi（.NET 9 以後內建）</strong></p>
+<pre><code>// Program.cs
+builder.Services.AddOpenApi();
+var app = builder.Build();
+app.MapOpenApi();          // 執行時提供 /openapi/v1.json</code></pre>
+<pre><code>curl http://localhost:5000/openapi/v1.json -o openapi-new.json</code></pre>
+<p>建置時直接產生檔案（不需啟動服務）：加入套件 <code>Microsoft.Extensions.ApiDescription.Server</code>，在 .csproj 設定：</p>
+<pre><code>&lt;PropertyGroup&gt;
+  &lt;OpenApiDocumentsDirectory&gt;$(MSBuildProjectDirectory)\openapi&lt;/OpenApiDocumentsDirectory&gt;
+&lt;/PropertyGroup&gt;</code></pre>
+<p><code>dotnet build</code> 後會在 <code>openapi\</code> 產生 JSON（.NET 10 預設輸出 OpenAPI 3.1，apiguard 可讀）。</p>
+<p><strong>方法 B：Swashbuckle.AspNetCore</strong></p>
+<pre><code>builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+app.UseSwagger();          // /swagger/v1/swagger.json</code></pre>
+<pre><code>dotnet new tool-manifest
+dotnet tool install Swashbuckle.AspNetCore.Cli
+dotnet swagger tofile --output openapi-new.json bin\Release\net8.0\MyApi.dll v1</code></pre>
+<p>注意：Swashbuckle 必須輸出 OpenAPI 3.x（不要設定 <code>SerializeAsV2</code>），apiguard 不支援 Swagger 2.0。</p>
+<h3 id="aspnet-workflow">建議流程</h3>
+<ol>
+<li>把「目前上線版本」的 OpenAPI 檔提交到版控（例如 <code>contracts\openapi-released.json</code>）。</li>
+<li>CI 建置新版本時產生 <code>openapi.json</code>，執行 <code>apiguard.bat diff contracts\openapi-released.json build\openapi.json</code>，結束代碼 1 就擋下。</li>
+<li>重寫（例如 .NET Framework → .NET 8、或換語言）時沒有可靠的 OpenAPI：在舊服務（IIS/Kestrel）前面放 <code>apiguard record</code>，讓整合測試或測試人員經過代理操作一輪，再 <code>replay</code> 到新服務。</li>
+</ol>
+<h3 id="aspnet-pitfalls">.NET 改寫常見的破壞性變更</h3>
+<div class="scroll"><table>
+<tr><th>情況</th><th>apiguard 會報</th></tr>
+<tr><td>System.Text.Json 預設 camelCase，舊版 Newtonsoft 設定為 PascalCase（或反之）</td><td>FIELD_MISSING + FIELD_ADDED / RESPONSE_FIELD_REMOVED</td></tr>
+<tr><td>enum 由數字改成字串（<code>JsonStringEnumConverter</code>）</td><td>TYPE_CHANGED number → string</td></tr>
+<tr><td><code>decimal</code> 改用字串輸出、<code>long</code> id 改成字串</td><td>TYPE_CHANGED</td></tr>
+<tr><td>null 欄位改成省略（<code>DefaultIgnoreCondition = WhenWritingNull</code>）</td><td>FIELD_MISSING / RESPONSE_REQUIRED_TO_OPTIONAL</td></tr>
+<tr><td><code>DateTime</code> 格式改變（時區、毫秒）</td><td>預設忽略（ignoreTimestamps）；需要嚴格比較時關掉</td></tr>
+<tr><td><code>CreatedAtAction</code>（201）改成 <code>Ok</code>（200）</td><td>RESPONSE_STATUS_REMOVED / STATUS_CHANGED</td></tr>
+<tr><td>Model validation 變嚴（<code>[Required]</code>、<code>[MaxLength]</code>）</td><td>REQUEST_FIELD_BECAME_REQUIRED / REQUEST_CONSTRAINT_TIGHTENED</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="debug">
+<h2>除錯與日誌</h2>
+<h3 id="debug-paths">資料與日誌位置</h3>
+<div class="scroll"><table>
+<tr><th>平台</th><th>預設資料夾</th></tr>
+<tr><td>Windows</td><td><code>%ProgramData%\NewMiscCode\12-api-compat-guard</code></td></tr>
+<tr><td>Linux / macOS</td><td><code>12-api-compat-guard/data</code>（專案資料夾下）</td></tr>
+</table></div>
+<p>優先順序：<code>--data-dir</code> &gt; 設定檔 <code>dataDir</code> &gt; 環境變數 <code>APIGUARD_DATA_DIR</code> &gt; 預設。子資料夾：<code>logs/</code>（日誌）、<code>recordings/</code>（未指定 --out 時的錄製檔）、<code>reports/</code>（未指定 --out 時的報告）、<code>demo/</code>。</p>
+<h3 id="debug-log">JSONL 日誌</h3>
+<p>檔名 <code>logs/apiguard-YYYYMMDD.jsonl</code>，每行一筆，等級 debug / info / warn / error。預設 info；加 <code>--debug</code> 會記錄 debug 等級並同時輸出到 stderr。</p>
+<pre><code>{"ts":"2026-11-05T04:47:01.352Z","level":"info","msg":"proxy.recorded","data":{"id":"fb2b...","method":"GET","url":"/orders?limit=1","status":200,"ms":2}}
+{"ts":"2026-11-05T04:47:01.420Z","level":"info","msg":"replay.exchange","data":{"method":"POST","url":"/orders","oldStatus":201,"newStatus":400,"diffs":1,"severity":"BREAKING"}}</code></pre>
+<p class="note">日誌<strong>不記錄</strong>請求/回應本文與標頭值，只記錄方法、已遮罩的 URL、狀態碼；另外 logger 會再把 authorization、cookie、password、token 等鍵名的值換成 <code>***</code>（第二道防線）。測試 <code>test/redact.test.js</code> 會檢查秘密字串不出現在錄製檔與日誌中。</p>
+<h3 id="debug-report">報告的除錯分頁</h3>
+<p>每份 HTML 報告都有「除錯 / 原始資料」分頁：diff 報告列出 OpenAPI 版本、解析到的所有 <code>$ref</code>、兩邊的路徑清單；replay 報告列出有效的比對選項（injectHeaders 只顯示鍵名）與筆數，以及完整報告 JSON。</p>
+</section>
+
+<section class="tab" id="limits">
+<h2>限制與疑難排解</h2>
+<h3 id="limits-list">已知限制</h3>
+<ul>
+<li>只支援 OpenAPI 3.0 / 3.1；Swagger 2.0 會直接回報錯誤（請先轉換）。</li>
+<li><code>$ref</code> 支援同檔與相對路徑檔案；不支援 http(s) 遠端參照。</li>
+<li><code>oneOf</code> / <code>anyOf</code> 不做深入比較（<code>allOf</code> 會合併）；<code>additionalProperties</code>、<code>discriminator</code>、callbacks、webhooks、links 未比較。</li>
+<li>錄製代理是 HTTP/1.1 反向代理：客戶端到代理是 http；不支援 WebSocket、SSE 長連線、HTTP/2；本文會整個放在記憶體。</li>
+<li>重播時被遮罩的本文值會以 <code>***REDACTED***</code> 送出（例如登入密碼），需要真實值的端點請用 <code>skipPaths</code> 或在測試環境使用測試帳號並調整 <code>redact</code>。</li>
+<li>有狀態 API：重播前新服務的資料要與錄製時的舊服務一致（相同種子資料），否則會出現大量值差異；可改用 <code>compareValues: false</code> 只比結構。</li>
+<li><code>arrayOrder: "ignore"</code> 以整個元素的正規化 JSON 排序，元素內若有每次不同的 id，排序可能錯位；此時請一併用 <code>skipPaths</code>。</li>
+<li>非 JSON 本文（text、二進位）只做相等比較。</li>
+<li>ASP.NET Core 整合章節未在此環境驗證。</li>
+</ul>
+<h3 id="limits-troubleshooting">疑難排解</h3>
+<div class="scroll"><table>
+<tr><th>症狀</th><th>處理</th></tr>
+<tr><td>Windows 主控台中文亂碼</td><td>使用 .bat 啟動（ps1 會設定 UTF-8 輸出），或在 cmd 執行 <code>chcp 65001</code>。</td></tr>
+<tr><td><code>EADDRINUSE</code></td><td>port 被佔用：record 改 <code>--port 9100</code>；示範服務 <code>node demo/old-api/server.js --port 3101</code>。</td></tr>
+<tr><td>重播全部 401</td><td>授權標頭在錄製時已遮罩、不會重送：加 <code>--header "Authorization: Bearer ..."</code> 或設定 <code>injectHeaders</code>。</td></tr>
+<tr><td>重播大量 VALUE_CHANGED</td><td>確認新舊資料一致；用 <code>ignorePaths</code> 忽略 id、序號；或 <code>--no-values</code>。</td></tr>
+<tr><td>結束代碼 2</td><td>看 stderr 訊息；加 <code>--debug</code> 查看日誌檔（含 stack）。</td></tr>
+<tr><td><code>$ref not found</code></td><td>檢查 JSON Pointer 拼字（<code>/</code> 要寫成 <code>~1</code>），跨檔參照路徑相對於「該檔案」。</td></tr>
+<tr><td>執行原則擋下 .ps1</td><td>.bat 已使用 <code>-ExecutionPolicy Bypass</code>；請由 .bat 啟動。</td></tr>
+</table></div>
+</section>
+
+<section class="tab" id="english">
+<h2>English summary</h2>
+<p><strong>apiguard</strong> catches breaking Web API changes before release, so a rewritten service stays compatible with existing callers.</p>
+<ul>
+<li><code>apiguard diff old.yaml new.yaml</code> compares two OpenAPI 3.0/3.1 documents (JSON or YAML, <code>$ref</code> resolved incl. cross-file and cycles) and classifies each change as BREAKING / NON_BREAKING / INFO using 37 rules (see <a href="#rules-openapi">rule table</a>).</li>
+<li><code>apiguard record --target http://old --port 9000</code> is a recording reverse proxy that writes request/response pairs to JSONL, redacting secrets (Authorization, Cookie, configurable query params and JSON paths) <em>before</em> anything touches disk.</li>
+<li><code>apiguard replay --to http://new recordings.jsonl</code> re-sends the requests to the new service and compares status, a header subset, JSON shape/types and values, with ignore rules (timestamps, UUIDs, JSONPath ignore/skip, array order, per-endpoint rules).</li>
+<li><code>apiguard mock spec.yaml</code> serves OpenAPI examples.</li>
+<li>Reports: console, JSON, Markdown and a self-contained HTML report with a zh-TW/en toggle and a debug/raw tab. Exit code 1 on breaking changes, 2 on errors (CI-friendly).</li>
+<li>Logs: JSONL with levels under <code>%ProgramData%\NewMiscCode\12-api-compat-guard\logs</code> on Windows, <code>./data/logs</code> elsewhere; <code>--debug</code> for verbose output. Secrets are never logged.</li>
+<li>Verify: <code>npm test</code> (73 tests: every rule, $ref, redaction, replay comparison, end-to-end with the demo v1/v2 servers through the real CLI, Playwright report checks). Demo: <code>npm run demo</code> → diff 14 breaking / 11 non-breaking / 1 info, replay 15 breaking / 9 non-breaking.</li>
+<li>ASP.NET Core export instructions (Microsoft.AspNetCore.OpenApi / Swashbuckle) are included but <strong>unverified</strong> here.</li>
+</ul>
+</section>
+</main>
+<script>
+(function () {
+  document.body.classList.remove('no-js');
+  var ids = Array.prototype.map.call(document.querySelectorAll('section.tab'), function (s) { return s.id; });
+  function show(id, anchor) {
+    if (ids.indexOf(id) < 0) id = ids[0];
+    document.querySelectorAll('section.tab').forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    document.querySelectorAll('nav.tabs a').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-tab') === id); });
+    if (anchor) { var el = document.getElementById(anchor); if (el) el.scrollIntoView(); } else { window.scrollTo(0, 0); }
+  }
+  function fromHash() {
+    var h = decodeURIComponent(location.hash.slice(1));
+    if (ids.indexOf(h) >= 0) return show(h);
+    var el = h && document.getElementById(h);
+    var sec = el && el.closest('section.tab');
+    show(sec ? sec.id : ids[0], sec ? h : null);
+  }
+  window.addEventListener('hashchange', fromHash);
+  fromHash();
+})();
+</script>
+</body>
+</html>

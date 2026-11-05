@@ -1,0 +1,158 @@
+openapi: 3.0.3
+info:
+  title: Order API
+  version: 2.0.0
+  description: 新版訂單 API（v2，改寫版）。Rewritten order API.
+servers:
+  - url: http://127.0.0.1:3002
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: v1 }
+  /orders:
+    get:
+      operationId: getOrders
+      parameters:
+        - $ref: '#/components/parameters/StatusFilter'
+        - name: X-Limit
+          in: header
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [total, createdAt] }
+      responses:
+        '200':
+          description: 訂單列表
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewOrder' }
+      responses:
+        '200':
+          description: 已建立
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '400':
+          description: 驗證錯誤
+          content:
+            application/json:
+              schema: { $ref: 'common.yaml#/Error' }
+  /orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      operationId: getOrder
+      responses:
+        '200':
+          description: 單筆訂單
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+        '404':
+          description: 找不到
+          content:
+            application/json:
+              schema: { $ref: 'common.yaml#/Error' }
+  /orders/{orderId}/history:
+    get:
+      operationId: getOrderHistory
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 狀態歷程
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    at: { type: string, format: date-time }
+                    status: { type: string }
+components:
+  parameters:
+    StatusFilter:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [pending, paid, shipped]
+  responses:
+    Unauthorized:
+      description: 未授權
+      content:
+        application/json:
+          schema: { $ref: 'common.yaml#/Error' }
+  schemas:
+    LineItem:
+      type: object
+      required: [sku, qty]
+      properties:
+        sku: { type: string, example: TEA-001 }
+        qty: { type: integer, format: int32, example: 2 }
+        price: { type: number, example: 350 }
+    Customer:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, example: 王小明 }
+        email: { type: string, example: ming@example.com }
+    NewOrder:
+      type: object
+      required: [customerName, items, currency]
+      properties:
+        customerName: { type: string, maxLength: 100, example: 王小明 }
+        email: { type: string, format: email }
+        note: { type: string }
+        currency: { type: string, enum: [TWD, USD], example: TWD }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+    Order:
+      type: object
+      required: [id, customer, status, total, currency, items, createdAt, updatedAt]
+      properties:
+        id: { type: string, example: 3f2b8c1e-8d1a-4c7e-9a43-2b5f0d7c9e11 }
+        customer: { $ref: '#/components/schemas/Customer' }
+        status: { type: string, enum: [pending, paid, shipped], example: paid }
+        total: { type: string, example: '1250.50' }
+        currency: { type: string, example: TWD }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/LineItem' }
+        note: { type: string, example: 請於下午送達 }
+        createdAt: { type: string, format: date-time, example: '2026-01-05T10:00:00.000Z' }
+        updatedAt: { type: string, format: date-time, example: '2026-01-05T10:00:00.000Z' }
+    OrderList:
+      type: object
+      required: [items, count]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Order' }
+        count: { type: integer, example: 1 }

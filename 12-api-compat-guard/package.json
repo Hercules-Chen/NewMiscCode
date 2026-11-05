@@ -1,0 +1,23 @@
+{
+  "name": "api-compat-guard",
+  "version": "0.1.0",
+  "description": "API 相容性守門員：OpenAPI diff + traffic record/replay contract testing (zh-TW / en).",
+  "type": "module",
+  "bin": {
+    "apiguard": "src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "demo:old": "node demo/old-api/server.js --port 3001",
+    "demo:new": "node demo/new-api/server.js --port 3002",
+    "demo": "node scripts/demo.js",
+    "diff:demo": "node src/cli.js diff demo/openapi-v1.yaml demo/openapi-v2.yaml"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "2.9.1"
+  }
+}

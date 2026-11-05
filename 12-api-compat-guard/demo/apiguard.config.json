@@ -1,0 +1,29 @@
+{
+  "lang": "zh-TW",
+  "failOn": "breaking",
+  "redact": {
+    "headers": ["authorization", "cookie", "set-cookie", "x-api-key"],
+    "query": ["access_token", "api_key", "token"],
+    "jsonPaths": ["$..password", "$..token", "$.payment.cardNumber"]
+  },
+  "record": {
+    "target": "http://127.0.0.1:3001",
+    "port": 9000,
+    "exclude": ["^/favicon\\.ico"]
+  },
+  "replay": {
+    "to": "http://127.0.0.1:3002",
+    "headers": ["content-type"],
+    "compareValues": true,
+    "arrayOrder": "strict",
+    "ignoreTimestamps": true,
+    "ignoreUuids": true,
+    "ignorePaths": ["$..updatedAt"],
+    "skipPaths": [],
+    "injectHeaders": { "Authorization": "Bearer ${APIGUARD_REPLAY_TOKEN}" },
+    "rules": [
+      { "match": "POST /orders", "ignorePaths": ["$.id", "$.createdAt"] },
+      { "match": "POST /login", "skipPaths": ["$.token"] }
+    ]
+  }
+}

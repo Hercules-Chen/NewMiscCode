@@ -1,0 +1,975 @@
+{
+  "tool": "apiguard",
+  "version": "0.1.0",
+  "kind": "replay",
+  "lang": "zh-TW",
+  "generatedAt": "2026-11-05T04:54:27.294Z",
+  "inputs": {
+    "recordings": "/home/user/newmisccode/12-api-compat-guard/examples/recordings.jsonl",
+    "to": "http://127.0.0.1:37123"
+  },
+  "summary": {
+    "BREAKING": 15,
+    "NON_BREAKING": 9,
+    "INFO": 0
+  },
+  "findings": [
+    {
+      "rule": "ARRAY_LENGTH_CHANGED",
+      "severity": "BREAKING",
+      "field": "$.items",
+      "message": {
+        "zh-TW": "陣列 $.items 長度由 1 變成 2",
+        "en": "Array $.items length changed 1 -> 2"
+      },
+      "params": {
+        "field": "$.items",
+        "old": 1,
+        "new": 2
+      },
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.items[0].customerName",
+      "message": {
+        "zh-TW": "欄位 $.items[0].customerName 在新回應中消失",
+        "en": "Field $.items[0].customerName missing in new response"
+      },
+      "params": {
+        "field": "$.items[0].customerName"
+      },
+      "oldValue": "\"王小明\"",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.items[0].email",
+      "message": {
+        "zh-TW": "欄位 $.items[0].email 在新回應中消失",
+        "en": "Field $.items[0].email missing in new response"
+      },
+      "params": {
+        "field": "$.items[0].email"
+      },
+      "oldValue": "\"ming@example.com\"",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "TYPE_CHANGED",
+      "severity": "BREAKING",
+      "field": "$.items[0].total",
+      "message": {
+        "zh-TW": "欄位 $.items[0].total 型別由 number 變成 string",
+        "en": "Field $.items[0].total type changed number -> string"
+      },
+      "params": {
+        "field": "$.items[0].total",
+        "old": "number",
+        "new": "string"
+      },
+      "oldValue": "1250.5",
+      "newValue": "\"1250.50\"",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.items[0].customer",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.items[0].customer",
+        "en": "Field $.items[0].customer added in new response"
+      },
+      "params": {
+        "field": "$.items[0].customer"
+      },
+      "newValue": "{\"name\":\"王小明\",\"email\":\"ming@example.com\"}",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.items[0].currency",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.items[0].currency",
+        "en": "Field $.items[0].currency added in new response"
+      },
+      "params": {
+        "field": "$.items[0].currency"
+      },
+      "newValue": "\"TWD\"",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.items[0].updatedAt",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.items[0].updatedAt",
+        "en": "Field $.items[0].updatedAt added in new response"
+      },
+      "params": {
+        "field": "$.items[0].updatedAt"
+      },
+      "newValue": "\"2026-01-05T10:00:00.000Z\"",
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "VALUE_CHANGED",
+      "severity": "BREAKING",
+      "field": "$.count",
+      "message": {
+        "zh-TW": "欄位 $.count 值由 1 變成 2",
+        "en": "Field $.count value changed 1 -> 2"
+      },
+      "params": {
+        "field": "$.count",
+        "old": "1",
+        "new": "2"
+      },
+      "location": "GET /orders?limit=1",
+      "exchangeId": "42f49a13-c6c0-4645-a35f-0068e82d64c0"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.customerName",
+      "message": {
+        "zh-TW": "欄位 $.customerName 在新回應中消失",
+        "en": "Field $.customerName missing in new response"
+      },
+      "params": {
+        "field": "$.customerName"
+      },
+      "oldValue": "\"王小明\"",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.email",
+      "message": {
+        "zh-TW": "欄位 $.email 在新回應中消失",
+        "en": "Field $.email missing in new response"
+      },
+      "params": {
+        "field": "$.email"
+      },
+      "oldValue": "\"ming@example.com\"",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "TYPE_CHANGED",
+      "severity": "BREAKING",
+      "field": "$.total",
+      "message": {
+        "zh-TW": "欄位 $.total 型別由 number 變成 string",
+        "en": "Field $.total type changed number -> string"
+      },
+      "params": {
+        "field": "$.total",
+        "old": "number",
+        "new": "string"
+      },
+      "oldValue": "1250.5",
+      "newValue": "\"1250.50\"",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.customer",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.customer",
+        "en": "Field $.customer added in new response"
+      },
+      "params": {
+        "field": "$.customer"
+      },
+      "newValue": "{\"name\":\"王小明\",\"email\":\"ming@example.com\"}",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.currency",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.currency",
+        "en": "Field $.currency added in new response"
+      },
+      "params": {
+        "field": "$.currency"
+      },
+      "newValue": "\"TWD\"",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.updatedAt",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.updatedAt",
+        "en": "Field $.updatedAt added in new response"
+      },
+      "params": {
+        "field": "$.updatedAt"
+      },
+      "newValue": "\"2026-01-05T10:00:00.000Z\"",
+      "location": "GET /orders/ord-1001",
+      "exchangeId": "44778bda-98d1-4cb7-b991-954f20f5ac49"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.customerName",
+      "message": {
+        "zh-TW": "欄位 $.customerName 在新回應中消失",
+        "en": "Field $.customerName missing in new response"
+      },
+      "params": {
+        "field": "$.customerName"
+      },
+      "oldValue": "\"Alice Chen\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.email",
+      "message": {
+        "zh-TW": "欄位 $.email 在新回應中消失",
+        "en": "Field $.email missing in new response"
+      },
+      "params": {
+        "field": "$.email"
+      },
+      "oldValue": "\"alice@example.com\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "TYPE_CHANGED",
+      "severity": "BREAKING",
+      "field": "$.total",
+      "message": {
+        "zh-TW": "欄位 $.total 型別由 number 變成 string",
+        "en": "Field $.total type changed number -> string"
+      },
+      "params": {
+        "field": "$.total",
+        "old": "number",
+        "new": "string"
+      },
+      "oldValue": "480",
+      "newValue": "\"480.00\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "FIELD_MISSING",
+      "severity": "BREAKING",
+      "field": "$.note",
+      "message": {
+        "zh-TW": "欄位 $.note 在新回應中消失",
+        "en": "Field $.note missing in new response"
+      },
+      "params": {
+        "field": "$.note"
+      },
+      "oldValue": "\"\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.customer",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.customer",
+        "en": "Field $.customer added in new response"
+      },
+      "params": {
+        "field": "$.customer"
+      },
+      "newValue": "{\"name\":\"Alice Chen\",\"email\":\"alice@example.com\"}",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.currency",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.currency",
+        "en": "Field $.currency added in new response"
+      },
+      "params": {
+        "field": "$.currency"
+      },
+      "newValue": "\"TWD\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "FIELD_ADDED",
+      "severity": "NON_BREAKING",
+      "field": "$.updatedAt",
+      "message": {
+        "zh-TW": "新回應多了欄位 $.updatedAt",
+        "en": "Field $.updatedAt added in new response"
+      },
+      "params": {
+        "field": "$.updatedAt"
+      },
+      "newValue": "\"2026-01-06T08:30:00.000Z\"",
+      "location": "GET /orders/ord-1002",
+      "exchangeId": "ca9d5d46-213c-4abb-9a01-f571ceab3af0"
+    },
+    {
+      "rule": "STATUS_CHANGED",
+      "severity": "BREAKING",
+      "field": "status",
+      "message": {
+        "zh-TW": "狀態碼由 201 變成 400",
+        "en": "Status changed 201 -> 400"
+      },
+      "params": {
+        "field": "status",
+        "old": 201,
+        "new": 400
+      },
+      "location": "POST /orders",
+      "exchangeId": "402f6ef2-0cf1-4b05-a592-f68382ee6087"
+    },
+    {
+      "rule": "STATUS_CHANGED",
+      "severity": "BREAKING",
+      "field": "status",
+      "message": {
+        "zh-TW": "狀態碼由 200 變成 400",
+        "en": "Status changed 200 -> 400"
+      },
+      "params": {
+        "field": "status",
+        "old": 200,
+        "new": 400
+      },
+      "location": "GET /orders?status=cancelled",
+      "exchangeId": "0b9880ce-ae25-4b44-bb00-f492252c2130"
+    },
+    {
+      "rule": "STATUS_CHANGED",
+      "severity": "BREAKING",
+      "field": "status",
+      "message": {
+        "zh-TW": "狀態碼由 204 變成 404",
+        "en": "Status changed 204 -> 404"
+      },
+      "params": {
+        "field": "status",
+        "old": 204,
+        "new": 404
+      },
+      "location": "DELETE /orders/ord-1002",
+      "exchangeId": "995d1edb-2ba3-4b0c-ae0a-93d8c639d89c"
+    }
+  ],
+  "exchanges": [
+    {
+      "id": "fa15b19c-5ac4-4f7e-ae8d-e04915ec450e",
+      "method": "GET",
+      "url": "/health",
+      "oldStatus": 200,
+      "newStatus": 200,
+      "severity": "OK",
+      "ms": 0,
+      "diffs": [],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "status": "ok",
+          "version": "v1"
+        }
+      }
+    },
+    {
+      "id": "2b5cf800-0044-4bf7-be59-d21c43de5eb9",
+      "method": "POST",
+      "url": "/login",
+      "oldStatus": 200,
+      "newStatus": 200,
+      "severity": "OK",
+      "ms": 1,
+      "diffs": [],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "token": "***REDACTED***",
+          "user": "demo"
+        }
+      }
+    },
+    {
+      "id": "42f49a13-c6c0-4645-a35f-0068e82d64c0",
+      "method": "GET",
+      "url": "/orders?limit=1",
+      "oldStatus": 200,
+      "newStatus": 200,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "ARRAY_LENGTH_CHANGED",
+          "severity": "BREAKING",
+          "field": "$.items",
+          "message": {
+            "zh-TW": "陣列 $.items 長度由 1 變成 2",
+            "en": "Array $.items length changed 1 -> 2"
+          },
+          "params": {
+            "field": "$.items",
+            "old": 1,
+            "new": 2
+          }
+        },
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.items[0].customerName",
+          "message": {
+            "zh-TW": "欄位 $.items[0].customerName 在新回應中消失",
+            "en": "Field $.items[0].customerName missing in new response"
+          },
+          "params": {
+            "field": "$.items[0].customerName"
+          },
+          "oldValue": "\"王小明\""
+        },
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.items[0].email",
+          "message": {
+            "zh-TW": "欄位 $.items[0].email 在新回應中消失",
+            "en": "Field $.items[0].email missing in new response"
+          },
+          "params": {
+            "field": "$.items[0].email"
+          },
+          "oldValue": "\"ming@example.com\""
+        },
+        {
+          "rule": "TYPE_CHANGED",
+          "severity": "BREAKING",
+          "field": "$.items[0].total",
+          "message": {
+            "zh-TW": "欄位 $.items[0].total 型別由 number 變成 string",
+            "en": "Field $.items[0].total type changed number -> string"
+          },
+          "params": {
+            "field": "$.items[0].total",
+            "old": "number",
+            "new": "string"
+          },
+          "oldValue": "1250.5",
+          "newValue": "\"1250.50\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.items[0].customer",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.items[0].customer",
+            "en": "Field $.items[0].customer added in new response"
+          },
+          "params": {
+            "field": "$.items[0].customer"
+          },
+          "newValue": "{\"name\":\"王小明\",\"email\":\"ming@example.com\"}"
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.items[0].currency",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.items[0].currency",
+            "en": "Field $.items[0].currency added in new response"
+          },
+          "params": {
+            "field": "$.items[0].currency"
+          },
+          "newValue": "\"TWD\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.items[0].updatedAt",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.items[0].updatedAt",
+            "en": "Field $.items[0].updatedAt added in new response"
+          },
+          "params": {
+            "field": "$.items[0].updatedAt"
+          },
+          "newValue": "\"2026-01-05T10:00:00.000Z\""
+        },
+        {
+          "rule": "VALUE_CHANGED",
+          "severity": "BREAKING",
+          "field": "$.count",
+          "message": {
+            "zh-TW": "欄位 $.count 值由 1 變成 2",
+            "en": "Field $.count value changed 1 -> 2"
+          },
+          "params": {
+            "field": "$.count",
+            "old": "1",
+            "new": "2"
+          }
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "items": [
+            {
+              "id": "ord-1001",
+              "customer": {
+                "name": "王小明",
+                "email": "ming@example.com"
+              },
+              "status": "paid",
+              "total": "1250.50",
+              "currency": "TWD",
+              "items": [
+                {
+                  "sku": "TEA-001",
+                  "qty": 2,
+                  "price": 350
+                },
+                {
+                  "sku": "CUP-010",
+                  "qty": 1,
+                  "price": 550.5
+                }
+              ],
+              "note": "請於下午送達",
+              "createdAt": "2026-01-05T10:00:00.000Z",
+              "updatedAt": "2026-01-05T10:00:00.000Z"
+            },
+            {
+              "id": "ord-1002",
+              "customer": {
+                "name": "Alice Chen",
+                "email": "alice@example.com"
+              },
+              "status": "pending",
+              "total": "480.00",
+              "currency": "TWD",
+              "items": [
+                {
+                  "sku": "TEA-002",
+                  "qty": 1,
+                  "price": 480
+                }
+              ],
+              "createdAt": "2026-01-06T08:30:00.000Z",
+              "updatedAt": "2026-01-06T08:30:00.000Z"
+            }
+          ],
+          "count": 2
+        }
+      }
+    },
+    {
+      "id": "44778bda-98d1-4cb7-b991-954f20f5ac49",
+      "method": "GET",
+      "url": "/orders/ord-1001",
+      "oldStatus": 200,
+      "newStatus": 200,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.customerName",
+          "message": {
+            "zh-TW": "欄位 $.customerName 在新回應中消失",
+            "en": "Field $.customerName missing in new response"
+          },
+          "params": {
+            "field": "$.customerName"
+          },
+          "oldValue": "\"王小明\""
+        },
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.email",
+          "message": {
+            "zh-TW": "欄位 $.email 在新回應中消失",
+            "en": "Field $.email missing in new response"
+          },
+          "params": {
+            "field": "$.email"
+          },
+          "oldValue": "\"ming@example.com\""
+        },
+        {
+          "rule": "TYPE_CHANGED",
+          "severity": "BREAKING",
+          "field": "$.total",
+          "message": {
+            "zh-TW": "欄位 $.total 型別由 number 變成 string",
+            "en": "Field $.total type changed number -> string"
+          },
+          "params": {
+            "field": "$.total",
+            "old": "number",
+            "new": "string"
+          },
+          "oldValue": "1250.5",
+          "newValue": "\"1250.50\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.customer",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.customer",
+            "en": "Field $.customer added in new response"
+          },
+          "params": {
+            "field": "$.customer"
+          },
+          "newValue": "{\"name\":\"王小明\",\"email\":\"ming@example.com\"}"
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.currency",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.currency",
+            "en": "Field $.currency added in new response"
+          },
+          "params": {
+            "field": "$.currency"
+          },
+          "newValue": "\"TWD\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.updatedAt",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.updatedAt",
+            "en": "Field $.updatedAt added in new response"
+          },
+          "params": {
+            "field": "$.updatedAt"
+          },
+          "newValue": "\"2026-01-05T10:00:00.000Z\""
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "id": "ord-1001",
+          "customer": {
+            "name": "王小明",
+            "email": "ming@example.com"
+          },
+          "status": "paid",
+          "total": "1250.50",
+          "currency": "TWD",
+          "items": [
+            {
+              "sku": "TEA-001",
+              "qty": 2,
+              "price": 350
+            },
+            {
+              "sku": "CUP-010",
+              "qty": 1,
+              "price": 550.5
+            }
+          ],
+          "note": "請於下午送達",
+          "createdAt": "2026-01-05T10:00:00.000Z",
+          "updatedAt": "2026-01-05T10:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "ca9d5d46-213c-4abb-9a01-f571ceab3af0",
+      "method": "GET",
+      "url": "/orders/ord-1002",
+      "oldStatus": 200,
+      "newStatus": 200,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.customerName",
+          "message": {
+            "zh-TW": "欄位 $.customerName 在新回應中消失",
+            "en": "Field $.customerName missing in new response"
+          },
+          "params": {
+            "field": "$.customerName"
+          },
+          "oldValue": "\"Alice Chen\""
+        },
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.email",
+          "message": {
+            "zh-TW": "欄位 $.email 在新回應中消失",
+            "en": "Field $.email missing in new response"
+          },
+          "params": {
+            "field": "$.email"
+          },
+          "oldValue": "\"alice@example.com\""
+        },
+        {
+          "rule": "TYPE_CHANGED",
+          "severity": "BREAKING",
+          "field": "$.total",
+          "message": {
+            "zh-TW": "欄位 $.total 型別由 number 變成 string",
+            "en": "Field $.total type changed number -> string"
+          },
+          "params": {
+            "field": "$.total",
+            "old": "number",
+            "new": "string"
+          },
+          "oldValue": "480",
+          "newValue": "\"480.00\""
+        },
+        {
+          "rule": "FIELD_MISSING",
+          "severity": "BREAKING",
+          "field": "$.note",
+          "message": {
+            "zh-TW": "欄位 $.note 在新回應中消失",
+            "en": "Field $.note missing in new response"
+          },
+          "params": {
+            "field": "$.note"
+          },
+          "oldValue": "\"\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.customer",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.customer",
+            "en": "Field $.customer added in new response"
+          },
+          "params": {
+            "field": "$.customer"
+          },
+          "newValue": "{\"name\":\"Alice Chen\",\"email\":\"alice@example.com\"}"
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.currency",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.currency",
+            "en": "Field $.currency added in new response"
+          },
+          "params": {
+            "field": "$.currency"
+          },
+          "newValue": "\"TWD\""
+        },
+        {
+          "rule": "FIELD_ADDED",
+          "severity": "NON_BREAKING",
+          "field": "$.updatedAt",
+          "message": {
+            "zh-TW": "新回應多了欄位 $.updatedAt",
+            "en": "Field $.updatedAt added in new response"
+          },
+          "params": {
+            "field": "$.updatedAt"
+          },
+          "newValue": "\"2026-01-06T08:30:00.000Z\""
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "id": "ord-1002",
+          "customer": {
+            "name": "Alice Chen",
+            "email": "alice@example.com"
+          },
+          "status": "pending",
+          "total": "480.00",
+          "currency": "TWD",
+          "items": [
+            {
+              "sku": "TEA-002",
+              "qty": 1,
+              "price": 480
+            }
+          ],
+          "createdAt": "2026-01-06T08:30:00.000Z",
+          "updatedAt": "2026-01-06T08:30:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "402f6ef2-0cf1-4b05-a592-f68382ee6087",
+      "method": "POST",
+      "url": "/orders",
+      "oldStatus": 201,
+      "newStatus": 400,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "STATUS_CHANGED",
+          "severity": "BREAKING",
+          "field": "status",
+          "message": {
+            "zh-TW": "狀態碼由 201 變成 400",
+            "en": "Status changed 201 -> 400"
+          },
+          "params": {
+            "field": "status",
+            "old": 201,
+            "new": 400
+          }
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "error": "currency required"
+        }
+      }
+    },
+    {
+      "id": "0b9880ce-ae25-4b44-bb00-f492252c2130",
+      "method": "GET",
+      "url": "/orders?status=cancelled",
+      "oldStatus": 200,
+      "newStatus": 400,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "STATUS_CHANGED",
+          "severity": "BREAKING",
+          "field": "status",
+          "message": {
+            "zh-TW": "狀態碼由 200 變成 400",
+            "en": "Status changed 200 -> 400"
+          },
+          "params": {
+            "field": "status",
+            "old": 200,
+            "new": 400
+          }
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "error": "bad status"
+        }
+      }
+    },
+    {
+      "id": "995d1edb-2ba3-4b0c-ae0a-93d8c639d89c",
+      "method": "DELETE",
+      "url": "/orders/ord-1002",
+      "oldStatus": 204,
+      "newStatus": 404,
+      "severity": "BREAKING",
+      "ms": 1,
+      "diffs": [
+        {
+          "rule": "STATUS_CHANGED",
+          "severity": "BREAKING",
+          "field": "status",
+          "message": {
+            "zh-TW": "狀態碼由 204 變成 404",
+            "en": "Status changed 204 -> 404"
+          },
+          "params": {
+            "field": "status",
+            "old": 204,
+            "new": 404
+          }
+        }
+      ],
+      "newBody": {
+        "kind": "json",
+        "value": {
+          "error": "not found"
+        }
+      }
+    }
+  ],
+  "debug": {
+    "options": {
+      "to": "http://127.0.0.1:3002",
+      "headers": [
+        "content-type"
+      ],
+      "compareValues": true,
+      "arrayOrder": "strict",
+      "ignoreTimestamps": true,
+      "ignoreUuids": true,
+      "ignorePaths": [
+        "$..updatedAt"
+      ],
+      "skipPaths": [],
+      "injectHeaders": [
+        "Authorization"
+      ],
+      "rules": [
+        {
+          "match": "POST /orders",
+          "ignorePaths": [
+            "$.id",
+            "$.createdAt"
+          ]
+        },
+        {
+          "match": "POST /login",
+          "skipPaths": [
+            "$.token"
+          ]
+        }
+      ]
+    },
+    "count": 8
+  }
+}

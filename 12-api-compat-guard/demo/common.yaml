@@ -1,0 +1,8 @@
+# 兩版共用的錯誤格式（示範跨檔 $ref）。 Shared error schema (cross-file $ref demo).
+Error:
+  type: object
+  required: [error]
+  properties:
+    error:
+      type: string
+      example: order not found
