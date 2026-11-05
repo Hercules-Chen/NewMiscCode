@@ -51,6 +51,7 @@ footer{max-width:1100px;margin:auto;padding:0 24px 40px;color:var(--muted);font-
   <a href="#debug" data-tab="debug">除錯與日誌</a>
   <a href="#windows" data-tab="windows">Windows 啟動器</a>
   <a href="#limits" data-tab="limits">限制與疑難排解</a>
+  <a href="#dev" data-tab="dev">開發者指南</a>
   <a href="#english" data-tab="english">English</a>
 </nav>
 <main>
@@ -372,6 +373,71 @@ npx playwright show-trace "&lt;執行資料夾&gt;\trace.zip"</code></pre>
 </section>
 
 <!-- ============================== English ============================== -->
+<section class="tab" id="dev">
+<h2>開發者指南（接手必讀）</h2>
+
+<h3 id="dev-flow">執行流程</h3>
+<pre>MCP 用戶端（Claude Code）
+   │ stdio（JSON-RPC；stdout 專供通訊）
+   ▼
+src/server.js ── reg() 包裝：記錄 tool.call / tool.result 到 mcp-server.jsonl（secret 遮蔽）
+   │ 每個工具 → stepTool(action, mapArgs)
+   ▼
+src/session.js  VerifierSession（每個 MCP 伺服器一個，首次呼叫時 lazy 啟動 Chromium）
+   ├─ runStep(step)      建立步驟紀錄 rec → _dispatch() → 失敗時自動 annotate() 紅框截圖
+   ├─ _dispatch(step)    switch(action)：open / click / fill / press / wait / assert_* / check_console_errors / screenshot_annotate
+   ├─ _hookPage(page)    收集 console error/warning、pageerror、requestfailed、HTTP ≥ 400
+   ├─ annotate()         注入覆蓋層 div（紅框 + 標籤 + 紅色橫幅）→ 截圖 → 移除覆蓋層
+   └─ generateReport()   → src/report.js buildReportHtml()（截圖轉 base64 內嵌）
+
+CLI：src/cli.js → src/scenario.js runScenario() → 同一個 VerifierSession（與 MCP 共用引擎）</pre>
+
+<h3 id="dev-modules">模組職責</h3>
+<table>
+  <tr><th>檔案</th><th>職責</th><th>修改時注意</th></tr>
+  <tr><td><code>src/server.js</code></td><td>註冊 14 個 MCP 工具（zod 定義參數）、把步驟結果轉為 MCP content（text + image/png）</td><td><b>絕對不可</b> <code>console.log</code>，會破壞 stdio 協定；診斷用 <code>serverLog</code> 或 stderr</td></tr>
+  <tr><td><code>src/session.js</code></td><td>瀏覽器生命週期、步驟執行、主控台收集、紅框截圖、trace</td><td>斷言失敗<b>不丟例外</b>，以 <code>{ ok:false, message }</code> 回傳；例外只用於非預期錯誤</td></tr>
+  <tr><td><code>src/scenario.js</code></td><td><code>ACTIONS</code> 白名單、情境 JSON 載入（容許 BOM）與驗證、執行</td><td>新增動作時要同步更新 <code>ACTIONS</code></td></tr>
+  <tr><td><code>src/report.js</code></td><td>產生單檔 HTML 報告（分頁、錨點 <code>#step-N</code>、深色模式）</td><td>所有輸出字串經 <code>esc()</code> 跳脫</td></tr>
+  <tr><td><code>src/i18n.js</code></td><td>zh-TW / en 字串表；<code>t(lang, key, vars)</code>，缺字時退回 zh-TW 再退回 key</td><td>新字串兩種語言都要加</td></tr>
+  <tr><td><code>src/config.js</code></td><td>CLI 參數解析、<code>UIV_*</code> 環境變數、OS 感知預設輸出資料夾</td><td>新選項要同時支援參數與環境變數，並更新「CLI 與選項」分頁</td></tr>
+  <tr><td><code>src/logger.js</code></td><td>JSONL 日誌（ts / level / msg / 欄位）</td><td>—</td></tr>
+</table>
+
+<h3 id="dev-add-action">如何新增一個驗證動作（例：assert_attribute）</h3>
+<ol class="steps">
+  <li><code>src/scenario.js</code>：把 <code>'assert_attribute'</code> 加入 <code>ACTIONS</code>。</li>
+  <li><code>src/session.js</code> 的 <code>_dispatch()</code>：新增 <code>case 'assert_attribute':</code>，回傳 <code>{ ok, message, data? }</code>；失敗時 <code>runStep()</code> 會自動以 <code>step.selector</code> 畫紅框截圖。</li>
+  <li><code>src/i18n.js</code>：zh-TW 與 en 都加上訊息字串，用 <code>t(L, 'key', { 變數 })</code> 取用。</li>
+  <li><code>src/server.js</code>：<code>reg('assert_attribute', { title, description, inputSchema: { selector: z.string(), name: z.string(), expected: z.string(), timeout: timeoutArg } }, stepTool('assert_attribute', (a) =&gt; a));</code></li>
+  <li><code>test/mcp.test.js</code> 加一個呼叫案例；<code>npm test</code> 必須全過。</li>
+  <li>更新本文件「MCP 工具」與「情境 JSON」分頁，最後執行 <code>npm run audit-text</code>。</li>
+</ol>
+
+<h3 id="dev-contract">對外介面約定（請保持相容）</h3>
+<ul>
+  <li>工具名稱與參數名稱一旦發佈就不要改名；要改請新增工具並保留舊的。</li>
+  <li>工具結果第一行以「通過 / 失敗」（en：PASS / FAIL）開頭，後接 JSON；AI 代理依此判斷，格式請保持。</li>
+  <li>CLI 結束代碼：0 全過、1 有失敗、2 用法錯誤或例外。批次檔與 CI 依此判斷。</li>
+  <li>輸出資料夾結構：<code>run-&lt;時間&gt;-&lt;名稱&gt;/report.html、log.jsonl、screenshots/、trace.zip</code>。</li>
+</ul>
+
+<h3 id="dev-versions">相依套件版本</h3>
+<table>
+  <tr><th>套件</th><th>版本</th><th>說明</th></tr>
+  <tr><td><code>playwright</code></td><td>1.63.0（精確鎖定）</td><td>升級後需重新 <code>npx playwright install chromium</code></td></tr>
+  <tr><td><code>@modelcontextprotocol/sdk</code></td><td>^1.32.2</td><td>使用 <code>McpServer.registerTool</code> 與 <code>StdioServerTransport</code></td></tr>
+  <tr><td><code>zod</code></td><td>^4.6.7</td><td>工具參數定義</td></tr>
+  <tr><td>Node.js</td><td>≥ 20（開發測試用 22）</td><td>ESM 專案（<code>"type": "module"</code>）</td></tr>
+</table>
+
+<h3 id="dev-changelog">變更紀錄</h3>
+<table>
+  <tr><th>版本</th><th>日期</th><th>內容</th></tr>
+  <tr><td>0.1.0</td><td>2026-11-05</td><td>首版：14 個 MCP 工具、CLI、紅框截圖、HTML 報告、JSONL 日誌、trace、Windows 啟動器；Linux 上 npm test 8/8 通過。</td></tr>
+</table>
+</section>
+
 <section class="tab" id="english">
 <h2>English summary</h2>
 <p><strong>mcp-ui-verifier</strong> is an MCP server (Node.js ESM, <code>@modelcontextprotocol/sdk</code>, stdio) that lets an AI agent drive a real Chromium through Playwright to verify web UIs. It produces evidence: full-page screenshots with <strong>red boxes</strong> and numbered labels around problem elements (missing elements and console errors are listed in a red banner), and a self-contained, tabbed HTML report (summary / steps / screenshots / console / environment and timings) in zh-TW or English.</p>

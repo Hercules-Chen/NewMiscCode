@@ -41,6 +41,7 @@ ol li, ul li { margin: 3px 0; }
   <a href="#debug">除錯與記錄</a>
   <a href="#artifact">Artifact 版本</a>
   <a href="#limits">限制與疑難排解</a>
+  <a href="#dev">開發者指南</a>
   <a href="#english">English</a>
 </nav>
 <main>
@@ -206,6 +207,75 @@ npm run audit:text       # 文字檔稽核：UTF-8、無 BOM（.ps1 例外）、
 </ul>
 </section>
 
+<section class="tab" id="dev">
+<h2>開發者指南（接手必讀）</h2>
+
+<h3 id="dev-flow">執行流程</h3>
+<pre>public/index.html
+  ├─ js/i18n.js       I18N 字串表（zh-TW / en）
+  ├─ js/samplegen.js  決定性範例資料（瀏覽器與 build 共用，同一份程式）
+  ├─ js/chart.js      手寫 SVG 長條 / 折線圖
+  ├─ vendor/duckdb.iife.js（build 產生：duckdb-wasm + apache-arrow 的 IIFE）
+  └─ js/app.js
+       CFG = { mode: 'local' | 'cdn', ... } ← window.DDB_CONFIG（artifact.html 為 cdn）
+       initDuckDB()  bundles() → selectBundle（MVP / EH）→ blob URL Worker → AsyncDuckDB
+       loadFile()    依副檔名分流：
+                       csv/tsv/txt → registerFileHandle → read_csv_auto
+                       json/jsonl  → JS 解析 → 轉 CSV → read_csv_auto（離線可用）
+                       xlsx/xls    → SheetJS → 每個工作表轉 CSV
+                       parquet     → read_parquet（需下載擴充）
+       runUserQuery() → rawQuery() → 結果表格 / 圖表 / 歷史 / 除錯記錄 dlog()
+       window.DDB    DevTools 進入點：runQuery、runPreset、loadFiles、state
+
+scripts/build.mjs
+  1) esbuild 打包 duckdb-browser + arrow → public/vendor/duckdb.iife.js
+  2) 複製 wasm / worker / xlsx 到 public/vendor/（不提交）
+  3) 產生 public/sample/app-log.jsonl、sales.csv（提交）
+  4) 把 index.html + CSS + 所有 JS 內嵌 → dist/artifact.html（CDN 模式，提交）</pre>
+
+<h3 id="dev-rule">最重要的規則</h3>
+<p>改了 <code>public/</code> 底下任何 HTML / CSS / JS 之後，<b>一定要執行 <code>npm run build</code></b> 重新產生 <code>dist/artifact.html</code>，再一起提交；否則兩個版本會不一致。<code>npm test</code> 會先 build，因此跑過測試就不會漏。</p>
+
+<h3 id="dev-add-preset">新增一個 Log 分析預設查詢</h3>
+<ol class="steps">
+  <li><code>public/js/app.js</code> 的 <code>PRESETS</code> 陣列加一筆：<code>{ id: 'my_preset', chart: { x: '欄位', y: '數值欄位', type: 'bar' | 'line' }, sql: '...' }</code>。時間欄位請用常數 <code>TS</code>（<code>CAST("timestamp" AS TIMESTAMP)</code>）。</li>
+  <li><code>public/js/i18n.js</code>：zh-TW 與 en 都加上 <code>p_my_preset</code> 按鈕文字。</li>
+  <li><code>test/e2e.mjs</code>：預設查詢迴圈會自動涵蓋新 preset（檢查列數 &gt; 0）；若要比對數值，在 Node 端以 <code>SampleGen</code> 計算期望值後加入比對。</li>
+  <li><code>npm test</code> 全過，最後 <code>npm run audit:text</code>。</li>
+</ol>
+
+<h3 id="dev-add-format">新增支援的檔案格式</h3>
+<ol class="steps">
+  <li><code>public/js/app.js</code> 的 <code>loadFile()</code>：在副檔名分流加上新格式，最後都轉成 DuckDB 可讀的 CSV（或 registerFileBuffer）再呼叫 <code>createTableFromRegistered()</code>。</li>
+  <li>不要依賴 DuckDB 的線上擴充（json、parquet 等會從 extensions.duckdb.org 下載），否則離線與公司網路環境會失敗。</li>
+  <li>i18n 加提示字串、e2e 加一個載入案例。</li>
+</ol>
+
+<h3 id="dev-upgrade">升級 duckdb-wasm</h3>
+<ol class="steps">
+  <li><code>package.json</code> 改成新的<b>精確</b>版本 → <code>npm install</code>。</li>
+  <li><code>public/js/app.js</code> 的 <code>CFG</code> 預設值 <code>duckdbVersion</code> 一併更新（artifact 版的 CDN 網址依此組成）。</li>
+  <li><code>npm test</code>：特別注意 bundle 選擇（MVP / EH）、BigInt 轉型、CSV 型別偵測是否改變。</li>
+  <li>更新本文件「概覽」的版本號與下方變更紀錄。</li>
+</ol>
+
+<h3 id="dev-versions">相依套件版本</h3>
+<table>
+  <tr><th>套件</th><th>版本</th><th>說明</th></tr>
+  <tr><td><code>@duckdb/duckdb-wasm</code></td><td>1.32.0（精確鎖定，內含 DuckDB v1.4.3）</td><td>wasm 約 33–38 MB，不提交</td></tr>
+  <tr><td><code>xlsx</code>（SheetJS）</td><td>0.18.5（精確鎖定）</td><td>npm 上最後一版，只用於讀取</td></tr>
+  <tr><td><code>esbuild</code></td><td>0.25.10（devDependency）</td><td>打包 duckdb + arrow</td></tr>
+  <tr><td>Node.js</td><td>≥ 18（建議 22）</td><td>只用於 build 與靜態伺服器</td></tr>
+  <tr><td>Playwright</td><td>非專案相依（使用全域安裝）</td><td>只用於 <code>npm test</code></td></tr>
+</table>
+
+<h3 id="dev-changelog">變更紀錄</h3>
+<table>
+  <tr><th>版本</th><th>日期</th><th>內容</th></tr>
+  <tr><td>1.0.0</td><td>2026-11-05</td><td>首版：DuckDB-WASM 1.32.0、6 個 Log 預設查詢、圖表、匯出、i18n、深淺色、除錯面板、artifact 單檔版；Linux 上 npm test 49/49 通過。</td></tr>
+</table>
+</section>
+
 <section class="tab" id="english">
 <h2>English summary</h2>
 <p>Zero-backend, in-browser data analysis with DuckDB-WASM (<code>@duckdb/duckdb-wasm</code> 1.32.0, DuckDB v1.4.3). Drop CSV / JSON / JSONL / XLSX / Parquet files to create tables, query them with SQL (Ctrl+Enter), page through results, draw bar/line charts, export CSV, browse schema and query history, and use the log-analysis presets on the sample app log.</p>
@@ -229,9 +299,18 @@ npm run audit:text</pre>
   var tabs = Array.prototype.slice.call(document.querySelectorAll('section.tab'));
   var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
   function show() {
-    var id = (location.hash || '#overview').slice(1);
-    if (!document.getElementById(id)) id = 'overview';
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
+    var el = id && document.getElementById(id);
+    var anchor = null;
+    if (el && !el.classList.contains('tab')) {
+      // A sub-anchor inside a tab (e.g. #dev-add-preset): open its tab, then scroll to it.
+      var sec = el.closest('section.tab');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    } else if (!el) {
+      id = 'overview';
+    }
     tabs.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    if (anchor) anchor.scrollIntoView();
     links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id); });
   }
   window.addEventListener('hashchange', show);

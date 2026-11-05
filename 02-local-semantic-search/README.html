@@ -24,6 +24,8 @@
   pre { background:#101828; color:#e4e7ec; padding:12px; border-radius:6px; overflow:auto; }
   pre code { background:none; padding:0; color:inherit; }
   table { border-collapse:collapse; width:100%; font-size:14px; margin:8px 0; }
+  td, th { overflow-wrap:anywhere; }
+  @media (max-width: 640px) { table { display:block; overflow-x:auto; } }
   th, td { border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
   th { background:#f2f4f7; }
   .note { border-left:4px solid #f79009; background:#fffaeb; padding:8px 12px; margin:10px 0; }
@@ -48,6 +50,7 @@
     <a href="#verify">驗證步驟</a>
     <a href="#results">實測結果</a>
     <a href="#limits">限制</a>
+    <a href="#dev">開發者指南</a>
     <a href="#english">English</a>
     <a href="#all">全部顯示</a>
   </nav>
@@ -257,7 +260,7 @@ meta(key, value)  -- embedder_id, embedder_dim, chunker_version, docs_root, last
 <section id="limits">
 <h2>限制 Limitations</h2>
 <ul>
-  <li><b>語意品質</b>：multilingual-e5-small（int8）體積小、速度快，但語意能力有限；跨語言查詢（英文問、中文筆記答）在本語料上表現普通，cosine 值彼此很接近。需要更好品質可換 <code>Xenova/multilingual-e5-base</code> 或 bge-m3（需自行取得 ONNX 檔並 <code>--rebuild</code>）。</li>
+  <li><b>語意品質</b>：multilingual-e5-small（int8）體積小、速度快，但語意能力有限；跨語言查詢（英文問、中文筆記答）在本語料上表現普通，cosine 值彼此很接近。需要更好品質可換 <code>Xenova/multilingual-e5-base</code> 或 bge-m3：除了取得 ONNX 檔並 <code>--rebuild</code>，還要修改程式中的維度與前綴，步驟見 <a href="#dev-swap-model">開發者指南 → 更換嵌入模型</a>。</li>
   <li><b>Hugging Face 下載路徑未在本環境實測</b>（huggingface.co 被封鎖）；實際使用 npm registry 上內容相同（SHA-256 釘選）的第三方套件取得模型。</li>
   <li><b>Bigram 關鍵字</b>：會有雜訊命中（例如「看到」命中 DevTools 筆記），召回率高但精確度一般；沒有同義詞與繁簡轉換。</li>
   <li><b>hash 備援嵌入器</b>只是字面相似度，不是語意；只建議在沒有模型時使用。</li>
@@ -265,6 +268,76 @@ meta(key, value)  -- embedder_id, embedder_dim, chunker_version, docs_root, last
   <li>Windows 的 <code>.bat</code> / <code>.ps1</code> 與 <code>%ProgramData%</code> 路徑在本 Linux 環境無法實際執行，僅經過靜態檢查（ASCII / BOM / CRLF）。</li>
   <li>單一 DB 對應單一資料夾與單一 embedder；切換時會重建。</li>
 </ul>
+</section>
+
+<section id="dev">
+<h2>開發者指南（接手必讀）</h2>
+
+<h3 id="dev-flow">資料流程</h3>
+<pre>索引 index
+  scanFolder()      遞迴掃描 .md/.markdown/.html/.htm（略過 .git .obsidian .trash node_modules 與 . 開頭資料夾）
+  planChanges()     與 files 表比對 mtime/size → new / changed / unchanged / deleted
+  （changed 再比 SHA-256，內容相同只更新 mtime，不重算向量）
+  parseDocument()   去 front matter / wikilink → 依標題切塊 → 超過 450 字再切（重疊 60 字）
+  embedPassages()   "passage: " + 文件標題 + 標題路徑 + 內文 → 384 維 Float32Array（批次 16）
+  單一 transaction  寫入 chunks、chunks_fts（toFtsText 斷詞後）、chunks_vec
+
+查詢 search
+  keyword()         toFtsQuery() → FTS5 MATCH，bm25(title 3, heading 2, body 1)，取前 50
+  semantic()        embedQuery("query: " + 問題) → vec0 KNN（cosine），取前 50
+  RRF               rrf = Σ w / (60 + rank)；每檔最多 perFile 筆；附 debug 計時</pre>
+
+<h3 id="dev-modules">模組職責</h3>
+<table>
+  <tr><th>檔案</th><th>職責</th><th>修改時注意</th></tr>
+  <tr><td><code>src/config.js</code></td><td>所有路徑與預設值（OS 感知）、環境變數；<code>CHUNKER_VERSION</code>、<code>SUPPORTED_EXT</code>、<code>SKIP_DIRS</code></td><td>改切塊邏輯時要把 <code>CHUNKER_VERSION</code> 改成新值，舊索引會自動重建</td></tr>
+  <tr><td><code>src/parse.js</code></td><td>Markdown / HTML 解析與切塊</td><td>HTML 以正規表示式處理，不是完整 parser</td></tr>
+  <tr><td><code>src/tokenize.js</code></td><td>CJK bigram 斷詞、FTS 查詢式、片段與高亮</td><td>索引與查詢必須用同一套斷詞；改了要 <code>--rebuild</code></td></tr>
+  <tr><td><code>src/embedder.js</code></td><td><code>TransformersEmbedder</code>（e5）、<code>HashEmbedder</code>（備援）、<code>createEmbedder()</code> 工廠</td><td>embedder 的 <code>id</code> 寫入 DB meta，不一致時拒絕寫入</td></tr>
+  <tr><td><code>src/db.js</code></td><td>開 DB、載入 sqlite-vec、建立 schema、統計</td><td>better-sqlite3 為同步 API（刻意的選擇）</td></tr>
+  <tr><td><code>src/indexer.js</code></td><td>預覽（dry-run）與增量索引</td><td>dry-run 不得建立或修改 DB（有測試保護）</td></tr>
+  <tr><td><code>src/search.js</code></td><td><code>Searcher</code>：keyword / semantic / hybrid 與 RRF</td><td>候選數、權重可由參數 <code>candidates</code>、<code>wKeyword</code>、<code>wSemantic</code> 調整</td></tr>
+  <tr><td><code>src/server.js</code></td><td>node:http 靜態檔與 <code>/api/*</code></td><td>預設只綁 127.0.0.1</td></tr>
+  <tr><td><code>public/app.js</code></td><td>Web UI 與 <code>I18N</code> 字串表</td><td>新字串 zh-TW 與 en 都要加</td></tr>
+</table>
+
+<h3 id="dev-swap-model">更換嵌入模型（注意：不只是 --rebuild）</h3>
+<p><code>TransformersEmbedder</code> 目前把維度寫死為 <code>this.dim = 384</code>，查詢與段落前綴 <code>query: </code> / <code>passage: </code> 也是 e5 系列專用。換模型時必須：</p>
+<ol class="steps">
+  <li>取得 transformers.js 相容的 ONNX 檔（含 <code>tokenizer.json</code> 與 <code>onnx/model_quantized.onnx</code>），放到 <code>models/&lt;org&gt;/&lt;model&gt;/</code>。</li>
+  <li>修改 <code>src/embedder.js</code>：依模型設定 <code>dim</code>（例：multilingual-e5-base = 768、bge-m3 = 1024）；非 e5 模型（如 bge-m3）要拿掉 <code>query: </code> / <code>passage: </code> 前綴。</li>
+  <li>以 <code>--embedder transformers:&lt;org&gt;/&lt;model&gt;:q8 --rebuild</code> 重建索引（vec0 表會依新維度重建）。</li>
+  <li>跑 <code>npm test</code> 與 <code>npm run demo</code>，比對 <code>examples/demo-queries.txt</code> 的結果是否改善。</li>
+</ol>
+
+<h3 id="dev-add-format">新增支援的檔案格式（例：.txt）</h3>
+<ol class="steps">
+  <li><code>src/config.js</code>：把副檔名加入 <code>SUPPORTED_EXT</code>。</li>
+  <li><code>src/parse.js</code> 的 <code>parseDocument()</code>：依副檔名轉成 Markdown 風格文字後走同一套切塊流程。</li>
+  <li>在 <code>sample-docs/</code> 放一個範例、在 <code>test/core.test.js</code> 加解析測試，然後 <code>npm test</code>。</li>
+</ol>
+
+<h3 id="dev-contract">對外介面約定</h3>
+<ul>
+  <li><code>/api/search</code> 的查詢參數（<code>q, mode, k, perFile</code>）與回應欄位是 Web UI 與外部腳本共用的契約，新增欄位可以，改名或刪除請避免。</li>
+  <li>DB 位置與檔名（<code>&lt;data-dir&gt;/index.sqlite</code>）、log 檔名（<code>lss-YYYYMMDD.jsonl</code>）維持不變，方便維運腳本。</li>
+</ul>
+
+<h3 id="dev-versions">相依套件版本</h3>
+<table>
+  <tr><th>套件</th><th>版本</th><th>說明</th></tr>
+  <tr><td><code>@huggingface/transformers</code></td><td>^4.3.2</td><td>CPU 推論（onnxruntime-node）</td></tr>
+  <tr><td><code>better-sqlite3</code></td><td>^13.0.3</td><td>原生模組，換 Node 版本要 <code>npm rebuild</code></td></tr>
+  <tr><td><code>sqlite-vec</code></td><td>^0.1.9</td><td>原生擴充，提供 <code>vec0</code> 虛擬表</td></tr>
+  <tr><td>Node.js</td><td>22.23.4（Volta 鎖定），≥ 20 &lt; 25</td><td>—</td></tr>
+  <tr><td>模型</td><td>Xenova/multilingual-e5-small q8</td><td>SHA-256 釘選於 <code>scripts/fetch-model.js</code></td></tr>
+</table>
+
+<h3 id="dev-changelog">變更紀錄</h3>
+<table>
+  <tr><th>版本</th><th>日期</th><th>內容</th></tr>
+  <tr><td>0.1.0</td><td>2026-11-05</td><td>首版：FTS5 bigram + sqlite-vec + e5-small、RRF、增量索引、Web UI、CLI；Linux 上 npm test 10/10、UI 驗證 8/8 通過。</td></tr>
+</table>
 </section>
 
 <section id="english">
@@ -280,13 +353,20 @@ meta(key, value)  -- embedder_id, embedder_dim, chunker_version, docs_root, last
   var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
   var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
   function show() {
-    var id = (location.hash || '#overview').slice(1);
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
     var all = id === 'all';
+    var anchor = null;
     document.body.classList.toggle('tabs', !all);
     var found = all || sections.some(function (s) { return s.id === id; });
-    if (!found) id = 'overview';
+    if (!found) {
+      // A sub-anchor inside a section (e.g. #dev-swap-model): open its section, then scroll to it.
+      var el = id && document.getElementById(id);
+      var sec = el && el.closest('main section');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    }
     sections.forEach(function (s) { s.classList.toggle('active', s.id === id); });
-    if (!all) window.scrollTo(0, 0);
+    if (anchor) anchor.scrollIntoView();
+    else if (!all) window.scrollTo(0, 0);
     links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id || (all && a.getAttribute('href') === '#all')); });
   }
   window.addEventListener('hashchange', show);
