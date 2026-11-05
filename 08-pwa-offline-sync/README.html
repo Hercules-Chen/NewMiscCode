@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 PWA Offline Sync - 說明文件</title>
+<style>
+  :root { --fg:#1d2330; --muted:#667085; --bg:#f6f7f9; --card:#fff; --accent:#0f766e; --border:#dde1e7; --code:#f2f4f7; --th:#f2f4f7; --navbg:#fafbfc; --note:#fffaeb; --okbg:#ecfdf3; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e4e7ec; --muted:#98a2b3; --bg:#0c111d; --card:#161b26; --accent:#14b8a6; --border:#2b3344; --code:#1f2937; --th:#1f2937; --navbg:#1f2937; --note:#2a2111; --okbg:#0f2a1e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif; color:var(--fg); background:var(--bg); line-height:1.65; overflow-wrap:anywhere; }
+  header { background:var(--card); border-bottom:1px solid var(--border); padding:12px 20px; position:sticky; top:0; z-index:2; }
+  header h1 { margin:0 0 8px; font-size:20px; }
+  nav { display:flex; flex-wrap:wrap; gap:4px; }
+  nav a { text-decoration:none; color:var(--fg); padding:4px 10px; border:1px solid var(--border); border-radius:16px; font-size:14px; background:var(--navbg); }
+  nav a.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:1000px; margin:0 auto; padding:8px 20px 40px; }
+  section { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:4px 20px 16px; margin:18px 0; }
+  body.tabs section { display:none; }
+  body.tabs section.active { display:block; }
+  h2 { border-bottom:2px solid var(--accent); padding-bottom:4px; font-size:19px; }
+  h3 { font-size:16px; margin-top:22px; }
+  a { color:var(--accent); }
+  code, pre { font-family:Consolas,"Cascadia Mono",monospace; font-size:13px; }
+  code { background:var(--code); padding:1px 5px; border-radius:3px; }
+  pre { background:#101828; color:#e4e7ec; padding:12px; border-radius:6px; overflow:auto; white-space:pre; overflow-wrap:normal; }
+  pre code { background:none; padding:0; color:inherit; }
+  table { border-collapse:collapse; width:100%; font-size:14px; margin:8px 0; }
+  @media (max-width: 640px) { table { display:block; overflow-x:auto; } }
+  th, td { border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:var(--th); }
+  .note { border-left:4px solid #f79009; background:var(--note); padding:8px 12px; margin:10px 0; }
+  .ok { border-left:4px solid #12b76a; background:var(--okbg); padding:8px 12px; margin:10px 0; }
+  .shots { display:flex; flex-wrap:wrap; gap:12px; }
+  figure { margin:0; flex:1 1 220px; max-width:300px; }
+  figcaption { font-size:13px; color:var(--muted); }
+  img { max-width:100%; height:auto; border:1px solid var(--border); border-radius:6px; }
+  .muted { color:var(--muted); font-size:13px; }
+  ol li, ul li { margin:3px 0; }
+  .diagram { font-family:Consolas,"Cascadia Mono",monospace; }
+</style>
+</head>
+<body>
+<header>
+  <h1>08 · PWA Offline Sync 離線優先巡檢紀錄</h1>
+  <nav id="nav">
+    <a href="#overview">概覽</a>
+    <a href="#quickstart">快速開始</a>
+    <a href="#usage">使用說明</a>
+    <a href="#verify">逐步驗證指南</a>
+    <a href="#dev">開發者指南</a>
+    <a href="#debug">除錯與日誌</a>
+    <a href="#limits">限制與疑難排解</a>
+    <a href="#english">English</a>
+    <a href="#all">全部顯示</a>
+  </nav>
+</header>
+<main>
+
+<section id="overview">
+  <h2>概覽</h2>
+  <p>一個可以「安裝到桌面/手機」的現場巡檢紀錄 App（PWA）。<b>完全離線也能開啟、新增、編輯、刪除</b>，所有寫入先存進瀏覽器的 IndexedDB「待同步佇列（outbox）」，恢復連線後自動送回伺服器；每筆寫入帶 <code>Idempotency-Key</code>，重送也不會重複；兩台裝置改到同一筆時，以伺服器版本號偵測衝突，讓使用者選「保留我的」或「採用對方」。</p>
+  <ul>
+    <li><b>手寫 Service Worker</b>（無 Workbox）：版本化 precache、API 用 stale-while-revalidate、HTML 用 network-first、activate 時清除舊快取、「新版本可用，重新載入」橫幅（postMessage → <code>skipWaiting()</code>）。</li>
+    <li><b>IndexedDB outbox</b> + <b>Background Sync</b>（Chrome/Edge）；不支援時改用 <code>online</code> 事件、App 啟動、15 秒計時器重送。</li>
+    <li><b>Node 伺服器</b>：零執行期相依套件，內建 <code>node:http</code> + <code>node:sqlite</code>（不需編譯原生模組，Windows 直接可用）。</li>
+    <li><b>狀態 UI</b>：線上/離線指示、待同步數量、衝突數、同步紀錄；zh-TW 預設 / English 切換；自動/淺色/深色主題；手機優先版面。</li>
+    <li><b>除錯</b>：伺服器 JSONL 分級日誌與 <code>--debug</code>；前端 <code>?debug=1</code>；DevTools 可用 <code>window.__pwa</code>。</li>
+  </ul>
+  <div class="shots">
+    <figure><img src="examples/main-zh-TW.png" alt="主畫面（繁中）" width="390" height="844"><figcaption>主畫面（zh-TW，除錯模式）</figcaption></figure>
+    <figure><img src="examples/offline-pending.png" alt="離線時待同步 4 筆" width="390" height="844"><figcaption>離線：4 筆寫入排在佇列，標示「待同步」</figcaption></figure>
+    <figure><img src="examples/conflict.png" alt="衝突處理畫面" width="390" height="844"><figcaption>衝突：我的版本 vs 伺服器版本</figcaption></figure>
+  </div>
+  <p class="muted">截圖由 <code>npm test</code> 的 Playwright e2e 測試自動產生（390×844、deviceScaleFactor 1）。</p>
+</section>
+
+<section id="quickstart">
+  <h2>快速開始</h2>
+  <p>需求：<b>Node.js 22.13 以上</b>（已在 22.23.4 測試；使用內建 <code>node:sqlite</code>）、Chrome 或 Edge。啟動伺服器<b>不需要</b> <code>npm install</code>（零執行期相依）；只有跑測試才需要安裝 Playwright。</p>
+  <h3 id="quickstart-windows">Windows</h3>
+  <ol>
+    <li>雙擊 <code>start.bat</code>（會顯示資料夾路徑、啟動伺服器；關閉時顯示 exit code 並暫停）。要改埠號：在命令列執行 <code>start.bat --port 8809</code>。</li>
+    <li>用 Chrome 開 <code>http://localhost:8808/</code>。網址列右側出現「安裝」圖示即可安裝成桌面 App。</li>
+    <li>除錯模式：<code>dev.bat</code>（伺服器 debug 等級日誌），前端開 <code>http://localhost:8808/?debug=1</code>。</li>
+    <li>跑測試：<code>run-tests.bat</code>（第一次會 <code>npm ci</code> 安裝 Playwright 套件；瀏覽器需另外有 Playwright 的 Chromium，見<a href="#limits-browsers">限制</a>）。</li>
+  </ol>
+  <p class="muted">鏈結：<code>start.bat</code> / <code>dev.bat</code> / <code>run-tests.bat</code>（純 ASCII + CRLF）→ <code>pwa.ps1</code>（UTF-8 with BOM）→ <code>node src/cli.js</code>。資料預設在 <code>%ProgramData%\NewMiscCode\08-pwa-offline-sync</code>。</p>
+  <h3 id="quickstart-linux">Linux / macOS</h3>
+<pre><code>cd 08-pwa-offline-sync
+./start.sh                 # 或 npm start；資料預設在 ./data
+npm run dev                # 等同 --debug
+npm install &amp;&amp; npm test    # 單元測試 + Playwright e2e</code></pre>
+  <h3>命令列參數</h3>
+  <table>
+    <tr><th>參數</th><th>環境變數</th><th>預設</th><th>說明</th></tr>
+    <tr><td><code>--port</code></td><td><code>PWA_PORT</code></td><td>8808</td><td>0 = 隨機埠</td></tr>
+    <tr><td><code>--host</code></td><td><code>PWA_HOST</code></td><td>127.0.0.1</td><td>Service Worker 需要安全來源：只能用 localhost 或 HTTPS</td></tr>
+    <tr><td><code>--data-dir</code></td><td><code>PWA_DATA_DIR</code></td><td>Windows <code>%ProgramData%\NewMiscCode\08-pwa-offline-sync</code>；其他 <code>./data</code></td><td>SQLite 檔 <code>pwa-offline-sync.sqlite</code></td></tr>
+    <tr><td><code>--log-dir</code></td><td><code>PWA_LOG_DIR</code></td><td><code>&lt;data-dir&gt;/logs</code></td><td>JSONL 日誌</td></tr>
+    <tr><td><code>--debug</code></td><td><code>PWA_DEBUG=1</code></td><td>關</td><td>輸出 debug 等級（每個 HTTP 請求）</td></tr>
+  </table>
+</section>
+
+<section id="usage">
+  <h2>使用說明</h2>
+  <ol>
+    <li><b>新增</b>：填「項目名稱」（必填）、位置、狀態（正常/異常/已改善）、備註，可選擇照片（自動縮成最長邊 800px 的 JPEG）。按「儲存」。</li>
+    <li><b>編輯 / 刪除</b>：列表每筆右側的「編輯」「刪除」。刪除需確認。</li>
+    <li><b>離線</b>：右上角顯示紅色「離線」。照常新增/編輯，每筆會出現「待同步」標籤，右上「待同步 N」遞增。</li>
+    <li><b>恢復連線</b>：自動同步（Background Sync 或 online 事件），「待同步」歸零；也可展開「同步狀態與紀錄」按「立即同步」。</li>
+    <li><b>衝突</b>：若別台裝置先改了同一筆，頁面頂端出現黃色「同步衝突」卡片，左右對照「我的版本 / 伺服器版本」：
+      <ul><li>「保留我的」：以伺服器最新版本為基礎重新送出你的內容（覆寫伺服器）。</li><li>「採用對方」：丟棄本機修改，改用伺服器版本。</li></ul></li>
+    <li><b>更新</b>：伺服器上的前端檔案變更後，下次開啟（或切回分頁）會出現「新版本可用，重新載入」，按「重新載入」即切換到新版。</li>
+    <li><b>語言 / 主題</b>：右上「EN / 中文」切換語言；主題按鈕循環「自動 → 淺色 → 深色」。設定記在 localStorage。</li>
+  </ol>
+  <div class="note">同一台電腦上，<code>http://localhost:8808</code> 與 <code>http://127.0.0.1:8808</code> 是<b>不同來源</b>，各自有自己的 Service Worker 與 IndexedDB 資料。</div>
+</section>
+
+<section id="verify">
+  <h2>逐步驗證指南</h2>
+  <h3 id="verify-auto">A. 自動驗證（建議先跑）</h3>
+<pre><code>npm install
+npm test                         # 單元測試 11 項 + e2e 9 項
+node ../tools/audit-text.mjs .   # 編碼稽核（npm run audit）</code></pre>
+  <p>預期：<code># pass 20</code>、<code># fail 0</code>。e2e 涵蓋：SW 註冊並控制頁面、precache 內容、Chrome 可安裝性檢查（CDP <code>Page.getInstallabilityErrors</code>）、離線重新載入、離線新增/編輯使佇列遞增、上線後佇列清空且伺服器每筆只有一份、<b>回應遺失後重送仍只有一份</b>、Background Sync 單獨清空佇列、無 Background Sync 時 online 事件備援、兩個 context 的衝突（保留我的 / 採用對方）、照片與刪除、語言/主題切換、SW 更新橫幅流程、全程無 console error。</p>
+
+  <h3 id="verify-devtools">B. 用 Chrome DevTools 手動驗證</h3>
+  <p>先執行 <code>start.bat</code>（或 <code>npm start</code>），Chrome 開 <code>http://localhost:8808/?debug=1</code>，按 <b>F12</b> 開 DevTools。</p>
+  <table>
+    <tr><th>#</th><th>操作</th><th>預期結果</th></tr>
+    <tr><td>1</td><td>DevTools → <b>Application → Service workers</b></td><td>看到 <code>sw.js</code>，Status 為綠點 <b>activated and is running</b>，Source 旁的版本對應頁尾「版本：1.0.0-xxxxxxxx」。</td></tr>
+    <tr><td>2</td><td><b>Application → Cache storage</b></td><td>有 <code>shell-1.0.0-xxxxxxxx</code>（含 <code>/</code>、<code>/index.html</code>、<code>/js/app.js</code>、<code>/css/app.css</code>、圖示等至少 11 筆）與 <code>api-v1</code>（<code>/api/records</code>）。</td></tr>
+    <tr><td>3</td><td><b>Application → Manifest</b></td><td>名稱「現場巡檢紀錄 Field Inspection (Offline)」、圖示 192/512/maskable 都能預覽，沒有 Installability 錯誤；網址列出現安裝圖示。</td></tr>
+    <tr><td>4</td><td><b>Network</b> 分頁 → 節流下拉選 <b>Offline</b>（或 Application → Service workers 勾 Offline）</td><td>右上指示變紅色「離線」。</td></tr>
+    <tr><td>5</td><td>按 F5 重新載入</td><td>頁面照常顯示（Network 分頁中文件的 Size 欄顯示 <code>(ServiceWorker)</code>），既有紀錄仍在（來自 IndexedDB）。</td></tr>
+    <tr><td>6</td><td>新增 2 筆、編輯 1 筆</td><td>「待同步」變成 3；每筆有橙色「待同步」標籤；「同步紀錄」出現 <code>enqueued</code>。</td></tr>
+    <tr><td>7</td><td><b>Application → IndexedDB → pwa-offline-sync → outbox</b></td><td>3 筆，每筆有 <code>key</code>（Idempotency-Key）、<code>method</code>、<code>url</code>、<code>body</code>。<code>records</code> 中對應紀錄 <code>pending: true</code>。（IndexedDB 檢視器不會自動刷新，按其重新整理圖示。）</td></tr>
+    <tr><td>8</td><td><b>Application → Background services → Background sync</b> 按「Start recording」</td><td>之後恢復連線時會記錄 <code>outbox-sync</code> 的 dispatch / complete 事件。</td></tr>
+    <tr><td>9</td><td>Network 改回 <b>No throttling</b></td><td>數秒內「待同步」歸零；同步紀錄出現 <code>replay-start / acked / replay-done</code>，來源為 <code>[sw-bgsync]</code>（Background Sync）或 <code>[sw:online-event]</code>（online 事件備援），兩者以 Web Lock 互斥，誰先拿到鎖誰處理。</td></tr>
+    <tr><td>10</td><td>開新分頁 <code>http://localhost:8808/api/records</code></td><td>JSON 中每筆只出現一次，版本號 <code>version</code> 正確（新增 = 1，每次編輯 +1）。</td></tr>
+    <tr><td>11</td><td><b>衝突</b>：開一般視窗 + 無痕視窗（兩個「裝置」）。A 視窗設 Offline 後修改某筆；B 視窗修改同一筆並儲存；A 恢復連線</td><td>A 頁面頂端出現「同步衝突」卡片；按「保留我的」→ 伺服器版本 +1 並成為 A 的內容；B 重新整理後看到 A 的內容。</td></tr>
+    <tr><td>12</td><td><b>更新流程</b>：保持頁面開著，修改 <code>public/css/app.css</code>（例如加一行註解）後重啟伺服器，再切回分頁（或在 Console 執行 <code>__pwa.checkUpdate()</code>）</td><td>Service workers 面板出現 <b>waiting to activate</b> 的新版本；頁面出現「新版本可用，重新載入」；按「重新載入」後頁尾版本號改變，Cache storage 只剩新的 <code>shell-…</code>。</td></tr>
+    <tr><td>13</td><td>Console 執行 <code>await __pwa.counts()</code>、<code>await __pwa.outbox()</code>、<code>await __pwa.log()</code></td><td>回傳目前佇列、衝突、本機筆數與同步紀錄。</td></tr>
+  </table>
+  <div class="note">「Disable cache」勾選或 <b>Ctrl+Shift+R 強制重新載入</b>時，該次載入會<b>繞過 Service Worker</b>（頁面不受控），此時離線會失敗，屬瀏覽器正常行為；一般 F5 即可。</div>
+
+  <h3 id="verify-results">C. 實測結果（本機 Linux，Node 22.23.4，Chromium 153）</h3>
+<pre><code>$ npm test
+ok 1 - service worker registers, controls the page and precaches the versioned shell
+ok 2 - offline: reload from cache, queue writes, then drain exactly once when online
+ok 3 - lost response: server applied the write but the client saw an error -&gt; retry with same key, still one copy
+ok 4 - Background Sync alone drains the queue (page fallbacks disabled)
+ok 5 - fallback without Background Sync: online event replays the queue
+ok 6 - conflict between two devices: keep mine / take theirs
+ok 7 - photo is resized client-side and synced; delete syncs as a tombstone
+ok 8 - language toggle, theme toggle, no horizontal scroll at 390px
+ok 9 - SW update flow: new build -&gt; banner -&gt; reload activates it and removes old cache
+ok 10 … ok 20 - server unit tests (idempotency, conflicts, validation, static/SW, logs, config)
+# pass 20
+# fail 0</code></pre>
+</section>
+
+<section id="dev">
+  <h2>開發者指南</h2>
+  <h3 id="dev-arch">架構</h3>
+<pre class="diagram"><code>Browser (page)                               Service Worker (sw.js)                 Node server (src/)
+┌───────────────────────────┐  postMessage  ┌─────────────────────────────┐  HTTP  ┌──────────────────────┐
+│ app.js  UI / i18n / theme │──REPLAY──────▶│ outbox-core.js (shared)     │───────▶│ server.js  REST API  │
+│ outbox-core.js            │◀─result───────│  replay() under Web Lock    │        │ db.js  node:sqlite   │
+│  saveLocal(): IndexedDB   │               │ sync event "outbox-sync"    │        │  records (version)   │
+│  records + outbox (1 tx)  │◀─Broadcast────│ fetch: precache / SWR / NF  │        │  idempotency (key)   │
+└───────────────────────────┘  Channel      └─────────────────────────────┘        │ logger.js  JSONL     │
+                                                                                     └──────────────────────┘</code></pre>
+  <ul>
+    <li><code>public/js/outbox-core.js</code>：頁面與 SW 共用（classic script，SW 以 <code>importScripts</code> 載入）。IndexedDB 資料庫 <code>pwa-offline-sync</code> v1，物件庫 <code>records</code>、<code>outbox</code>（autoIncrement <code>seq</code>、索引 <code>byRecord</code>）、<code>conflicts</code>、<code>log</code>（最多 200 筆）、<code>meta</code>。</li>
+    <li><code>public/sw.js</code>：快取策略、Background Sync、REPLAY 訊息、更新流程。<code>__BUILD_ID__</code> 由伺服器在送出時替換成 <code>套件版本-外殼檔案 SHA-256 前 8 碼</code>，所以任何外殼檔案變更都會讓 SW 位元組改變 → 瀏覽器安裝新版。</li>
+    <li><code>public/js/app.js</code>：UI、SW 註冊與更新橫幅、同步協調；<code>public/js/i18n.js</code>：字串表。</li>
+    <li><code>src/server.js</code>（HTTP + 靜態檔 + API）、<code>src/db.js</code>（schema、冪等、版本衝突）、<code>src/logger.js</code>、<code>src/config.js</code>、<code>src/cli.js</code>。</li>
+    <li><code>scripts/gen-icons.mjs</code>：純 Node 產生 SVG/PNG 圖示（<code>npm run icons</code>）。</li>
+  </ul>
+
+  <h3 id="dev-cache">快取策略</h3>
+  <table>
+    <tr><th>請求</th><th>策略</th><th>快取名稱</th><th>離線時</th></tr>
+    <tr><td>導覽（HTML，<code>mode: navigate</code>）</td><td>Network-first（3 秒逾時，啟用 navigation preload）</td><td><code>shell-&lt;BUILD_ID&gt;</code></td><td>回傳快取的 <code>/</code>／<code>/index.html</code></td></tr>
+    <tr><td>同源靜態檔（JS/CSS/圖示/manifest）</td><td>Cache-first（install 時 precache，<code>cache: 'reload'</code> 繞過 HTTP 快取）</td><td><code>shell-&lt;BUILD_ID&gt;</code></td><td>由快取提供</td></tr>
+    <tr><td><code>GET /api/records</code></td><td>Stale-while-revalidate；新資料與快取不同時 postMessage <code>API_UPDATED</code> 給頁面</td><td><code>api-v1</code></td><td>回傳快取；無快取時 503 JSON <code>{offline:true}</code></td></tr>
+    <tr><td><code>GET /api/health</code>、<code>/sw.js</code></td><td>不攔截（永遠走網路）</td><td>-</td><td>-</td></tr>
+    <tr><td>POST / PUT / DELETE</td><td>不攔截（寫入一律先進 IndexedDB outbox）</td><td>-</td><td>-</td></tr>
+  </table>
+  <p>activate 時刪除所有不在 <code>[shell-&lt;BUILD_ID&gt;, api-v1]</code> 的快取，並 <code>clients.claim()</code>。新版本安裝後<b>不會</b>自動 <code>skipWaiting()</code>；頁面偵測到 <code>installed</code> 且已有 controller 時顯示橫幅，使用者按「重新載入」→ <code>postMessage({type:'SKIP_WAITING'})</code> → <code>controllerchange</code> → <code>location.reload()</code>（只重載一次）。</p>
+
+  <h3 id="dev-sync">同步協定</h3>
+  <ol>
+    <li><b>本機寫入</b>：<code>saveLocal()</code> 在同一個 IndexedDB 交易中更新 <code>records</code>（<code>pending: true</code>）並新增 outbox 項目 <code>{seq, method, url, recordId, kind, body, key, attempts}</code>。<code>key</code> = <code>crypto.randomUUID()</code>，<b>入列時決定、每次重送都相同</b>。</li>
+    <li><b>觸發重送</b>：(a) 註冊 Background Sync tag <code>outbox-sync</code>；(b) 線上時立即請 SW 重送（<code>REPLAY</code> 訊息）；(c) <code>online</code> 事件；(d) App 啟動；(e) 有待同步項目時每 15 秒。全部透過 Web Locks <code>pwa-outbox-replay</code> 序列化，多分頁/SW 同時觸發也只會一個在跑。</li>
+    <li><b>依序送出</b>（<code>seq</code> 遞增）。PUT/DELETE 的 <code>baseVersion</code> 在<b>送出時</b>取本機記錄的 <code>version</code>（=最後一次伺服器確認的版本），所以「新增後又編輯」會自然接續：POST → v1，PUT(base 1) → v2。</li>
+    <li><b>回應處理</b>：2xx → 刪除項目、寫入伺服器版本；409 → 移到 <code>conflicts</code>（同一筆後續項目一併併入「我的版本」）；網路錯誤/5xx/408/429 → 停止、<code>attempts+1</code>、保留項目（Background Sync 會被 reject 以便瀏覽器退避重試）；其他 4xx → 丟棄並標示「被拒絕」。</li>
+    <li><b>伺服器冪等</b>：<code>Idempotency-Key</code> 已存在且請求指紋（method + path + body 的 SHA-256）相同 → 直接回傳先前儲存的狀態碼與內容（標頭 <code>Idempotent-Replayed: true</code>），不再執行；指紋不同 → 422。只記錄 2xx 與 409（驗證錯誤可修正後重試）。變更與冪等紀錄在同一個 SQLite 交易中提交。</li>
+    <li><b>衝突</b>：<code>baseVersion ≠ 伺服器 version</code> → 409 <code>{error:'conflict', server:{…}}</code>。「保留我的」= 以 <code>server.version</code> 為新基準、新的 key 重新入列；「採用對方」= 本機改成伺服器版本。</li>
+    <li><b>拉取</b>：重送後 <code>GET /api/records</code> 並合併：有待同步或衝突的記錄不覆蓋；本機版本較新（例如 SWR 回傳舊快取）不覆蓋；刪除以 tombstone（<code>deleted: true</code> + 版本）保存，舊快取無法讓它「復活」。</li>
+  </ol>
+
+  <h3 id="dev-api">API</h3>
+  <table>
+    <tr><th>方法</th><th>路徑</th><th>請求</th><th>回應</th></tr>
+    <tr><td>GET</td><td><code>/api/health</code></td><td>-</td><td><code>{ok, version, buildId, records, stats}</code></td></tr>
+    <tr><td>GET</td><td><code>/api/records[?since=ISO]</code></td><td>-</td><td><code>{records:[…含 tombstone], serverTime}</code></td></tr>
+    <tr><td>GET</td><td><code>/api/records/:id</code></td><td>-</td><td><code>{record}</code> / 404</td></tr>
+    <tr><td>POST</td><td><code>/api/records</code></td><td>標頭 <code>Idempotency-Key</code>；<code>{id, title, location?, note?, status?, photo?}</code></td><td>201 <code>{record}</code>；id 已存在 409</td></tr>
+    <tr><td>PUT</td><td><code>/api/records/:id[?force=1]</code></td><td><code>Idempotency-Key</code>；<code>{baseVersion, …欄位}</code></td><td>200 <code>{record}</code>；409 <code>{error:'conflict', server}</code>；404</td></tr>
+    <tr><td>DELETE</td><td><code>/api/records/:id</code></td><td><code>Idempotency-Key</code>；<code>{baseVersion}</code></td><td>200 <code>{record:{deleted:true}}</code>（軟刪除）；409</td></tr>
+    <tr><td>POST</td><td><code>/api/log</code></td><td><code>{level, msg, data}</code></td><td>204（<code>?debug=1</code> 時前端錯誤回報）</td></tr>
+  </table>
+  <p>錯誤格式：<code>{error: 'code', message}</code>。代碼：<code>title_required</code>、<code>bad_status</code>、<code>bad_photo</code>、<code>bad_id</code>、<code>base_version_required</code>、<code>idempotency_key_reused</code>(422)、<code>conflict</code>(409)、<code>not_found</code>、<code>too_large</code>(413，上限 2 MB)。<code>X-Client-Id</code> 標頭會記為 <code>updatedBy</code>。</p>
+
+  <h3 id="dev-schema">資料庫 Schema（SQLite）</h3>
+<pre><code>records(id TEXT PK, title TEXT NOT NULL, location TEXT, note TEXT,
+        status TEXT CHECK (status IN ('ok','issue','fixed')), photo TEXT,   -- data:image/jpeg;base64,…
+        version INTEGER NOT NULL DEFAULT 1, deleted INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT, updated_at TEXT, updated_by TEXT)
+idempotency(key TEXT PK, fingerprint TEXT, status INTEGER, body TEXT, created_at TEXT)
+meta(k TEXT PK, v TEXT)</code></pre>
+  <p>WAL 模式。<code>Store.pruneIdempotency()</code> 可清除 7 天前的冪等紀錄（目前未排程）。</p>
+
+  <h3 id="dev-extend">如何擴充</h3>
+  <ul>
+    <li><b>新增欄位</b>：<code>src/db.js</code> 的 SCHEMA（舊資料庫需 <code>ALTER TABLE</code>）、<code>validateInput()</code>、<code>rowToRecord()</code>；前端 <code>outbox-core.js</code> 的 <code>FIELDS</code>、<code>index.html</code> 表單、<code>app.js</code> 的 <code>onSubmit()</code>/<code>renderRecords()</code>、<code>i18n.js</code> 字串。</li>
+    <li><b>新增外殼檔案</b>：同時加到 <code>src/server.js</code> 的 <code>SHELL_FILES</code>（影響 BUILD_ID）與 <code>public/sw.js</code> 的 <code>SHELL</code>（precache）。</li>
+    <li><b>新增語言</b>：在 <code>public/js/i18n.js</code> 的 <code>STRINGS</code> 加一組；語言切換按鈕目前是 zh-TW ⇄ en 兩者切換。</li>
+    <li><b>改 IndexedDB 結構</b>：<code>DB_VERSION</code> +1 並在 <code>onupgradeneeded</code> 中遷移。</li>
+    <li><b>多使用者/驗證</b>：目前無登入（見限制）；可在 <code>handleApi()</code> 前加驗證並把使用者寫入 <code>updated_by</code>。</li>
+  </ul>
+
+  <h3 id="dev-versions">版本</h3>
+  <table>
+    <tr><th>元件</th><th>版本</th><th>備註</th></tr>
+    <tr><td>Node.js</td><td>≥ 22.13（測試 22.23.4）</td><td><code>node:sqlite</code>（內建 SQLite 3.53.4），以 <code>--disable-warning=ExperimentalWarning</code> 隱藏實驗性警告</td></tr>
+    <tr><td>執行期 npm 套件</td><td>無</td><td><code>node:http</code>、<code>node:sqlite</code>、<code>node:crypto</code></td></tr>
+    <tr><td>playwright（dev）</td><td>1.63.0（固定）</td><td>Chromium 153.0.8010.12；e2e 用 <code>channel: 'chromium'</code>（新 headless，支援 Background Sync）</td></tr>
+    <tr><td>App</td><td>1.0.0</td><td>BUILD_ID 例：<code>1.0.0-427ad450</code></td></tr>
+  </table>
+
+  <h3 id="dev-changelog">變更紀錄</h3>
+  <ul>
+    <li><b>1.0.0</b>（2026-11-05）：初版。手寫 SW（precache/SWR/network-first/更新橫幅）、IndexedDB outbox + Background Sync + 備援、冪等鍵、版本衝突 UI、照片縮圖、zh-TW/en、深淺色、JSONL 日誌、Windows 啟動器、20 項自動測試。</li>
+  </ul>
+</section>
+
+<section id="debug">
+  <h2>除錯與日誌</h2>
+  <h3>伺服器</h3>
+  <ul>
+    <li>日誌檔：<code>&lt;data-dir&gt;/logs/server-YYYY-MM-DD.jsonl</code>（Windows 預設 <code>%ProgramData%\NewMiscCode\08-pwa-offline-sync\logs</code>），每行一個 JSON：<code>{ts, level, msg, …}</code>，等級 <code>debug / info / warn / error</code>。</li>
+    <li>預設 info：啟動、每次寫入（<code>mutation</code>：method、path、status、key、replayed、version）、前端回報。<code>--debug</code>（<code>dev.bat</code> / <code>npm run dev</code>）另外記錄每個 HTTP 請求與耗時（<code>http</code>）。</li>
+    <li>未預期錯誤記為 <code>unhandled</code>（含 stack 與 <code>reqId</code>），回應 500 <code>{error:'internal', reqId}</code>。</li>
+    <li><code>GET /api/health</code> 的 <code>stats</code>：請求數、冪等重播數 <code>replays</code>、衝突數 <code>conflicts</code>。</li>
+  </ul>
+<pre><code># PowerShell：查看最近的寫入
+Get-Content "$env:ProgramData\NewMiscCode\08-pwa-offline-sync\logs\server-*.jsonl" -Tail 20 -Encoding UTF8
+# Linux
+tail -f data/logs/server-*.jsonl</code></pre>
+  <h3>前端</h3>
+  <ul>
+    <li><code>?debug=1</code>：<code>console.debug</code> 輸出（DevTools Console 需勾選 Verbose 等級）、同步紀錄面板自動展開、SW 也輸出 debug、<code>window.onerror</code> / unhandledrejection 送到 <code>POST /api/log</code>。</li>
+    <li>同步紀錄（IndexedDB <code>log</code> 物件庫，最多 200 筆）：<code>enqueued / replay-start / acked / conflict / network-error / rejected / replay-done / online / offline / sw-activated</code>，方括號內為來源（<code>page</code>、<code>sw:&lt;原因&gt;</code>、<code>sw-bgsync</code>）。</li>
+    <li><code>window.__pwa</code>：<code>counts()</code>、<code>records()</code>、<code>outbox()</code>、<code>conflicts()</code>、<code>log()</code>、<code>sync()</code>、<code>replay()</code>、<code>pull()</code>、<code>checkUpdate()</code>、<code>applyUpdate()</code>、<code>state</code>、<code>core</code>（全部低階函式）。</li>
+    <li><code>?nofallback=1</code>：關閉 online 事件/計時器備援，只靠 Background Sync（測試用）。</li>
+    <li>SW 的 console 在 DevTools → Application → Service workers → 「Inspect」或 <code>chrome://serviceworker-internals</code>。衝突時伺服器回 409，Chrome 會在 <b>SW 的</b> console 顯示一行紅色「Failed to load resource: 409」，這是協定的一部分，不是錯誤。</li>
+  </ul>
+  <p>App 不會攔截 F12 或右鍵，也不會阻擋 DevTools。</p>
+</section>
+
+<section id="limits">
+  <h2>限制與疑難排解</h2>
+  <h3>限制</h3>
+  <ul>
+    <li>沒有登入/權限；所有裝置共用同一份資料。<code>?force=1</code> 可略過版本檢查（目前 UI 未使用）。</li>
+    <li>衝突以「整筆」為單位（不做欄位層級合併）。</li>
+    <li>照片以 base64 存在 SQLite 與 IndexedDB（縮圖後約 30–150 KB），不適合大量高解析照片。</li>
+    <li>Background Sync 只有 Chromium 系（Chrome/Edge）支援；Firefox/Safari 走 online 事件/啟動/計時器備援，頁面關閉時不會同步。</li>
+    <li>Service Worker 需安全來源：只能用 <code>localhost</code>/<code>127.0.0.1</code> 或 HTTPS。用手機連電腦的區網 IP（http）時 SW 不會啟用，需自行架設 HTTPS 反向代理。</li>
+    <li>IndexedDB 本機 tombstone 不會自動清除；冪等紀錄有清除函式但未排程。</li>
+  </ul>
+  <h3 id="limits-browsers">疑難排解</h3>
+  <table>
+    <tr><th>症狀</th><th>原因 / 處理</th></tr>
+    <tr><td>啟動時 <code>Port 8808 is in use</code></td><td>改用 <code>start.bat --port 8809</code>。</td></tr>
+    <tr><td><code>node:sqlite</code> 找不到 / <code>ERR_UNKNOWN_BUILTIN_MODULE</code></td><td>Node 太舊，請升級到 22.13 以上。</td></tr>
+    <tr><td>離線重新載入出現「無法連上這個網站」</td><td>第一次載入時 SW 尚未安裝完成，或用了 Ctrl+Shift+R / 勾了 Disable cache。線上時先正常開一次（頁尾出現版本號）再測。</td></tr>
+    <tr><td>改了前端檔案卻沒有更新橫幅</td><td>伺服器在<b>啟動時</b>計算 BUILD_ID，需重啟伺服器；再切回分頁或執行 <code>__pwa.checkUpdate()</code>。</td></tr>
+    <tr><td>「待同步」一直不歸零</td><td>展開「同步狀態與紀錄」看 <code>network-error</code>/<code>rejected</code>；確認伺服器在跑；按「立即同步」。被拒絕（400）的項目會丟棄並在紀錄標示「被拒絕」。</td></tr>
+    <tr><td>想清空重來</td><td>App 內「清除本機資料」；或 DevTools → Application → Storage → Clear site data；伺服器端刪除資料資料夾中的 <code>pwa-offline-sync.sqlite*</code>。</td></tr>
+    <tr><td><code>run-tests.bat</code> 找不到瀏覽器</td><td>e2e 需要 Playwright 1.63.0 的 Chromium。一般電腦執行 <code>npx playwright install chromium</code>（需可連網）。</td></tr>
+    <tr><td>e2e 中 Background Sync 測試失敗</td><td>舊版 headless shell 會回報 <code>Background Sync is disabled</code>；測試使用 <code>channel: 'chromium'</code>（新 headless）。</td></tr>
+  </table>
+</section>
+
+<section id="english">
+  <h2>English summary</h2>
+  <p><b>08-pwa-offline-sync</b> is an installable, offline-first field inspection notes app. Writes are stored in an IndexedDB outbox (record + queue item in one transaction) and replayed in order by the Service Worker when connectivity returns: via Background Sync (<code>outbox-sync</code>) where supported, otherwise on the <code>online</code> event, app start, or a 15 s timer. Every queued write carries a fixed <code>Idempotency-Key</code>; the server stores the response per key in the same SQLite transaction as the mutation, so retries after lost responses never duplicate. Records have a server <code>version</code>; a stale <code>baseVersion</code> yields 409 and the UI lets the user <i>Keep mine</i> (rebase + resend) or <i>Use theirs</i>.</p>
+  <ul>
+    <li>Hand-written SW: versioned precache (<code>shell-&lt;version-hash&gt;</code>), network-first HTML, cache-first assets, stale-while-revalidate API GET, old-cache cleanup on activate, update banner with <code>SKIP_WAITING</code> via postMessage.</li>
+    <li>Server: Node ≥ 22.13, zero runtime dependencies (<code>node:http</code> + <code>node:sqlite</code>), JSONL logs with levels, <code>--debug</code>. Data: Windows <code>%ProgramData%\NewMiscCode\08-pwa-offline-sync</code>, else <code>./data</code>.</li>
+    <li>Run: <code>start.bat</code> (Windows) or <code>npm start</code>, open <code>http://localhost:8808/</code>. Debug: <code>?debug=1</code>, <code>window.__pwa</code>.</li>
+    <li>Tests: <code>npm test</code> = 11 server tests + 9 Playwright e2e tests (SW control, offline reload, queueing, exactly-once drain, lost-response retry, Background Sync only, online-event fallback, two-context conflicts, photo + delete, i18n/theme, SW update flow, no console errors).</li>
+  </ul>
+</section>
+
+</main>
+<script>
+// Hash-based tabs. Without JS every section is simply shown in order.
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('#nav a'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  function show() {
+    var id = decodeURIComponent((location.hash || '#overview').slice(1));
+    var all = id === 'all';
+    var anchor = null;
+    document.body.classList.toggle('tabs', !all);
+    var found = all || sections.some(function (s) { return s.id === id; });
+    if (!found) {
+      // A sub-anchor inside a section (e.g. #dev-sync): open its section, then scroll to it.
+      var el = id && document.getElementById(id);
+      var sec = el && el.closest('main section');
+      if (sec) { anchor = el; id = sec.id; } else { id = 'overview'; }
+    }
+    sections.forEach(function (s) { s.classList.toggle('active', s.id === id); });
+    if (anchor) anchor.scrollIntoView();
+    else if (!all) window.scrollTo(0, 0);
+    links.forEach(function (a) { a.classList.toggle('active', a.getAttribute('href') === '#' + id || (all && a.getAttribute('href') === '#all')); });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+})();
+</script>
+</body>
+</html>

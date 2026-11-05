@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>現場巡檢紀錄</title>
+<meta name="description" content="離線優先的現場巡檢紀錄 PWA / Offline-first field inspection notes">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script>
+  // Apply saved theme before first paint (avoid flash). Storage may be blocked: never throw.
+  try { var th = localStorage.getItem('pwa.theme'); if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th; } catch (e) {}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <img src="/icons/icon.svg" alt="" width="32" height="32">
+    <div>
+      <h1 data-i18n="appTitle">現場巡檢紀錄</h1>
+      <p class="sub" data-i18n="appSub">離線也能記錄，恢復連線自動同步</p>
+    </div>
+  </div>
+  <div class="tools">
+    <span id="net-status" class="pill" data-state="online" role="status" aria-live="polite"><span class="dot"></span><span class="txt" data-i18n="online">線上</span></span>
+    <span id="pending-pill" class="pill pending" title="待同步"><span data-i18n="pending">待同步</span> <b id="pending-count">0</b></span>
+    <button id="lang-btn" class="btn ghost" type="button" data-i18n-title="langTitle">EN</button>
+    <button id="theme-btn" class="btn ghost" type="button" data-i18n-title="themeTitle">自動</button>
+  </div>
+</header>
+
+<div id="update-banner" class="banner" hidden role="alert">
+  <span data-i18n="updateAvailable">新版本可用，重新載入</span>
+  <span class="grow"></span>
+  <button id="reload-btn" class="btn primary" type="button" data-i18n="updateBtn">重新載入</button>
+  <button id="later-btn" class="btn ghost" type="button" data-i18n="updateLater">稍後</button>
+</div>
+<div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
+<main>
+  <section id="conflict-section" class="card warn" hidden>
+    <h2 data-i18n="conflictTitle">同步衝突（需要你決定）</h2>
+    <p class="muted" data-i18n="conflictHelp">伺服器上的版本已被其他裝置修改。請選擇要保留哪一份：</p>
+    <div id="conflict-list"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="form-title" data-i18n="formNew">新增巡檢紀錄</h2>
+    <form id="record-form" autocomplete="off" novalidate>
+      <input type="hidden" id="f-id">
+      <label><span data-i18n="fTitle">項目名稱</span> *
+        <input id="f-title" name="title" maxlength="200" required data-i18n-ph="fTitlePh"></label>
+      <div class="row2">
+        <label><span data-i18n="fLocation">位置</span>
+          <input id="f-location" name="location" maxlength="200" data-i18n-ph="fLocationPh"></label>
+        <label><span data-i18n="fStatus">狀態</span>
+          <select id="f-status" name="status">
+            <option value="ok" data-i18n="stOk">正常</option>
+            <option value="issue" data-i18n="stIssue">異常</option>
+            <option value="fixed" data-i18n="stFixed">已改善</option>
+          </select></label>
+      </div>
+      <label><span data-i18n="fNote">備註</span>
+        <textarea id="f-note" name="note" rows="3" maxlength="5000" data-i18n-ph="fNotePh"></textarea></label>
+      <label class="photo-label"><span data-i18n="fPhoto">照片（選填，自動縮圖）</span>
+        <input id="f-photo" type="file" accept="image/*" capture="environment"></label>
+      <div id="photo-preview" class="photo-preview" hidden><img alt=""><button type="button" id="photo-remove" class="btn ghost small" data-i18n="removePhoto">移除照片</button></div>
+      <p id="form-error" class="error" hidden></p>
+      <div class="actions">
+        <button id="save-btn" class="btn primary" type="submit" data-i18n="save">儲存</button>
+        <button id="cancel-btn" class="btn ghost" type="button" hidden data-i18n="cancel">取消</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2><span data-i18n="listTitle">紀錄列表</span> <small id="record-count" class="muted"></small></h2>
+    <ul id="record-list" class="records"></ul>
+    <p id="empty-msg" class="muted" hidden data-i18n="empty">目前沒有紀錄。</p>
+  </section>
+
+  <section class="card">
+    <details id="sync-panel">
+      <summary><h2 data-i18n="syncTitle">同步狀態與紀錄</h2></summary>
+      <dl class="stats">
+        <div><dt data-i18n="statPending">待同步</dt><dd id="stat-pending">0</dd></div>
+        <div><dt data-i18n="statConflicts">衝突</dt><dd id="stat-conflicts">0</dd></div>
+        <div><dt data-i18n="statRecords">本機筆數</dt><dd id="stat-records">0</dd></div>
+        <div><dt data-i18n="statLast">最後同步</dt><dd id="stat-last">-</dd></div>
+        <div><dt data-i18n="bgSync">Background Sync</dt><dd id="stat-bgsync">-</dd></div>
+        <div><dt data-i18n="swState">Service Worker</dt><dd id="stat-sw">-</dd></div>
+      </dl>
+      <div class="actions">
+        <button id="sync-btn" class="btn primary" type="button" data-i18n="syncNow">立即同步</button>
+        <button id="clear-log-btn" class="btn ghost" type="button" data-i18n="clearLog">清除紀錄</button>
+        <button id="reset-btn" class="btn ghost danger" type="button" data-i18n="resetLocal">清除本機資料</button>
+      </div>
+      <ol id="sync-log" class="log" reversed></ol>
+    </details>
+  </section>
+</main>
+
+<footer class="foot">
+  <span><span data-i18n="version">版本</span>: <code id="build-id">-</code></span>
+  <span id="debug-flag" hidden data-i18n="debugOn">除錯模式已開啟（?debug=1）</span>
+</footer>
+
+<script src="/js/outbox-core.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
